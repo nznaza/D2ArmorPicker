@@ -16,8 +16,8 @@
  */
 
 import { Component, OnInit } from "@angular/core";
-import GLPKConstructor, { GLPK, LP, Result } from "glpk.js";
-//declare const GLPKConstructor: () => GLPK;
+import { GLPK, LP, Result } from "glpk.js";
+declare const GLPKConstructor: () => GLPK;
 import { ModifierType } from "src/app/data/enum/modifierType";
 import { IInventoryArmor } from "../../../../data/types/IInventoryArmor";
 import { ArmorSlot } from "../../../../data/enum/armor-slot";
