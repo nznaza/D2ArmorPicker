@@ -177,7 +177,7 @@ export class InventoryService {
     }
   }
 
-  async updateResults(nthreads: number = 3) {
+  async updateResults(nthreads: number = 6) {
     this.clearResults();
 
     if (this.updatingResults) {
