@@ -201,8 +201,7 @@ export class InventoryService {
       let selectedExotics: IManifestArmor[] = await Promise.all(
         config.selectedExotics
           .filter((hash) => hash != FORCE_USE_NO_EXOTIC)
-          .map(
-            async (hash) =>
+          .map(async (hash) =>
               (await this.db.manifestArmor.where("hash").equals(hash).first()) as IManifestArmor
           )
       );
@@ -215,51 +214,62 @@ export class InventoryService {
         .toArray()) as IInventoryArmor[];
 
       itemz = itemz
-        // only armor :)
-        .filter((item) => item.slot != ArmorSlot.ArmorSlotNone)
-        // filter disabled items
-        .filter((item) => config.disabledItems.indexOf(item.itemInstanceId) == -1)
-        // filter collection/vendor rolls if not allowed
-        .filter((item) => {
-          switch (item.source) {
-            case InventoryArmorSource.Collections:
-              return config.includeCollectionRolls;
-            case InventoryArmorSource.Vendor:
-              return config.includeVendorRolls;
-            default:
-              return true;
-          }
-        })
-        // filter the selected exotic right here
-        .filter(
-          (item) => config.selectedExotics.indexOf(FORCE_USE_NO_EXOTIC) == -1 || !item.isExotic
-        )
-        .filter(
-          (item) =>
-            selectedExotics.length != 1 ||
-            selectedExotics[0].slot != item.slot ||
-            selectedExotics[0].hash == item.hash
-        )
-        // config.onlyUseMasterworkedItems - only keep masterworked items
-        .filter((item) => !config.onlyUseMasterworkedItems || item.masterworked)
-        // non-legendaries and non-exotics
-        .filter(
-          (item) =>
-            config.allowBlueArmorPieces ||
-            item.rarity == TierType.Exotic ||
-            item.rarity == TierType.Superior
-        )
-        // sunset armor
-        .filter((item) => !config.ignoreSunsetArmor || !item.isSunset)
-        // armor perks
-        .filter((item) => {
-          return (
-            item.isExotic ||
-            !config.armorPerks[item.slot].fixed ||
-            config.armorPerks[item.slot].value == ArmorPerkOrSlot.None ||
-            config.armorPerks[item.slot].value == item.perk
-          );
-        });
+    // only armor :)
+    .filter((item) => item.slot != ArmorSlot.ArmorSlotNone)
+    // filter disabled items
+    .filter((item) => config.disabledItems.indexOf(item.itemInstanceId) == -1)
+    // filter collection/vendor rolls if not allowed
+    .filter((item) => {
+      switch (item.source) {
+        case InventoryArmorSource.Collections:
+          return config.includeCollectionRolls;
+        case InventoryArmorSource.Vendor:
+          return config.includeVendorRolls;
+        default:
+          return true;
+      }
+    })
+    // filter the selected exotic right here
+    .filter((item) => config.selectedExotics.indexOf(FORCE_USE_NO_EXOTIC) == -1 || !item.isExotic)
+    .filter(
+      (item) =>
+        selectedExotics.length != 1 ||
+        selectedExotics[0].slot != item.slot ||
+        selectedExotics[0].hash == item.hash
+    )
+
+    // config.OnlyUseMasterworkedExotics - only keep exotics that are masterworked
+    .filter(
+      (item) =>
+        !config.onlyUseMasterworkedExotics ||
+        !(item.rarity == TierType.Exotic && !item.masterworked)
+    )
+
+    // config.OnlyUseMasterworkedLegendaries - only keep legendaries that are masterworked
+    .filter(
+      (item) =>
+        !config.onlyUseMasterworkedLegendaries ||
+        !(item.rarity == TierType.Superior && !item.masterworked)
+    )
+
+    // non-legendaries and non-exotics
+    .filter(
+      (item) =>
+        config.allowBlueArmorPieces ||
+        item.rarity == TierType.Exotic ||
+        item.rarity == TierType.Superior
+    )
+    // sunset armor
+    .filter((item) => !config.ignoreSunsetArmor || !item.isSunset)
+    // armor perks
+    .filter((item) => {
+      return (
+        item.isExotic ||
+        !config.armorPerks[item.slot].fixed ||
+        config.armorPerks[item.slot].value == ArmorPerkOrSlot.None ||
+        config.armorPerks[item.slot].value == item.perk
+      );
+    });
       // console.log(items.map(d => "id:'"+d.itemInstanceId+"'").join(" or "))
 
       // Remove collection items if they are in inventory
