@@ -18,30 +18,61 @@
 <div style="display: flex; align-items: center; gap: 12px">
   <div class="custom-stat-slider" style="width: 350px; height: 30px">
     <div style="display: flex; align-items: center; height: 100%; width: 100%; gap: 0">
-      <ng-container *ngFor="let value of statValues">
-        <div
-          class="stat-line"
-          [class.zero-line]="value === 0"
-          [class.milestone-line]="value === 50 || value === 100 || value === 150 || value === 200"
-          [class.selected]="value === selectedValue"
-          [class.lower-than-selected]="value < selectedValue"
-          [class.lower-than-hovered]="hoveredValue !== null && value < hoveredValue"
-          [class.higher-than-hovered]="hoveredValue !== null && value >= hoveredValue"
-          [class.disabled]="value > currentAnimatedMaxValue"
-          [style.height]="
-            value === 0 || value === 50 || value === 100 || value === 150 || value === 200
-              ? '16px'
-              : '8px'
-          "
-          [matTooltip]="'Value: ' + value + (value % 50 === 0 ? ' (Tier ' + value / 10 + ')' : '')"
-          [matTooltipDisabled]="value > currentAnimatedMaxValue"
-          matTooltipPosition="above"
-          [matTooltipShowDelay]="0"
-          (click)="value <= maximumAvailableTier * 10 && setValueMob(value)"
-          (mouseenter)="handleHover(value)"
-          (mouseleave)="clearHover()">
-        </div>
-      </ng-container>
+      <div
+        style="
+          display: flex;
+          height: 100%;
+          z-index: 1;
+          opacity: 1;
+          display: flex;
+          width: 100%;
+          z-index: 1;
+        ">
+        <ng-container *ngFor="let value of statValues" sty>
+          <div
+            class="stat-line"
+            [class.zero-line]="value === 0"
+            [class.milestone-line]="value === 50 || value === 100 || value === 150 || value === 200"
+            [class.selected]="value === selectedValue"
+            [class.lower-than-selected]="value < selectedValue"
+            [class.lower-than-hovered]="hoveredValue !== null && value < hoveredValue"
+            [class.higher-than-hovered]="hoveredValue !== null && value >= hoveredValue"
+            [class.disabled]="value > currentAnimatedMaxValue"
+            [style.height]="
+              value === 0 || value === 50 || value === 100 || value === 150 || value === 200
+                ? '16px'
+                : '8px'
+            "
+            [matTooltip]="
+              'Value: ' + value + (value % 50 === 0 ? ' (Tier ' + value / 10 + ')' : '')
+            "
+            [matTooltipDisabled]="value > currentAnimatedMaxValue"
+            matTooltipPosition="above"
+            [matTooltipShowDelay]="0"
+            (click)="value <= maximumAvailableTier * 10 && setValueMob(value)"
+            (mouseenter)="handleHover(value)"
+            (mouseleave)="clearHover()">
+          </div>
+        </ng-container>
+      </div>
+      <input
+        #valueSlider
+        type="range"
+        min="0"
+        max="200"
+        [value]="selectedValue"
+        (input)="setValueFromSlider()"
+        style="
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          z-index: 2;
+          opacity: 0;
+          margin: 0;
+          padding: 0;
+        " />
     </div>
     <div class="milestone-labels">
       <button

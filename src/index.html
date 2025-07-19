@@ -15,13 +15,30 @@
   ~ along with this program.  If not, see <http://www.gnu.org/licenses/>.
   -->
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>D2ArmorPicker</title>
     <base href="/" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=660" />
+    <script>
+      function checkViewPort() {
+        let viewport = document.querySelector("meta[name=viewport]");
+        let newViewport = document.createElement("meta");
+        newViewport.setAttribute("name", "viewport");
+        if (screen.width >= 660) {
+          newViewport.setAttribute("content", "width=device-width, initial-scale=1.0");
+        } else {
+          newViewport.setAttribute("content", "width=660");
+        }
+        viewport.parentNode.removeChild(viewport);
+        document.head.appendChild(newViewport);
+      }
+      checkViewPort();
+      screen.orientation.addEventListener("change", checkViewPort);
+      window.addEventListener("resize", checkViewPort);
+    </script>
     <meta property="og:title" content="D2ArmorPicker by Mijago" />
     <meta property="og:site_name" content="D2ArmorPicker by Mijago" />
     <meta property="og:type" content="website" />

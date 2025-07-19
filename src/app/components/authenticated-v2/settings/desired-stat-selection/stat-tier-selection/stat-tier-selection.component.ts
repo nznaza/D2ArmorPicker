@@ -26,6 +26,7 @@ import {
   ViewChild,
   ElementRef,
   AfterViewChecked,
+  AfterViewInit,
 } from "@angular/core";
 import { ArmorStat } from "../../../../../data/enum/armor-stat";
 
@@ -34,7 +35,9 @@ import { ArmorStat } from "../../../../../data/enum/armor-stat";
   templateUrl: "./stat-tier-selection.component.html",
   styleUrls: ["./stat-tier-selection.component.scss"],
 })
-export class StatTierSelectionComponent implements OnInit, OnChanges, OnDestroy, AfterViewChecked {
+export class StatTierSelectionComponent
+  implements OnInit, OnChanges, OnDestroy, AfterViewChecked, AfterViewInit
+{
   readonly TierRange = new Array(11);
   @Input() stat: ArmorStat = ArmorStat.StatWeapon;
   @Input() statsByMods: number = 0;
@@ -45,6 +48,7 @@ export class StatTierSelectionComponent implements OnInit, OnChanges, OnDestroy,
   @Output() lockedChange = new EventEmitter<boolean>();
 
   @ViewChild("valueInput") valueInput!: ElementRef<HTMLInputElement>;
+  @ViewChild("valueSlider") valueSlider!: ElementRef<HTMLInputElement>;
 
   selectedValue: number = 0;
   public hoveredValue: number | null = null;
@@ -85,6 +89,101 @@ export class StatTierSelectionComponent implements OnInit, OnChanges, OnDestroy,
         inputElem.setSelectionRange(valueLength, valueLength);
       }
     }
+  }
+
+  ngAfterViewInit() {
+    const slider = this.valueSlider.nativeElement;
+    const DRAG_THRESHOLD = this.DRAG_THRESHOLD;
+
+    const onMouseDown = (e: MouseEvent | TouchEvent) => {
+      this.dragging = false;
+      this.startX = e instanceof MouseEvent ? e.clientX : (e as TouchEvent).touches[0].clientX;
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("touchmove", onMouseMove);
+
+      document.addEventListener("mouseup", onMouseUp, { once: true });
+      document.addEventListener("touchend", onMouseUp, { once: true });
+    };
+
+    const onMouseMove = (e: MouseEvent | TouchEvent) => {
+      const clientX = e instanceof MouseEvent ? e.clientX : (e as TouchEvent).touches[0].clientX;
+      if (!this.dragging && Math.abs(clientX - this.startX) > DRAG_THRESHOLD) {
+        this.dragging = true;
+      }
+      this.setValueFromSlider();
+    };
+
+    const onMouseUp = (e: MouseEvent | TouchEvent) => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("touchmove", onMouseMove);
+    };
+
+    slider.addEventListener("mousedown", onMouseDown);
+    slider.addEventListener("touchstart", onMouseDown);
+
+    slider.addEventListener("click", (e: MouseEvent) => {
+      if (this.dragging) {
+        // Dragged!
+        console.log("Slider dragged, not clicking.");
+        this.selectedTierChange.emit(this.selectedTier);
+      } else {
+        // Clicked!
+        console.log("Slider clicked, snapping to nearest tier.");
+        const snapped = Math.round(parseInt(slider.value) / 10) * 10;
+        if (snapped !== +slider.value && +slider.value < this.maximumAvailableTier * 10) {
+          slider.value = snapped.toString();
+          this.setValueFromSlider();
+        }
+        this.selectedTierChange.emit(this.selectedTier);
+      }
+    });
+  }
+
+  dragging = false;
+  startX = 0;
+  DRAG_THRESHOLD = 5; // pixels
+  lastVal = +this.selectedValue;
+  lastTime = performance.now();
+  FAST_DELTA = 5; // this many units of change …
+  FAST_WINDOW = 200; // …within this many ms = “fast”
+
+  setValueFromSlider() {
+    const inputElem = this.valueSlider.nativeElement;
+    let newValue = parseInt(inputElem.value);
+    let newTierValue = newValue / 10;
+
+    if (this.locked) {
+      inputElem.value = this.selectedValue.toString(); // Reset to last valid value
+      return;
+    }
+
+    if (+this.valueSlider.nativeElement.value == this.selectedValue) return;
+
+    if (newValue <= this.maximumAvailableTier * 10) {
+      const now = performance.now();
+      const dt = now - this.lastTime;
+      const dv = Math.abs(newValue - this.lastVal);
+
+      /* Is the motion fast? (big jump in a short time) */
+      const fast = dv >= this.FAST_DELTA && dt <= this.FAST_WINDOW;
+
+      //this.valueSlider.nativeElement.step = (fast ? 5 : 1).toString();
+
+      if (fast) {
+        const snapped = Math.round(parseInt(this.valueSlider.nativeElement.value) / 5) * 5;
+        if (snapped !== +this.valueSlider.nativeElement.value) newValue = snapped;
+      }
+
+      this.lastTime = now;
+      this.lastVal = +this.valueSlider.nativeElement.value;
+    } else {
+      newTierValue = this.maximumAvailableTier;
+      inputElem.value = newTierValue.toString(); // Reset to last valid value
+    }
+    this.selectedTier = newTierValue;
+    this.selectedValue = this.selectedTier * 10;
+    this.valueSlider.nativeElement.value = this.selectedValue.toString();
   }
 
   setValue(newValue: number) {

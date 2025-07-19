@@ -21,6 +21,8 @@
   position: relative;
   max-width: 100vw;
   word-break: break-all;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .canary-warning {
@@ -36,8 +38,4 @@
 .bungie-day a,
 .bungie-day a:visited {
   color: white;
-}
-
-.header-spacer {
-  flex: 1 1 auto;
 }

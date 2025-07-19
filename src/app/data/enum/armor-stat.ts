@@ -42,12 +42,12 @@ export enum StatModifier {
 }
 
 export enum ArmorStat {
-  StatWeapon,
   StatHealth,
-  StatClass,
+  StatMelee,
   StatGrenade,
   StatSuper,
-  StatMelee,
+  StatClass,
+  StatWeapon,
 }
 
 // Stat Enum, bonus, cost, mod hash
