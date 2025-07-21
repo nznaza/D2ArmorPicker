@@ -382,12 +382,12 @@ addEventListener("message", async ({ data }) => {
       index ===
       self.findIndex(
         (i) =>
-          i.mobility === item.mobility &&
-          i.resilience === item.resilience &&
-          i.recovery === item.recovery &&
-          i.discipline === item.discipline &&
-          i.intellect === item.intellect &&
-          i.strength === item.strength &&
+          i.weaponStat === item.weaponStat &&
+          i.healthStat === item.healthStat &&
+          i.classStat === item.classStat &&
+          i.grenadeStat === item.grenadeStat &&
+          i.superStat === item.superStat &&
+          i.meleeStat === item.meleeStat &&
           i.isExotic === item.isExotic &&
           (i.isExotic
             ? i.exoticPerkHash[0] === item.exoticPerkHash[0] &&
@@ -550,12 +550,12 @@ export function getStatSum(
   items: IDestinyArmor[]
 ): [number, number, number, number, number, number] {
   return [
-    items[0].mobility + items[1].mobility + items[2].mobility + items[3].mobility,
-    items[0].resilience + items[1].resilience + items[2].resilience + items[3].resilience,
-    items[0].recovery + items[1].recovery + items[2].recovery + items[3].recovery,
-    items[0].discipline + items[1].discipline + items[2].discipline + items[3].discipline,
-    items[0].intellect + items[1].intellect + items[2].intellect + items[3].intellect,
-    items[0].strength + items[1].strength + items[2].strength + items[3].strength,
+    items[0].weaponStat + items[1].weaponStat + items[2].weaponStat + items[3].weaponStat,
+    items[0].healthStat + items[1].healthStat + items[2].healthStat + items[3].healthStat,
+    items[0].classStat + items[1].classStat + items[2].classStat + items[3].classStat,
+    items[0].grenadeStat + items[1].grenadeStat + items[2].grenadeStat + items[3].grenadeStat,
+    items[0].superStat + items[1].superStat + items[2].superStat + items[3].superStat,
+    items[0].meleeStat + items[1].meleeStat + items[2].meleeStat + items[3].meleeStat,
   ];
 }
 
@@ -682,21 +682,21 @@ export function handlePermutation(
       if (distances[i] > 0) {
         scoreA += Math.min(
           distances[i],
-          a.mobility * (i === 0 ? 1 : 0) +
-            a.resilience * (i === 1 ? 1 : 0) +
-            a.recovery * (i === 2 ? 1 : 0) +
-            a.discipline * (i === 3 ? 1 : 0) +
-            a.intellect * (i === 4 ? 1 : 0) +
-            a.strength * (i === 5 ? 1 : 0)
+          a.weaponStat * (i === 0 ? 1 : 0) +
+            a.healthStat * (i === 1 ? 1 : 0) +
+            a.classStat * (i === 2 ? 1 : 0) +
+            a.grenadeStat * (i === 3 ? 1 : 0) +
+            a.superStat * (i === 4 ? 1 : 0) +
+            a.meleeStat * (i === 5 ? 1 : 0)
         );
         scoreB += Math.min(
           distances[i],
-          b.mobility * (i === 0 ? 1 : 0) +
-            b.resilience * (i === 1 ? 1 : 0) +
-            b.recovery * (i === 2 ? 1 : 0) +
-            b.discipline * (i === 3 ? 1 : 0) +
-            b.intellect * (i === 4 ? 1 : 0) +
-            b.strength * (i === 5 ? 1 : 0)
+          b.weaponStat * (i === 0 ? 1 : 0) +
+            b.healthStat * (i === 1 ? 1 : 0) +
+            b.classStat * (i === 2 ? 1 : 0) +
+            b.grenadeStat * (i === 3 ? 1 : 0) +
+            b.superStat * (i === 4 ? 1 : 0) +
+            b.meleeStat * (i === 5 ? 1 : 0)
         );
       }
     }
@@ -710,21 +710,21 @@ export function handlePermutation(
     const tmpArtificeCount =
       availableArtificeCount + (classItem.perk == ArmorPerkOrSlot.SlotArtifice ? 1 : 0);
 
-    adjustedStats[0] += classItem.mobility;
-    adjustedStats[1] += classItem.resilience;
-    adjustedStats[2] += classItem.recovery;
-    adjustedStats[3] += classItem.discipline;
-    adjustedStats[4] += classItem.intellect;
-    adjustedStats[5] += classItem.strength;
+    adjustedStats[0] += classItem.weaponStat;
+    adjustedStats[1] += classItem.healthStat;
+    adjustedStats[2] += classItem.classStat;
+    adjustedStats[3] += classItem.grenadeStat;
+    adjustedStats[4] += classItem.superStat;
+    adjustedStats[5] += classItem.meleeStat;
     applyMasterworkStats(classItem, config, adjustedStats);
 
     const adjustedStatsWithoutMods = [
-      statsWithoutMods[0] + classItem.mobility,
-      statsWithoutMods[1] + classItem.resilience,
-      statsWithoutMods[2] + classItem.recovery,
-      statsWithoutMods[3] + classItem.discipline,
-      statsWithoutMods[4] + classItem.intellect,
-      statsWithoutMods[5] + classItem.strength,
+      statsWithoutMods[0] + classItem.weaponStat,
+      statsWithoutMods[1] + classItem.healthStat,
+      statsWithoutMods[2] + classItem.classStat,
+      statsWithoutMods[3] + classItem.grenadeStat,
+      statsWithoutMods[4] + classItem.superStat,
+      statsWithoutMods[5] + classItem.meleeStat,
     ];
     applyMasterworkStats(classItem, config, adjustedStatsWithoutMods);
 

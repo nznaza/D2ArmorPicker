@@ -54,22 +54,22 @@ export class IgnoredItemsListComponent implements OnInit, OnDestroy {
       armor.name +
       "  " +
       "Base: " +
-      armor.mobility +
+      armor.weaponStat +
       "/" +
       "" +
-      armor.resilience +
+      armor.healthStat +
       "/" +
       "" +
-      armor.recovery +
+      armor.classStat +
       "/" +
       "" +
-      armor.discipline +
+      armor.grenadeStat +
       "/" +
       "" +
-      armor.intellect +
+      armor.superStat +
       "/" +
       "" +
-      armor.strength
+      armor.meleeStat
     );
   }
 
@@ -102,12 +102,12 @@ export class IgnoredItemsListComponent implements OnInit, OnDestroy {
             isExotic: 0,
             rarity: TierType.Unknown,
             source: InventoryArmorSource.Inventory,
-            mobility: 0,
-            resilience: 0,
-            recovery: 0,
-            discipline: 0,
-            intellect: 0,
-            strength: 0,
+            weaponStat: 0,
+            healthStat: 0,
+            classStat: 0,
+            grenadeStat: 0,
+            superStat: 0,
+            meleeStat: 0,
           };
         items.push(itemInstance);
       }

@@ -33,6 +33,7 @@ import {
   ResultItem,
 } from "../components/authenticated-v2/results/results.component";
 import {
+  getArmorStatsArray,
   IInventoryArmor,
   InventoryArmorSource,
   isEqualItem,
@@ -392,12 +393,12 @@ export class InventoryService {
           isSunset: armor.isSunset,
           masterworkLevel: armor.masterworkLevel,
           archetypeStats: armor.archetypeStats,
-          mobility: armor.mobility,
-          resilience: armor.resilience,
-          recovery: armor.recovery,
-          discipline: armor.discipline,
-          intellect: armor.intellect,
-          strength: armor.strength,
+          weaponStat: armor.weaponStat,
+          healthStat: armor.healthStat,
+          classStat: armor.classStat,
+          grenadeStat: armor.grenadeStat,
+          superStat: armor.superStat,
+          meleeStat: armor.meleeStat,
           source: armor.source,
           exoticPerkHash: armor.exoticPerkHash,
 
@@ -518,14 +519,7 @@ export class InventoryService {
                     perk: instance.perk,
                     transferState: 0, // TRANSFER_NONE
                     tier: instance.tier,
-                    stats: [
-                      instance.mobility,
-                      instance.resilience,
-                      instance.recovery,
-                      instance.discipline,
-                      instance.intellect,
-                      instance.strength,
-                    ],
+                    stats: getArmorStatsArray(instance),
                     source: instance.source,
                     statsNoMods: [],
                   })

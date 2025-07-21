@@ -501,18 +501,18 @@ export class ArmorClusterPageComponent implements AfterViewInit {
     for (let i = 0; i < this.clusterInformation.length; i++) {
       const clusterDatum = this.clusterInformation[i];
       var dist = this.vectorDistance(clusterDatum.mean, [
-        item.mobility +
-          item.resilience +
-          item.recovery +
-          item.discipline +
-          item.intellect +
-          item.strength,
-        item.mobility,
-        item.resilience,
-        item.recovery,
-        item.discipline,
-        item.intellect,
-        item.strength,
+        item.weaponStat +
+          item.healthStat +
+          item.classStat +
+          item.grenadeStat +
+          item.superStat +
+          item.meleeStat,
+        item.weaponStat,
+        item.healthStat,
+        item.classStat,
+        item.grenadeStat,
+        item.superStat,
+        item.meleeStat,
       ]);
       if (dist < currentDist) {
         currentDist = dist;

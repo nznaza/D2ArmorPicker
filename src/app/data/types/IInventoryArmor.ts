@@ -39,12 +39,12 @@ export interface IDestinyArmor {
   archetypeStats: Array<ArmorStat>;
   tier: number; // 1-5, 0 = exotic
 
-  mobility: number;
-  resilience: number;
-  recovery: number;
-  discipline: number;
-  intellect: number;
-  strength: number;
+  weaponStat: number;
+  healthStat: number;
+  classStat: number;
+  grenadeStat: number;
+  superStat: number;
+  meleeStat: number;
 
   source: InventoryArmorSource;
   armorSystem: ArmorSystem;
@@ -81,12 +81,12 @@ export function createArmorItem(
       masterworkLevel: 0,
       archetypeStats: [],
       energyLevel: 0,
-      mobility: 0,
-      resilience: 0,
-      recovery: 0,
-      discipline: 0,
-      intellect: 0,
-      strength: 0,
+      weaponStat: 0,
+      healthStat: 0,
+      classStat: 0,
+      grenadeStat: 0,
+      superStat: 0,
+      meleeStat: 0,
       source,
       created_at: Date.now(),
       updated_at: Date.now(),
@@ -123,22 +123,22 @@ export function applyInvestmentStats(
   r: IInventoryArmor,
   investmentStats: { [id: number]: number }
 ) {
-  r.mobility = investmentStats[2996146975];
-  r.resilience = investmentStats[392767087];
-  r.recovery = investmentStats[1943323491];
-  r.discipline = investmentStats[1735777505];
-  r.intellect = investmentStats[144602215];
-  r.strength = investmentStats[4244567218];
+  r.weaponStat = investmentStats[2996146975];
+  r.healthStat = investmentStats[392767087];
+  r.classStat = investmentStats[1943323491];
+  r.grenadeStat = investmentStats[1735777505];
+  r.superStat = investmentStats[144602215];
+  r.meleeStat = investmentStats[4244567218];
 }
 
 export function getInvestmentStats(r: IInventoryArmor): { [id: number]: number } {
   return {
-    2996146975: r.mobility,
-    392767087: r.resilience,
-    1943323491: r.recovery,
-    1735777505: r.discipline,
-    144602215: r.intellect,
-    4244567218: r.strength,
+    2996146975: r.weaponStat,
+    392767087: r.healthStat,
+    1943323491: r.classStat,
+    1735777505: r.grenadeStat,
+    144602215: r.superStat,
+    4244567218: r.meleeStat,
   };
 }
 
@@ -147,17 +147,17 @@ export function isEqualItem(a: IDestinyArmor, b: IDestinyArmor): boolean {
   return (
     a.slot === b.slot &&
     a.hash === b.hash &&
-    a.mobility === b.mobility &&
-    a.resilience === b.resilience &&
-    a.recovery === b.recovery &&
-    a.discipline === b.discipline &&
-    a.intellect === b.intellect &&
-    a.strength === b.strength
+    a.weaponStat === b.weaponStat &&
+    a.healthStat === b.healthStat &&
+    a.classStat === b.classStat &&
+    a.grenadeStat === b.grenadeStat &&
+    a.superStat === b.superStat &&
+    a.meleeStat === b.meleeStat
   );
 }
 
 export function totalStats(a: IDestinyArmor): number {
-  return a.mobility + a.resilience + a.recovery + a.discipline + a.intellect + a.strength;
+  return a.weaponStat + a.healthStat + a.classStat + a.grenadeStat + a.superStat + a.meleeStat;
 }
 
 // For any code that displays exotic perks, use this pattern:
@@ -178,4 +178,15 @@ export function getExoticPerkForDisplay(item: IInventoryArmor): number | null {
 
   // For other exotic armor pieces, use the first (and typically only) perk
   return item.exoticPerkHash[0];
+}
+
+export function getArmorStatsArray(item: IInventoryArmor): number[] {
+  let stats = [];
+  stats[ArmorStat.StatHealth] = item.healthStat;
+  stats[ArmorStat.StatMelee] = item.meleeStat;
+  stats[ArmorStat.StatGrenade] = item.grenadeStat;
+  stats[ArmorStat.StatSuper] = item.superStat;
+  stats[ArmorStat.StatClass] = item.classStat;
+  stats[ArmorStat.StatWeapon] = item.weaponStat;
+  return stats;
 }

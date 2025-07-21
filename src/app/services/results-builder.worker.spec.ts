@@ -132,12 +132,12 @@ function buildTestItem(
     source: InventoryArmorSource.Inventory,
     description: "",
     slot: slot,
-    mobility: stats[0],
-    resilience: stats[1],
-    recovery: stats[2],
-    discipline: stats[3],
-    intellect: stats[4],
-    strength: stats[5],
+    weaponStat: stats[0],
+    healthStat: stats[1],
+    classStat: stats[2],
+    grenadeStat: stats[3],
+    superStat: stats[4],
+    meleeStat: stats[5],
     energyLevel: 10,
     hash: 0,
     icon: "",
@@ -477,12 +477,12 @@ describe("Results Worker", () => {
     ];
 
     // the numbers currently sum to 0; now we artifically reduce them to enforce wasted stats calculation
-    mockItems[0].mobility -= 0;
-    mockItems[0].resilience -= 5 + 3 + 3; // minor mod + two artifice mods
-    mockItems[0].recovery -= 5; // minor mod
-    mockItems[0].discipline -= 5; // minor mod
-    mockItems[0].intellect -= 5; // minor mod
-    mockItems[0].strength -= 5 + 3; // minor mod + artifice mod
+    mockItems[0].weaponStat -= 0;
+    mockItems[0].healthStat -= 5 + 3 + 3; // minor mod + two artifice mods
+    mockItems[0].classStat -= 5; // minor mod
+    mockItems[0].grenadeStat -= 5; // minor mod
+    mockItems[0].superStat -= 5; // minor mod
+    mockItems[0].meleeStat -= 5 + 3; // minor mod + artifice mod
 
     const config = new BuildConfiguration();
     config.tryLimitWastedStats = true;
@@ -575,35 +575,35 @@ describe("Results Worker", () => {
           console.log("availableModCost", availableModCost);
           console.log("base stats", [
             10 +
-              mockItems[0].mobility +
-              mockItems[1].mobility +
-              mockItems[2].mobility +
-              mockItems[3].mobility,
+              mockItems[0].weaponStat +
+              mockItems[1].weaponStat +
+              mockItems[2].weaponStat +
+              mockItems[3].weaponStat,
             10 +
-              mockItems[0].resilience +
-              mockItems[1].resilience +
-              mockItems[2].resilience +
-              mockItems[3].resilience,
+              mockItems[0].healthStat +
+              mockItems[1].healthStat +
+              mockItems[2].healthStat +
+              mockItems[3].healthStat,
             10 +
-              mockItems[0].recovery +
-              mockItems[1].recovery +
-              mockItems[2].recovery +
-              mockItems[3].recovery,
+              mockItems[0].classStat +
+              mockItems[1].classStat +
+              mockItems[2].classStat +
+              mockItems[3].classStat,
             10 +
-              mockItems[0].discipline +
-              mockItems[1].discipline +
-              mockItems[2].discipline +
-              mockItems[3].discipline,
+              mockItems[0].grenadeStat +
+              mockItems[1].grenadeStat +
+              mockItems[2].grenadeStat +
+              mockItems[3].grenadeStat,
             10 +
-              mockItems[0].intellect +
-              mockItems[1].intellect +
-              mockItems[2].intellect +
-              mockItems[3].intellect,
+              mockItems[0].superStat +
+              mockItems[1].superStat +
+              mockItems[2].superStat +
+              mockItems[3].superStat,
             10 +
-              mockItems[0].strength +
-              mockItems[1].strength +
-              mockItems[2].strength +
-              mockItems[3].strength,
+              mockItems[0].meleeStat +
+              mockItems[1].meleeStat +
+              mockItems[2].meleeStat +
+              mockItems[3].meleeStat,
           ]);
           console.log("target stats", [
             config.minimumStatTiers[ArmorStat.StatWeapon].value * 10,
@@ -651,21 +651,30 @@ describe("Results Worker", () => {
 
     // calculate the stat sum of mockItems
     const statSum = [
-      mockItems[0].mobility + mockItems[1].mobility + mockItems[2].mobility + mockItems[3].mobility,
-      mockItems[0].resilience +
-        mockItems[1].resilience +
-        mockItems[2].resilience +
-        mockItems[3].resilience,
-      mockItems[0].recovery + mockItems[1].recovery + mockItems[2].recovery + mockItems[3].recovery,
-      mockItems[0].discipline +
-        mockItems[1].discipline +
-        mockItems[2].discipline +
-        mockItems[3].discipline,
-      mockItems[0].intellect +
-        mockItems[1].intellect +
-        mockItems[2].intellect +
-        mockItems[3].intellect,
-      mockItems[0].strength + mockItems[1].strength + mockItems[2].strength + mockItems[3].strength,
+      mockItems[0].weaponStat +
+        mockItems[1].weaponStat +
+        mockItems[2].weaponStat +
+        mockItems[3].weaponStat,
+      mockItems[0].healthStat +
+        mockItems[1].healthStat +
+        mockItems[2].healthStat +
+        mockItems[3].healthStat,
+      mockItems[0].classStat +
+        mockItems[1].classStat +
+        mockItems[2].classStat +
+        mockItems[3].classStat,
+      mockItems[0].grenadeStat +
+        mockItems[1].grenadeStat +
+        mockItems[2].grenadeStat +
+        mockItems[3].grenadeStat,
+      mockItems[0].superStat +
+        mockItems[1].superStat +
+        mockItems[2].superStat +
+        mockItems[3].superStat,
+      mockItems[0].meleeStat +
+        mockItems[1].meleeStat +
+        mockItems[2].meleeStat +
+        mockItems[3].meleeStat,
     ];
     console.log("statSum", statSum);
 
@@ -763,12 +772,12 @@ function CreateResultDefinition(
         perk: instance.perk,
         transferState: 0, // TRANSFER_NONE
         stats: [
-          instance.mobility,
-          instance.resilience,
-          instance.recovery,
-          instance.discipline,
-          instance.intellect,
-          instance.strength,
+          instance.weaponStat,
+          instance.healthStat,
+          instance.classStat,
+          instance.grenadeStat,
+          instance.superStat,
+          instance.meleeStat,
         ],
         source: instance.source,
         statsNoMods: [],
