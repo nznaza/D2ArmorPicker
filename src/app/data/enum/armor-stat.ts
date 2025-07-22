@@ -397,3 +397,34 @@ export function getStatModifier(
       return null as any;
   }
 }
+
+export function getArmorStatFromModifier(modifier: StatModifier): ArmorStat | null {
+  switch (modifier) {
+    case StatModifier.MINOR_HEALTH:
+    case StatModifier.MAJOR_HEALTH:
+    case StatModifier.ARTIFICE_HEALTH:
+      return ArmorStat.StatHealth;
+    case StatModifier.MINOR_MELEE:
+    case StatModifier.MAJOR_MELEE:
+    case StatModifier.ARTIFICE_MELEE:
+      return ArmorStat.StatMelee;
+    case StatModifier.MINOR_GRENADE:
+    case StatModifier.MAJOR_GRENADE:
+    case StatModifier.ARTIFICE_GRENADE:
+      return ArmorStat.StatGrenade;
+    case StatModifier.MINOR_SUPER:
+    case StatModifier.MAJOR_SUPER:
+    case StatModifier.ARTIFICE_SUPER:
+      return ArmorStat.StatSuper;
+    case StatModifier.MINOR_CLASS:
+    case StatModifier.MAJOR_CLASS:
+    case StatModifier.ARTIFICE_CLASS:
+      return ArmorStat.StatClass;
+    case StatModifier.MINOR_WEAPON:
+    case StatModifier.MAJOR_WEAPON:
+    case StatModifier.ARTIFICE_WEAPON:
+      return ArmorStat.StatWeapon;
+    default:
+      return null;
+  }
+}

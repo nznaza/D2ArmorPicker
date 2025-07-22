@@ -25,6 +25,7 @@ import {
   ArmorPerkOrSlot,
   ArmorPerkOrSlotNames,
   ArmorStat,
+  getArmorStatFromModifier,
   getStatModifier,
   SpecialArmorStat,
   STAT_MOD_VALUES,
@@ -970,7 +971,7 @@ function tryCreateArmorSetWithClassItem(
   // Apply mods to stats for final calculation
   const finalStats = [...adjustedStats];
   for (let statModifier of result) {
-    const stat = Math.floor((statModifier - 1) / 3);
+    const stat = getArmorStatFromModifier(statModifier)!;
     finalStats[stat] += STAT_MOD_VALUES[statModifier][1];
   }
 
