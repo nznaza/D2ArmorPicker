@@ -635,12 +635,30 @@ export function handlePermutation(
 
   // get distance
   const distances = [
-    Math.max(0, config.minimumStatTiers[0].value * 10 - stats[0]),
-    Math.max(0, config.minimumStatTiers[1].value * 10 - stats[1]),
-    Math.max(0, config.minimumStatTiers[2].value * 10 - stats[2]),
-    Math.max(0, config.minimumStatTiers[3].value * 10 - stats[3]),
-    Math.max(0, config.minimumStatTiers[4].value * 10 - stats[4]),
-    Math.max(0, config.minimumStatTiers[5].value * 10 - stats[5]),
+    Math.max(
+      0,
+      config.minimumStatTiers[ArmorStat.StatHealth].value * 10 - stats[ArmorStat.StatHealth]
+    ),
+    Math.max(
+      0,
+      config.minimumStatTiers[ArmorStat.StatMelee].value * 10 - stats[ArmorStat.StatMelee]
+    ),
+    Math.max(
+      0,
+      config.minimumStatTiers[ArmorStat.StatGrenade].value * 10 - stats[ArmorStat.StatGrenade]
+    ),
+    Math.max(
+      0,
+      config.minimumStatTiers[ArmorStat.StatSuper].value * 10 - stats[ArmorStat.StatSuper]
+    ),
+    Math.max(
+      0,
+      config.minimumStatTiers[ArmorStat.StatClass].value * 10 - stats[ArmorStat.StatClass]
+    ),
+    Math.max(
+      0,
+      config.minimumStatTiers[ArmorStat.StatWeapon].value * 10 - stats[ArmorStat.StatWeapon]
+    ),
   ];
 
   if (config.onlyShowResultsWithNoWastedStats) {
@@ -682,21 +700,21 @@ export function handlePermutation(
       if (distances[i] > 0) {
         scoreA += Math.min(
           distances[i],
-          a.weaponStat * (i === 0 ? 1 : 0) +
-            a.healthStat * (i === 1 ? 1 : 0) +
-            a.classStat * (i === 2 ? 1 : 0) +
-            a.grenadeStat * (i === 3 ? 1 : 0) +
-            a.superStat * (i === 4 ? 1 : 0) +
-            a.meleeStat * (i === 5 ? 1 : 0)
+          a.healthStat * (i === ArmorStat.StatHealth ? 1 : 0) +
+            a.meleeStat * (i === ArmorStat.StatMelee ? 1 : 0) +
+            a.grenadeStat * (i === ArmorStat.StatGrenade ? 1 : 0) +
+            a.superStat * (i === ArmorStat.StatSuper ? 1 : 0) +
+            a.classStat * (i === ArmorStat.StatClass ? 1 : 0) +
+            a.weaponStat * (i === ArmorStat.StatWeapon ? 1 : 0)
         );
         scoreB += Math.min(
           distances[i],
-          b.weaponStat * (i === 0 ? 1 : 0) +
-            b.healthStat * (i === 1 ? 1 : 0) +
-            b.classStat * (i === 2 ? 1 : 0) +
-            b.grenadeStat * (i === 3 ? 1 : 0) +
-            b.superStat * (i === 4 ? 1 : 0) +
-            b.meleeStat * (i === 5 ? 1 : 0)
+          a.healthStat * (i === ArmorStat.StatHealth ? 1 : 0) +
+            a.meleeStat * (i === ArmorStat.StatMelee ? 1 : 0) +
+            a.grenadeStat * (i === ArmorStat.StatGrenade ? 1 : 0) +
+            a.superStat * (i === ArmorStat.StatSuper ? 1 : 0) +
+            a.classStat * (i === ArmorStat.StatClass ? 1 : 0) +
+            a.weaponStat * (i === ArmorStat.StatWeapon ? 1 : 0)
         );
       }
     }
@@ -710,32 +728,54 @@ export function handlePermutation(
     const tmpArtificeCount =
       availableArtificeCount + (classItem.perk == ArmorPerkOrSlot.SlotArtifice ? 1 : 0);
 
-    adjustedStats[0] += classItem.weaponStat;
-    adjustedStats[1] += classItem.healthStat;
-    adjustedStats[2] += classItem.classStat;
-    adjustedStats[3] += classItem.grenadeStat;
-    adjustedStats[4] += classItem.superStat;
-    adjustedStats[5] += classItem.meleeStat;
+    adjustedStats[ArmorStat.StatHealth] += classItem.healthStat;
+    adjustedStats[ArmorStat.StatMelee] += classItem.meleeStat;
+    adjustedStats[ArmorStat.StatGrenade] += classItem.grenadeStat;
+    adjustedStats[ArmorStat.StatSuper] += classItem.superStat;
+    adjustedStats[ArmorStat.StatClass] += classItem.classStat;
+    adjustedStats[ArmorStat.StatWeapon] += classItem.weaponStat;
+
     applyMasterworkStats(classItem, config, adjustedStats);
 
     const adjustedStatsWithoutMods = [
-      statsWithoutMods[0] + classItem.weaponStat,
-      statsWithoutMods[1] + classItem.healthStat,
-      statsWithoutMods[2] + classItem.classStat,
-      statsWithoutMods[3] + classItem.grenadeStat,
-      statsWithoutMods[4] + classItem.superStat,
-      statsWithoutMods[5] + classItem.meleeStat,
+      statsWithoutMods[ArmorStat.StatHealth] + classItem.healthStat,
+      statsWithoutMods[ArmorStat.StatMelee] + classItem.meleeStat,
+      statsWithoutMods[ArmorStat.StatGrenade] + classItem.grenadeStat,
+      statsWithoutMods[ArmorStat.StatSuper] + classItem.superStat,
+      statsWithoutMods[ArmorStat.StatClass] + classItem.classStat,
+      statsWithoutMods[ArmorStat.StatWeapon] + classItem.weaponStat,
     ];
     applyMasterworkStats(classItem, config, adjustedStatsWithoutMods);
 
     // Recalculate distances with class item included
     const newDistances = [
-      Math.max(0, config.minimumStatTiers[0].value * 10 - adjustedStats[0]),
-      Math.max(0, config.minimumStatTiers[1].value * 10 - adjustedStats[1]),
-      Math.max(0, config.minimumStatTiers[2].value * 10 - adjustedStats[2]),
-      Math.max(0, config.minimumStatTiers[3].value * 10 - adjustedStats[3]),
-      Math.max(0, config.minimumStatTiers[4].value * 10 - adjustedStats[4]),
-      Math.max(0, config.minimumStatTiers[5].value * 10 - adjustedStats[5]),
+      Math.max(
+        0,
+        config.minimumStatTiers[ArmorStat.StatHealth].value * 10 -
+          adjustedStats[ArmorStat.StatHealth]
+      ),
+      Math.max(
+        0,
+        config.minimumStatTiers[ArmorStat.StatMelee].value * 10 - adjustedStats[ArmorStat.StatMelee]
+      ),
+      Math.max(
+        0,
+        config.minimumStatTiers[ArmorStat.StatGrenade].value * 10 -
+          adjustedStats[ArmorStat.StatGrenade]
+      ),
+      Math.max(
+        0,
+        config.minimumStatTiers[ArmorStat.StatSuper].value * 10 - adjustedStats[ArmorStat.StatSuper]
+      ),
+      Math.max(
+        0,
+        config.minimumStatTiers[ArmorStat.StatClass].value * 10 - adjustedStats[ArmorStat.StatClass]
+      ),
+      Math.max(
+        0,
+        config.minimumStatTiers[ArmorStat.StatWeapon].value * 10 -
+          adjustedStats[ArmorStat.StatWeapon]
+      ),
     ];
 
     if (config.onlyShowResultsWithNoWastedStats) {
@@ -758,14 +798,13 @@ export function handlePermutation(
           newOptionalDistances[stat] = 10 - (adjustedStats[stat] % 10);
         }
       }
-
     const newDistanceSum =
-      newDistances[0] +
-      newDistances[1] +
-      newDistances[2] +
-      newDistances[3] +
-      newDistances[4] +
-      newDistances[5];
+      newDistances[ArmorStat.StatHealth] +
+      newDistances[ArmorStat.StatMelee] +
+      newDistances[ArmorStat.StatGrenade] +
+      newDistances[ArmorStat.StatSuper] +
+      newDistances[ArmorStat.StatClass] +
+      newDistances[ArmorStat.StatWeapon];
     const newTotalOptionalDistances = newOptionalDistances.reduce((a, b) => a + b, 0);
 
     if (newDistanceSum > 10 * 5 + 3 * tmpArtificeCount) continue;
