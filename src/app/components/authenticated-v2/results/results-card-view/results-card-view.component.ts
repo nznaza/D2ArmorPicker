@@ -24,7 +24,7 @@ import {
   ArmorStat,
   ArmorStatNames,
   ArmorStatIconUrls,
-  StatModifier,
+  getStatModifier,
 } from "../../../../data/enum/armor-stat";
 import { ModInformation } from "src/app/data/ModInformation";
 import { DimService } from "../../../../services/dim.service";
@@ -39,6 +39,7 @@ import { ArmorSystem } from "src/app/data/types/IManifestArmor";
 export class ResultsCardViewComponent implements OnChanges, OnDestroy {
   @Input() results: ResultDefinition[] = [];
 
+  ArmorStats = ArmorStat; // Expose enum for template use
   filteredResults: ResultDefinition[] = [];
   displayedResults: ResultDefinition[] = [];
 
@@ -405,54 +406,38 @@ export class ResultsCardViewComponent implements OnChanges, OnDestroy {
   // Minor mods methods
   hasMinorMods(result: ResultDefinition): boolean {
     if (!result.mods) return false;
-    const minorMods = [
-      StatModifier.MINOR_WEAPON,
-      StatModifier.MINOR_HEALTH,
-      StatModifier.MINOR_CLASS,
-      StatModifier.MINOR_GRENADE,
-      StatModifier.MINOR_SUPER,
-      StatModifier.MINOR_MELEE,
-    ];
-    return result.mods.some((mod) => minorMods.includes(mod));
+    return [
+      ArmorStat.StatHealth,
+      ArmorStat.StatMelee,
+      ArmorStat.StatGrenade,
+      ArmorStat.StatClass,
+      ArmorStat.StatSuper,
+      ArmorStat.StatWeapon,
+    ].some((stat) => result.mods.includes(getStatModifier(stat, "minor")));
   }
 
   getMinorModCount(result: ResultDefinition, statIndex: number): number {
     if (!result.mods) return 0;
-    const minorModForStat = [
-      StatModifier.MINOR_WEAPON,
-      StatModifier.MINOR_HEALTH,
-      StatModifier.MINOR_CLASS,
-      StatModifier.MINOR_GRENADE,
-      StatModifier.MINOR_SUPER,
-      StatModifier.MINOR_MELEE,
-    ][statIndex];
+    const minorModForStat = getStatModifier(statIndex, "minor");
     return result.mods.filter((mod) => mod === minorModForStat).length;
   }
 
   // Major mods methods
   hasMajorMods(result: ResultDefinition): boolean {
     if (!result.mods) return false;
-    const majorMods = [
-      StatModifier.MAJOR_WEAPON,
-      StatModifier.MAJOR_HEALTH,
-      StatModifier.MAJOR_CLASS,
-      StatModifier.MAJOR_GRENADE,
-      StatModifier.MAJOR_SUPER,
-      StatModifier.MAJOR_MELEE,
-    ];
-    return result.mods.some((mod) => majorMods.includes(mod));
+    return [
+      ArmorStat.StatHealth,
+      ArmorStat.StatMelee,
+      ArmorStat.StatGrenade,
+      ArmorStat.StatClass,
+      ArmorStat.StatSuper,
+      ArmorStat.StatWeapon,
+    ].some((stat) => result.mods.includes(getStatModifier(stat, "major")));
   }
 
   getMajorModCount(result: ResultDefinition, statIndex: number): number {
     if (!result.mods) return 0;
-    const majorModForStat = [
-      StatModifier.MAJOR_WEAPON,
-      StatModifier.MAJOR_HEALTH,
-      StatModifier.MAJOR_CLASS,
-      StatModifier.MAJOR_GRENADE,
-      StatModifier.MAJOR_SUPER,
-      StatModifier.MAJOR_MELEE,
-    ][statIndex];
+    const majorModForStat = getStatModifier(statIndex, "major");
     return result.mods.filter((mod) => mod === majorModForStat).length;
   }
 
@@ -464,14 +449,7 @@ export class ResultsCardViewComponent implements OnChanges, OnDestroy {
 
   getArtificeModCount(result: ResultDefinition, statIndex: number): number {
     if (!result.artifice) return 0;
-    const artificeModForStat = [
-      StatModifier.ARTIFICE_WEAPON,
-      StatModifier.ARTIFICE_HEALTH,
-      StatModifier.ARTIFICE_CLASS,
-      StatModifier.ARTIFICE_GRENADE,
-      StatModifier.ARTIFICE_SUPER,
-      StatModifier.ARTIFICE_MELEE,
-    ][statIndex];
+    const artificeModForStat = getStatModifier(statIndex, "artifice");
     return result.artifice.filter((mod) => mod === artificeModForStat).length;
   }
 

@@ -25,6 +25,7 @@ import {
   ArmorPerkOrSlot,
   ArmorPerkOrSlotNames,
   ArmorStat,
+  getStatModifier,
   SpecialArmorStat,
   STAT_MOD_VALUES,
   StatModifier,
@@ -158,7 +159,7 @@ function prepareConstantStatBonus(config: BuildConfiguration) {
     for (const bonus of ModInformation[mod].bonus) {
       var statId =
         bonus.stat == SpecialArmorStat.ClassAbilityRegenerationStat
-          ? [1, 0, 2][config.characterClass]
+          ? [ArmorStat.StatHealth, ArmorStat.StatWeapon, ArmorStat.StatClass][config.characterClass]
           : bonus.stat;
       constantBonus[statId] += bonus.value;
     }
@@ -549,14 +550,20 @@ addEventListener("message", async ({ data }) => {
 export function getStatSum(
   items: IDestinyArmor[]
 ): [number, number, number, number, number, number] {
-  return [
-    items[0].weaponStat + items[1].weaponStat + items[2].weaponStat + items[3].weaponStat,
-    items[0].healthStat + items[1].healthStat + items[2].healthStat + items[3].healthStat,
-    items[0].classStat + items[1].classStat + items[2].classStat + items[3].classStat,
-    items[0].grenadeStat + items[1].grenadeStat + items[2].grenadeStat + items[3].grenadeStat,
-    items[0].superStat + items[1].superStat + items[2].superStat + items[3].superStat,
-    items[0].meleeStat + items[1].meleeStat + items[2].meleeStat + items[3].meleeStat,
-  ];
+  let stats: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
+  stats[ArmorStat.StatHealth] =
+    items[0].healthStat + items[1].healthStat + items[2].healthStat + items[3].healthStat;
+  stats[ArmorStat.StatMelee] =
+    items[0].meleeStat + items[1].meleeStat + items[2].meleeStat + items[3].meleeStat;
+  stats[ArmorStat.StatGrenade] =
+    items[0].grenadeStat + items[1].grenadeStat + items[2].grenadeStat + items[3].grenadeStat;
+  stats[ArmorStat.StatSuper] =
+    items[0].superStat + items[1].superStat + items[2].superStat + items[3].superStat;
+  stats[ArmorStat.StatClass] =
+    items[0].classStat + items[1].classStat + items[2].classStat + items[3].classStat;
+  stats[ArmorStat.StatWeapon] =
+    items[0].weaponStat + items[1].weaponStat + items[2].weaponStat + items[3].weaponStat;
+  return stats;
 }
 
 function applyMasterworkStats(
@@ -606,17 +613,24 @@ export function handlePermutation(
 ): never[] | IPermutatorArmorSet | null {
   const items = [helmet, gauntlet, chest, leg];
   const stats = getStatSum(items);
-  stats[1] += !items[2].isExotic && config.addConstent1Health ? 1 : 0;
+  stats[ArmorStat.StatHealth] += !items[2].isExotic && config.addConstent1Health ? 1 : 0;
 
   for (let item of items) applyMasterworkStats(item, config, stats);
 
-  const statsWithoutMods = [stats[0], stats[1], stats[2], stats[3], stats[4], stats[5]];
-  stats[0] += constantBonus[0];
-  stats[1] += constantBonus[1];
-  stats[2] += constantBonus[2];
-  stats[3] += constantBonus[3];
-  stats[4] += constantBonus[4];
-  stats[5] += constantBonus[5];
+  const statsWithoutMods: number[] = [];
+  statsWithoutMods[ArmorStat.StatHealth] = stats[ArmorStat.StatHealth];
+  statsWithoutMods[ArmorStat.StatMelee] = stats[ArmorStat.StatMelee];
+  statsWithoutMods[ArmorStat.StatGrenade] = stats[ArmorStat.StatGrenade];
+  statsWithoutMods[ArmorStat.StatSuper] = stats[ArmorStat.StatSuper];
+  statsWithoutMods[ArmorStat.StatClass] = stats[ArmorStat.StatClass];
+  statsWithoutMods[ArmorStat.StatWeapon] = stats[ArmorStat.StatWeapon];
+
+  stats[ArmorStat.StatHealth] += constantBonus[ArmorStat.StatHealth];
+  stats[ArmorStat.StatMelee] += constantBonus[ArmorStat.StatMelee];
+  stats[ArmorStat.StatGrenade] += constantBonus[ArmorStat.StatGrenade];
+  stats[ArmorStat.StatSuper] += constantBonus[ArmorStat.StatSuper];
+  stats[ArmorStat.StatClass] += constantBonus[ArmorStat.StatClass];
+  stats[ArmorStat.StatWeapon] += constantBonus[ArmorStat.StatWeapon];
 
   for (let n: ArmorStat = 0; n < 6; n++) {
     // Abort here if we are already above the limit, in case of fixed stat tiers
@@ -634,32 +648,31 @@ export function handlePermutation(
   ).length;
 
   // get distance
-  const distances = [
-    Math.max(
-      0,
-      config.minimumStatTiers[ArmorStat.StatHealth].value * 10 - stats[ArmorStat.StatHealth]
-    ),
-    Math.max(
-      0,
-      config.minimumStatTiers[ArmorStat.StatMelee].value * 10 - stats[ArmorStat.StatMelee]
-    ),
-    Math.max(
-      0,
-      config.minimumStatTiers[ArmorStat.StatGrenade].value * 10 - stats[ArmorStat.StatGrenade]
-    ),
-    Math.max(
-      0,
-      config.minimumStatTiers[ArmorStat.StatSuper].value * 10 - stats[ArmorStat.StatSuper]
-    ),
-    Math.max(
-      0,
-      config.minimumStatTiers[ArmorStat.StatClass].value * 10 - stats[ArmorStat.StatClass]
-    ),
-    Math.max(
-      0,
-      config.minimumStatTiers[ArmorStat.StatWeapon].value * 10 - stats[ArmorStat.StatWeapon]
-    ),
-  ];
+  const distances: number[] = [];
+  distances[ArmorStat.StatHealth] = Math.max(
+    0,
+    config.minimumStatTiers[ArmorStat.StatHealth].value * 10 - stats[ArmorStat.StatHealth]
+  );
+  distances[ArmorStat.StatMelee] = Math.max(
+    0,
+    config.minimumStatTiers[ArmorStat.StatMelee].value * 10 - stats[ArmorStat.StatMelee]
+  );
+  distances[ArmorStat.StatGrenade] = Math.max(
+    0,
+    config.minimumStatTiers[ArmorStat.StatGrenade].value * 10 - stats[ArmorStat.StatGrenade]
+  );
+  distances[ArmorStat.StatSuper] = Math.max(
+    0,
+    config.minimumStatTiers[ArmorStat.StatSuper].value * 10 - stats[ArmorStat.StatSuper]
+  );
+  distances[ArmorStat.StatClass] = Math.max(
+    0,
+    config.minimumStatTiers[ArmorStat.StatClass].value * 10 - stats[ArmorStat.StatClass]
+  );
+  distances[ArmorStat.StatWeapon] = Math.max(
+    0,
+    config.minimumStatTiers[ArmorStat.StatWeapon].value * 10 - stats[ArmorStat.StatWeapon]
+  );
 
   if (config.onlyShowResultsWithNoWastedStats) {
     for (let stat: ArmorStat = 0; stat < 6; stat++) {
@@ -748,35 +761,32 @@ export function handlePermutation(
     applyMasterworkStats(classItem, config, adjustedStatsWithoutMods);
 
     // Recalculate distances with class item included
-    const newDistances = [
-      Math.max(
-        0,
-        config.minimumStatTiers[ArmorStat.StatHealth].value * 10 -
-          adjustedStats[ArmorStat.StatHealth]
-      ),
-      Math.max(
-        0,
-        config.minimumStatTiers[ArmorStat.StatMelee].value * 10 - adjustedStats[ArmorStat.StatMelee]
-      ),
-      Math.max(
-        0,
-        config.minimumStatTiers[ArmorStat.StatGrenade].value * 10 -
-          adjustedStats[ArmorStat.StatGrenade]
-      ),
-      Math.max(
-        0,
-        config.minimumStatTiers[ArmorStat.StatSuper].value * 10 - adjustedStats[ArmorStat.StatSuper]
-      ),
-      Math.max(
-        0,
-        config.minimumStatTiers[ArmorStat.StatClass].value * 10 - adjustedStats[ArmorStat.StatClass]
-      ),
-      Math.max(
-        0,
-        config.minimumStatTiers[ArmorStat.StatWeapon].value * 10 -
-          adjustedStats[ArmorStat.StatWeapon]
-      ),
-    ];
+    const newDistances: number[] = [];
+    newDistances[ArmorStat.StatHealth] = Math.max(
+      0,
+      config.minimumStatTiers[ArmorStat.StatHealth].value * 10 - adjustedStats[ArmorStat.StatHealth]
+    );
+    newDistances[ArmorStat.StatMelee] = Math.max(
+      0,
+      config.minimumStatTiers[ArmorStat.StatMelee].value * 10 - adjustedStats[ArmorStat.StatMelee]
+    );
+    newDistances[ArmorStat.StatGrenade] = Math.max(
+      0,
+      config.minimumStatTiers[ArmorStat.StatGrenade].value * 10 -
+        adjustedStats[ArmorStat.StatGrenade]
+    );
+    newDistances[ArmorStat.StatSuper] = Math.max(
+      0,
+      config.minimumStatTiers[ArmorStat.StatSuper].value * 10 - adjustedStats[ArmorStat.StatSuper]
+    );
+    newDistances[ArmorStat.StatClass] = Math.max(
+      0,
+      config.minimumStatTiers[ArmorStat.StatClass].value * 10 - adjustedStats[ArmorStat.StatClass]
+    );
+    newDistances[ArmorStat.StatWeapon] = Math.max(
+      0,
+      config.minimumStatTiers[ArmorStat.StatWeapon].value * 10 - adjustedStats[ArmorStat.StatWeapon]
+    );
 
     if (config.onlyShowResultsWithNoWastedStats) {
       for (let stat: ArmorStat = 0; stat < 6; stat++) {
@@ -991,7 +1001,12 @@ function get_mods_precalc(
 ): StatModifier[] | null {
   // check distances <= 65
   const totalDistance =
-    distances[0] + distances[1] + distances[2] + distances[3] + distances[4] + distances[5];
+    distances[ArmorStat.StatHealth] +
+    distances[ArmorStat.StatMelee] +
+    distances[ArmorStat.StatGrenade] +
+    distances[ArmorStat.StatSuper] +
+    distances[ArmorStat.StatClass] +
+    distances[ArmorStat.StatWeapon];
   if (totalDistance > 65) return null;
 
   const modCombinations = config.onlyShowResultsWithNoWastedStats
@@ -999,13 +1014,24 @@ function get_mods_precalc(
     : precalculatedModCombinations;
 
   // grab the precalculated mods for the distances
-  const precalculatedMods = [
-    modCombinations[distances[0]] || [[0, 0, 0, 0]], // mobility
-    modCombinations[distances[1]] || [[0, 0, 0, 0]], // resilience
-    modCombinations[distances[2]] || [[0, 0, 0, 0]], // recovery
-    modCombinations[distances[3]] || [[0, 0, 0, 0]], // discipline
-    modCombinations[distances[4]] || [[0, 0, 0, 0]], // intellect
-    modCombinations[distances[5]] || [[0, 0, 0, 0]], // strength
+  const precalculatedMods: [number, number, number, number][][] = [];
+  precalculatedMods[ArmorStat.StatHealth] = modCombinations[distances[ArmorStat.StatHealth]] || [
+    [0, 0, 0, 0],
+  ];
+  precalculatedMods[ArmorStat.StatMelee] = modCombinations[distances[ArmorStat.StatMelee]] || [
+    [0, 0, 0, 0],
+  ];
+  precalculatedMods[ArmorStat.StatGrenade] = modCombinations[distances[ArmorStat.StatGrenade]] || [
+    [0, 0, 0, 0],
+  ];
+  precalculatedMods[ArmorStat.StatSuper] = modCombinations[distances[ArmorStat.StatSuper]] || [
+    [0, 0, 0, 0],
+  ];
+  precalculatedMods[ArmorStat.StatClass] = modCombinations[distances[ArmorStat.StatClass]] || [
+    [0, 0, 0, 0],
+  ];
+  precalculatedMods[ArmorStat.StatWeapon] = modCombinations[distances[ArmorStat.StatWeapon]] || [
+    [0, 0, 0, 0],
   ];
 
   // we handle locked exact stats as zero-waste in terms  of the mod selection
@@ -1033,7 +1059,7 @@ function get_mods_precalc(
       }
     }
   }
-  let bestMods: any = null;
+  let bestMods: [number, number, number, number][] | null = null;
   let bestScore = 1000;
 
   const availableModCostLen = availableModCost.length;
@@ -1112,30 +1138,31 @@ function get_mods_precalc(
   }
 
   const mustExecuteOptimization = totalDistance > 0 && optimize != ModOptimizationStrategy.None;
-  root: for (let mobility of precalculatedMods[0]) {
-    if (!validate([mobility])) continue;
-    for (let resilience of precalculatedMods[1]) {
-      if (!validate([mobility, resilience])) continue;
-      for (let recovery of precalculatedMods[2]) {
-        if (!validate([mobility, resilience, recovery])) continue;
-        if (mustExecuteOptimization && score([mobility, resilience, recovery]) >= bestScore)
+  root: for (let statHealth of precalculatedMods[ArmorStat.StatHealth]) {
+    if (!validate([statHealth])) continue;
+    for (let statMelee of precalculatedMods[ArmorStat.StatMelee]) {
+      if (!validate([statHealth, statMelee])) continue;
+      for (let statGrenade of precalculatedMods[ArmorStat.StatGrenade]) {
+        if (!validate([statHealth, statMelee, statGrenade])) continue;
+        if (mustExecuteOptimization && score([statHealth, statMelee, statGrenade]) >= bestScore)
           continue;
-        for (let discipline of precalculatedMods[3]) {
-          if (!validate([mobility, resilience, recovery, discipline])) continue;
+        for (let statSuper of precalculatedMods[ArmorStat.StatSuper]) {
+          if (!validate([statHealth, statMelee, statGrenade, statSuper])) continue;
           if (
             mustExecuteOptimization &&
-            score([mobility, resilience, recovery, discipline]) >= bestScore
+            score([statHealth, statMelee, statGrenade, statSuper]) >= bestScore
           )
             continue;
-          for (let intellect of precalculatedMods[4]) {
-            if (!validate([mobility, resilience, recovery, discipline, intellect])) continue;
-            if (
-              mustExecuteOptimization &&
-              score([mobility, resilience, recovery, discipline, intellect]) >= bestScore
-            )
-              continue;
-            inner: for (let strength of precalculatedMods[5]) {
-              let mods = [mobility, resilience, recovery, discipline, intellect, strength];
+          for (let statClass of precalculatedMods[ArmorStat.StatClass]) {
+            if (!validate([statHealth, statMelee, statGrenade, statSuper, statClass])) continue;
+            inner: for (let statWeapon of precalculatedMods[ArmorStat.StatWeapon]) {
+              let mods: [number, number, number, number][] = [];
+              mods[ArmorStat.StatHealth] = statHealth; // ArmorStat.StatHealth
+              mods[ArmorStat.StatMelee] = statMelee; // ArmorStat.StatMelee
+              mods[ArmorStat.StatGrenade] = statGrenade; // ArmorStat.StatGrenade
+              mods[ArmorStat.StatSuper] = statSuper; // ArmorStat.StatSuper
+              mods[ArmorStat.StatClass] = statClass; // ArmorStat.StatClass
+              mods[ArmorStat.StatWeapon] = statWeapon; // ArmorStat.StatWeapon
 
               if (!validate(mods, true)) continue;
 
@@ -1161,11 +1188,10 @@ function get_mods_precalc(
 
   const usedMods = [];
   for (let i = 0; i < bestMods.length; i++) {
-    for (let n = 0; n < bestMods[i][0]; n++) usedMods.push(3 + 3 * i);
-    for (let n = 0; n < bestMods[i][1]; n++) usedMods.push(1 + 3 * i);
-    for (let n = 0; n < bestMods[i][2]; n++) usedMods.push(2 + 3 * i);
+    for (let n = 0; n < bestMods[i][0]; n++) usedMods.push(getStatModifier(i, "minor"));
+    for (let n = 0; n < bestMods[i][1]; n++) usedMods.push(getStatModifier(i, "major"));
+    for (let n = 0; n < bestMods[i][2]; n++) usedMods.push(getStatModifier(i, "artifice"));
   }
-
   return usedMods;
 }
 

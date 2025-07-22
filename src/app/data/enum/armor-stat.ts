@@ -335,3 +335,65 @@ export function mapExoticPerkHashToArmorPerk(perkHash: number): ArmorPerkOrSlot 
 
   return exoticPerkHashMap[perkHash] || ArmorPerkOrSlot.None;
 }
+
+// Helper to map ArmorStat to StatModifier for minor, major, and artifice mods
+export function getStatModifier(
+  statIndex: number,
+  type: "minor" | "major" | "artifice"
+): StatModifier {
+  switch (type) {
+    case "minor":
+      switch (statIndex) {
+        case ArmorStat.StatHealth:
+          return StatModifier.MINOR_HEALTH;
+        case ArmorStat.StatMelee:
+          return StatModifier.MINOR_MELEE;
+        case ArmorStat.StatGrenade:
+          return StatModifier.MINOR_GRENADE;
+        case ArmorStat.StatSuper:
+          return StatModifier.MINOR_SUPER;
+        case ArmorStat.StatClass:
+          return StatModifier.MINOR_CLASS;
+        case ArmorStat.StatWeapon:
+          return StatModifier.MINOR_WEAPON;
+        default:
+          return null as any;
+      }
+    case "major":
+      switch (statIndex) {
+        case ArmorStat.StatHealth:
+          return StatModifier.MAJOR_HEALTH;
+        case ArmorStat.StatMelee:
+          return StatModifier.MAJOR_MELEE;
+        case ArmorStat.StatGrenade:
+          return StatModifier.MAJOR_GRENADE;
+        case ArmorStat.StatSuper:
+          return StatModifier.MAJOR_SUPER;
+        case ArmorStat.StatClass:
+          return StatModifier.MAJOR_CLASS;
+        case ArmorStat.StatWeapon:
+          return StatModifier.MAJOR_WEAPON;
+        default:
+          return null as any;
+      }
+    case "artifice":
+      switch (statIndex) {
+        case ArmorStat.StatHealth:
+          return StatModifier.ARTIFICE_HEALTH;
+        case ArmorStat.StatMelee:
+          return StatModifier.ARTIFICE_MELEE;
+        case ArmorStat.StatGrenade:
+          return StatModifier.ARTIFICE_GRENADE;
+        case ArmorStat.StatSuper:
+          return StatModifier.ARTIFICE_SUPER;
+        case ArmorStat.StatClass:
+          return StatModifier.ARTIFICE_CLASS;
+        case ArmorStat.StatWeapon:
+          return StatModifier.ARTIFICE_WEAPON;
+        default:
+          return null as any;
+      }
+    default:
+      return null as any;
+  }
+}

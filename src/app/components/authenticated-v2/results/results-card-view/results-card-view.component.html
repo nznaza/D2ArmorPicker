@@ -307,12 +307,12 @@
                           </div>
                         </div>
                       </td>
-                      <td>{{ getItemStatWithMasterwork(item, 1) }}</td>
-                      <td>{{ getItemStatWithMasterwork(item, 5) }}</td>
-                      <td>{{ getItemStatWithMasterwork(item, 3) }}</td>
-                      <td>{{ getItemStatWithMasterwork(item, 4) }}</td>
-                      <td>{{ getItemStatWithMasterwork(item, 2) }}</td>
-                      <td>{{ getItemStatWithMasterwork(item, 0) }}</td>
+                      <td>{{ getItemStatWithMasterwork(item, ArmorStats.StatHealth) }}</td>
+                      <td>{{ getItemStatWithMasterwork(item, ArmorStats.StatMelee) }}</td>
+                      <td>{{ getItemStatWithMasterwork(item, ArmorStats.StatGrenade) }}</td>
+                      <td>{{ getItemStatWithMasterwork(item, ArmorStats.StatSuper) }}</td>
+                      <td>{{ getItemStatWithMasterwork(item, ArmorStats.StatClass) }}</td>
+                      <td>{{ getItemStatWithMasterwork(item, ArmorStats.StatWeapon) }}</td>
                     </tr>
 
                     <!-- Total armor stats row -->
@@ -333,70 +333,88 @@
                         <strong>Total (armor)</strong>
                       </td>
                       <td
-                        ><strong>{{ result.statsNoMods[1] }}</strong></td
+                        ><strong>{{ result.statsNoMods[ArmorStats.StatHealth] }}</strong></td
                       >
                       <td
-                        ><strong>{{ result.statsNoMods[5] }}</strong></td
+                        ><strong>{{ result.statsNoMods[ArmorStats.StatMelee] }}</strong></td
                       >
                       <td
-                        ><strong>{{ result.statsNoMods[3] }}</strong></td
+                        ><strong>{{ result.statsNoMods[ArmorStats.StatGrenade] }}</strong></td
                       >
                       <td
-                        ><strong>{{ result.statsNoMods[4] }}</strong></td
+                        ><strong>{{ result.statsNoMods[ArmorStats.StatSuper] }}</strong></td
                       >
                       <td
-                        ><strong>{{ result.statsNoMods[2] }}</strong></td
+                        ><strong>{{ result.statsNoMods[ArmorStats.StatClass] }}</strong></td
                       >
                       <td
-                        ><strong>{{ result.statsNoMods[0] }}</strong></td
+                        ><strong>{{ result.statsNoMods[ArmorStats.StatWeapon] }}</strong></td
                       >
                     </tr>
 
                     <!-- Configuration bonus row -->
                     <tr class="config-row" *ngIf="hasConfigBonus() && isBreakdownExpanded(i)">
                       <td class="config-label">Configuration</td>
-                      <td
-                        ><span
-                          *ngIf="getConfigValue(1) !== 0"
-                          [class]="getConfigValue(1) > 0 ? 'positive' : 'negative'"
-                          >{{ getConfigValue(1) > 0 ? "+" : "" }}{{ getConfigValue(1) }}</span
-                        ></td
-                      >
-                      <td
-                        ><span
-                          *ngIf="getConfigValue(5) !== 0"
-                          [class]="getConfigValue(5) > 0 ? 'positive' : 'negative'"
-                          >{{ getConfigValue(5) > 0 ? "+" : "" }}{{ getConfigValue(5) }}</span
-                        ></td
-                      >
-                      <td
-                        ><span
-                          *ngIf="getConfigValue(3) !== 0"
-                          [class]="getConfigValue(3) > 0 ? 'positive' : 'negative'"
-                          >{{ getConfigValue(3) > 0 ? "+" : "" }}{{ getConfigValue(3) }}</span
-                        ></td
-                      >
-                      <td
-                        ><span
-                          *ngIf="getConfigValue(4) !== 0"
-                          [class]="getConfigValue(4) > 0 ? 'positive' : 'negative'"
-                          >{{ getConfigValue(4) > 0 ? "+" : "" }}{{ getConfigValue(4) }}</span
-                        ></td
-                      >
-                      <td
-                        ><span
-                          *ngIf="getConfigValue(2) !== 0"
-                          [class]="getConfigValue(2) > 0 ? 'positive' : 'negative'"
-                          >{{ getConfigValue(2) > 0 ? "+" : "" }}{{ getConfigValue(2) }}</span
-                        ></td
-                      >
-                      <td
-                        ><span
-                          *ngIf="getConfigValue(0) !== 0"
-                          [class]="getConfigValue(0) > 0 ? 'positive' : 'negative'"
-                          >{{ getConfigValue(0) > 0 ? "+" : "" }}{{ getConfigValue(0) }}</span
-                        ></td
-                      >
+                      <td>
+                        <span
+                          *ngIf="getConfigValue(ArmorStats.StatHealth) !== 0"
+                          [class]="
+                            getConfigValue(ArmorStats.StatHealth) > 0 ? 'positive' : 'negative'
+                          "
+                          >{{ getConfigValue(ArmorStats.StatHealth) > 0 ? "+" : ""
+                          }}{{ getConfigValue(ArmorStats.StatHealth) }}</span
+                        >
+                      </td>
+                      <td>
+                        <span
+                          *ngIf="getConfigValue(ArmorStats.StatMelee) !== 0"
+                          [class]="
+                            getConfigValue(ArmorStats.StatMelee) > 0 ? 'positive' : 'negative'
+                          "
+                          >{{ getConfigValue(ArmorStats.StatMelee) > 0 ? "+" : ""
+                          }}{{ getConfigValue(ArmorStats.StatMelee) }}</span
+                        >
+                      </td>
+                      <td>
+                        <span
+                          *ngIf="getConfigValue(ArmorStats.StatGrenade) !== 0"
+                          [class]="
+                            getConfigValue(ArmorStats.StatGrenade) > 0 ? 'positive' : 'negative'
+                          "
+                          >{{ getConfigValue(ArmorStats.StatGrenade) > 0 ? "+" : ""
+                          }}{{ getConfigValue(ArmorStats.StatGrenade) }}</span
+                        >
+                      </td>
+                      <td>
+                        <span
+                          *ngIf="getConfigValue(ArmorStats.StatSuper) !== 0"
+                          [class]="
+                            getConfigValue(ArmorStats.StatSuper) > 0 ? 'positive' : 'negative'
+                          "
+                          >{{ getConfigValue(ArmorStats.StatSuper) > 0 ? "+" : ""
+                          }}{{ getConfigValue(ArmorStats.StatSuper) }}</span
+                        >
+                      </td>
+                      <td>
+                        <span
+                          *ngIf="getConfigValue(ArmorStats.StatClass) !== 0"
+                          [class]="
+                            getConfigValue(ArmorStats.StatClass) > 0 ? 'positive' : 'negative'
+                          "
+                          >{{ getConfigValue(ArmorStats.StatClass) > 0 ? "+" : ""
+                          }}{{ getConfigValue(ArmorStats.StatClass) }}</span
+                        >
+                      </td>
+                      <td>
+                        <span
+                          *ngIf="getConfigValue(ArmorStats.StatWeapon) !== 0"
+                          [class]="
+                            getConfigValue(ArmorStats.StatWeapon) > 0 ? 'positive' : 'negative'
+                          "
+                          >{{ getConfigValue(ArmorStats.StatWeapon) > 0 ? "+" : ""
+                          }}{{ getConfigValue(ArmorStats.StatWeapon) }}</span
+                        >
+                      </td>
                     </tr>
 
                     <!-- Minor mods row -->
@@ -405,33 +423,45 @@
                       *ngIf="hasMinorMods(result) && isBreakdownExpanded(i)">
                       <td class="mods-label">Minor Mods</td>
                       <td
-                        ><span *ngIf="getMinorModCount(result, 1) > 0" class="positive"
-                          >{{ getMinorModCount(result, 1) }}×5</span
+                        ><span
+                          *ngIf="getMinorModCount(result, ArmorStats.StatHealth) > 0"
+                          class="positive"
+                          >{{ getMinorModCount(result, ArmorStats.StatHealth) }}×5</span
                         ></td
                       >
                       <td
-                        ><span *ngIf="getMinorModCount(result, 5) > 0" class="positive"
-                          >{{ getMinorModCount(result, 5) }}×5</span
+                        ><span
+                          *ngIf="getMinorModCount(result, ArmorStats.StatMelee) > 0"
+                          class="positive"
+                          >{{ getMinorModCount(result, ArmorStats.StatMelee) }}×5</span
                         ></td
                       >
                       <td
-                        ><span *ngIf="getMinorModCount(result, 3) > 0" class="positive"
-                          >{{ getMinorModCount(result, 3) }}×5</span
+                        ><span
+                          *ngIf="getMinorModCount(result, ArmorStats.StatGrenade) > 0"
+                          class="positive"
+                          >{{ getMinorModCount(result, ArmorStats.StatGrenade) }}×5</span
                         ></td
                       >
                       <td
-                        ><span *ngIf="getMinorModCount(result, 4) > 0" class="positive"
-                          >{{ getMinorModCount(result, 4) }}×5</span
+                        ><span
+                          *ngIf="getMinorModCount(result, ArmorStats.StatSuper) > 0"
+                          class="positive"
+                          >{{ getMinorModCount(result, ArmorStats.StatSuper) }}×5</span
                         ></td
                       >
                       <td
-                        ><span *ngIf="getMinorModCount(result, 2) > 0" class="positive"
-                          >{{ getMinorModCount(result, 2) }}×5</span
+                        ><span
+                          *ngIf="getMinorModCount(result, ArmorStats.StatClass) > 0"
+                          class="positive"
+                          >{{ getMinorModCount(result, ArmorStats.StatClass) }}×5</span
                         ></td
                       >
                       <td
-                        ><span *ngIf="getMinorModCount(result, 0) > 0" class="positive"
-                          >{{ getMinorModCount(result, 0) }}×5</span
+                        ><span
+                          *ngIf="getMinorModCount(result, ArmorStats.StatWeapon) > 0"
+                          class="positive"
+                          >{{ getMinorModCount(result, ArmorStats.StatWeapon) }}×5</span
                         ></td
                       >
                     </tr>
@@ -442,33 +472,45 @@
                       *ngIf="hasMajorMods(result) && isBreakdownExpanded(i)">
                       <td class="mods-label">Major Mods</td>
                       <td
-                        ><span *ngIf="getMajorModCount(result, 1) > 0" class="positive"
-                          >{{ getMajorModCount(result, 1) }}×10</span
+                        ><span
+                          *ngIf="getMajorModCount(result, ArmorStats.StatHealth) > 0"
+                          class="positive"
+                          >{{ getMajorModCount(result, ArmorStats.StatHealth) }}×10</span
                         ></td
                       >
                       <td
-                        ><span *ngIf="getMajorModCount(result, 5) > 0" class="positive"
-                          >{{ getMajorModCount(result, 5) }}×10</span
+                        ><span
+                          *ngIf="getMajorModCount(result, ArmorStats.StatMelee) > 0"
+                          class="positive"
+                          >{{ getMajorModCount(result, ArmorStats.StatMelee) }}×10</span
                         ></td
                       >
                       <td
-                        ><span *ngIf="getMajorModCount(result, 3) > 0" class="positive"
-                          >{{ getMajorModCount(result, 3) }}×10</span
+                        ><span
+                          *ngIf="getMajorModCount(result, ArmorStats.StatGrenade) > 0"
+                          class="positive"
+                          >{{ getMajorModCount(result, ArmorStats.StatGrenade) }}×10</span
                         ></td
                       >
                       <td
-                        ><span *ngIf="getMajorModCount(result, 4) > 0" class="positive"
-                          >{{ getMajorModCount(result, 4) }}×10</span
+                        ><span
+                          *ngIf="getMajorModCount(result, ArmorStats.StatSuper) > 0"
+                          class="positive"
+                          >{{ getMajorModCount(result, ArmorStats.StatSuper) }}×10</span
                         ></td
                       >
                       <td
-                        ><span *ngIf="getMajorModCount(result, 2) > 0" class="positive"
-                          >{{ getMajorModCount(result, 2) }}×10</span
+                        ><span
+                          *ngIf="getMajorModCount(result, ArmorStats.StatClass) > 0"
+                          class="positive"
+                          >{{ getMajorModCount(result, ArmorStats.StatClass) }}×10</span
                         ></td
                       >
                       <td
-                        ><span *ngIf="getMajorModCount(result, 0) > 0" class="positive"
-                          >{{ getMajorModCount(result, 0) }}×10</span
+                        ><span
+                          *ngIf="getMajorModCount(result, ArmorStats.StatWeapon) > 0"
+                          class="positive"
+                          >{{ getMajorModCount(result, ArmorStats.StatWeapon) }}×10</span
                         ></td
                       >
                     </tr>
@@ -479,33 +521,45 @@
                       *ngIf="hasArtificeMods(result) && isBreakdownExpanded(i)">
                       <td class="mods-label">Artifice Mods</td>
                       <td
-                        ><span *ngIf="getArtificeModCount(result, 1) > 0" class="positive"
-                          >{{ getArtificeModCount(result, 1) }}×3</span
+                        ><span
+                          *ngIf="getArtificeModCount(result, ArmorStats.StatHealth) > 0"
+                          class="positive"
+                          >{{ getArtificeModCount(result, ArmorStats.StatHealth) }}×3</span
                         ></td
                       >
                       <td
-                        ><span *ngIf="getArtificeModCount(result, 5) > 0" class="positive"
-                          >{{ getArtificeModCount(result, 5) }}×3</span
+                        ><span
+                          *ngIf="getArtificeModCount(result, ArmorStats.StatMelee) > 0"
+                          class="positive"
+                          >{{ getArtificeModCount(result, ArmorStats.StatMelee) }}×3</span
                         ></td
                       >
                       <td
-                        ><span *ngIf="getArtificeModCount(result, 3) > 0" class="positive"
-                          >{{ getArtificeModCount(result, 3) }}×3</span
+                        ><span
+                          *ngIf="getArtificeModCount(result, ArmorStats.StatGrenade) > 0"
+                          class="positive"
+                          >{{ getArtificeModCount(result, ArmorStats.StatGrenade) }}×3</span
                         ></td
                       >
                       <td
-                        ><span *ngIf="getArtificeModCount(result, 4) > 0" class="positive"
-                          >{{ getArtificeModCount(result, 4) }}×3</span
+                        ><span
+                          *ngIf="getArtificeModCount(result, ArmorStats.StatSuper) > 0"
+                          class="positive"
+                          >{{ getArtificeModCount(result, ArmorStats.StatSuper) }}×3</span
                         ></td
                       >
                       <td
-                        ><span *ngIf="getArtificeModCount(result, 2) > 0" class="positive"
-                          >{{ getArtificeModCount(result, 2) }}×3</span
+                        ><span
+                          *ngIf="getArtificeModCount(result, ArmorStats.StatClass) > 0"
+                          class="positive"
+                          >{{ getArtificeModCount(result, ArmorStats.StatClass) }}×3</span
                         ></td
                       >
                       <td
-                        ><span *ngIf="getArtificeModCount(result, 0) > 0" class="positive"
-                          >{{ getArtificeModCount(result, 0) }}×3</span
+                        ><span
+                          *ngIf="getArtificeModCount(result, ArmorStats.StatWeapon) > 0"
+                          class="positive"
+                          >{{ getArtificeModCount(result, ArmorStats.StatWeapon) }}×3</span
                         ></td
                       >
                     </tr>
@@ -516,22 +570,22 @@
                         ><strong>Total (with Mods)</strong></td
                       >
                       <td
-                        ><strong>{{ result.stats[1] }}</strong></td
+                        ><strong>{{ result.stats[ArmorStats.StatHealth] }}</strong></td
                       >
                       <td
-                        ><strong>{{ result.stats[5] }}</strong></td
+                        ><strong>{{ result.stats[ArmorStats.StatMelee] }}</strong></td
                       >
                       <td
-                        ><strong>{{ result.stats[3] }}</strong></td
+                        ><strong>{{ result.stats[ArmorStats.StatGrenade] }}</strong></td
                       >
                       <td
-                        ><strong>{{ result.stats[4] }}</strong></td
+                        ><strong>{{ result.stats[ArmorStats.StatSuper] }}</strong></td
                       >
                       <td
-                        ><strong>{{ result.stats[2] }}</strong></td
+                        ><strong>{{ result.stats[ArmorStats.StatClass] }}</strong></td
                       >
                       <td
-                        ><strong>{{ result.stats[0] }}</strong></td
+                        ><strong>{{ result.stats[ArmorStats.StatWeapon] }}</strong></td
                       >
                     </tr>
                   </tbody>
