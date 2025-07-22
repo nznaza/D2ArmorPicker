@@ -1189,9 +1189,9 @@ function get_mods_precalc(
 
   const usedMods = [];
   for (let i = 0; i < bestMods.length; i++) {
-    for (let n = 0; n < bestMods[i][0]; n++) usedMods.push(getStatModifier(i, "minor"));
-    for (let n = 0; n < bestMods[i][1]; n++) usedMods.push(getStatModifier(i, "major"));
-    for (let n = 0; n < bestMods[i][2]; n++) usedMods.push(getStatModifier(i, "artifice"));
+    for (let n = 0; n < bestMods[i][0]; n++) usedMods.push(getStatModifier(i, "artifice"));
+    for (let n = 0; n < bestMods[i][1]; n++) usedMods.push(getStatModifier(i, "minor"));
+    for (let n = 0; n < bestMods[i][2]; n++) usedMods.push(getStatModifier(i, "major"));
   }
   return usedMods;
 }
