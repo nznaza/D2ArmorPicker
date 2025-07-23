@@ -51,6 +51,7 @@ export class StatTierSelectionComponent
   @ViewChild("valueSlider") valueSlider!: ElementRef<HTMLInputElement>;
 
   selectedValue: number = 0;
+  currentValue: number = 0;
   public hoveredValue: number | null = null;
   public statValues: number[] = [];
   public editingValue: boolean = false;
@@ -95,52 +96,94 @@ export class StatTierSelectionComponent
     const slider = this.valueSlider.nativeElement;
     const DRAG_THRESHOLD = this.DRAG_THRESHOLD;
 
-    const onMouseDown = (e: MouseEvent | TouchEvent) => {
+    const sliderClick = (e: MouseEvent | TouchEvent) => {
       this.dragging = false;
+
       this.startX = e instanceof MouseEvent ? e.clientX : (e as TouchEvent).touches[0].clientX;
 
-      document.addEventListener("mousemove", onMouseMove);
-      document.addEventListener("touchmove", onMouseMove);
+      document.addEventListener("mousemove", detectDragging);
+      document.addEventListener("touchmove", detectDragging);
 
-      document.addEventListener("mouseup", onMouseUp, { once: true });
-      document.addEventListener("touchend", onMouseUp, { once: true });
+      document.addEventListener("mouseup", sliderClickEnd, { once: true });
+      document.addEventListener("touchend", sliderClickEnd, { once: true });
     };
 
-    const onMouseMove = (e: MouseEvent | TouchEvent) => {
+    const detectDragging = (e: MouseEvent | TouchEvent) => {
       const clientX = e instanceof MouseEvent ? e.clientX : (e as TouchEvent).touches[0].clientX;
       if (!this.dragging && Math.abs(clientX - this.startX) > DRAG_THRESHOLD) {
         this.dragging = true;
       }
-      this.setValueFromSlider();
+      //this.setValueFromSlider();
     };
 
-    const onMouseUp = (e: MouseEvent | TouchEvent) => {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("touchmove", onMouseMove);
+    const sliderClickEnd = (e: MouseEvent | TouchEvent) => {
+      document.removeEventListener("mousemove", detectDragging);
+      document.removeEventListener("touchmove", (e) => {
+        this.touch = true;
+        detectDragging(e);
+      });
     };
 
-    slider.addEventListener("mousedown", onMouseDown);
-    slider.addEventListener("touchstart", onMouseDown);
+    slider.addEventListener("mousedown", sliderClick);
+    slider.addEventListener("touchstart", (e) => {
+      this.touch = true;
+      sliderClick(e);
+    });
 
-    slider.addEventListener("click", (e: MouseEvent) => {
+    const handleSliderSelect = () => {
       if (this.dragging) {
         // Dragged!
-        console.log("Slider dragged, not clicking.");
+        //console.log("Slider dragged, not clicking.");
         this.selectedTierChange.emit(this.selectedTier);
       } else {
         // Clicked!
-        console.log("Slider clicked, snapping to nearest tier.");
+        //console.log("Slider clicked, snapping to nearest tier.");
         const snapped = Math.round(parseInt(slider.value) / 10) * 10;
-        if (snapped !== +slider.value && +slider.value < this.maximumAvailableTier * 10) {
-          slider.value = snapped.toString();
-          this.setValueFromSlider();
+        if (this.hoveredValue == null) {
+          if (snapped !== +slider.value && +slider.value < this.maximumAvailableTier * 10) {
+            this.setValueFromSlider(snapped);
+            console.log("Snapped to nearest tier: " + snapped);
+          }
+        } else {
+          this.setValueFromSlider(this.hoveredValue);
         }
+
         this.selectedTierChange.emit(this.selectedTier);
       }
+    };
+
+    slider.addEventListener("click", (e: MouseEvent) => {
+      handleSliderSelect();
+    });
+
+    slider.addEventListener("touchend", (e: TouchEvent) => {
+      this.touch = false;
+      setTimeout(() => {
+        handleSliderSelect();
+      }, 10); //Wait for touch to propagate to the slider
+    });
+
+    // Add mousemove event to simulate hover
+    slider.addEventListener("mousemove", (e: MouseEvent) => {
+      const elements = document.elementsFromPoint(e.clientX, e.clientY);
+      const statLine = elements.find((el) => el.classList && el.classList.contains("stat-line"));
+      if (statLine && !this.touch) {
+        const hoverEvent = new MouseEvent("mouseenter");
+        statLine.dispatchEvent(hoverEvent);
+        const value = parseInt(statLine.getAttribute("data-value")!);
+        this.handleHover(value);
+      } else {
+        this.clearHover();
+      }
+    });
+
+    slider.addEventListener("mouseleave", () => {
+      this.clearHover();
     });
   }
 
   dragging = false;
+  touch = false;
   startX = 0;
   DRAG_THRESHOLD = 5; // pixels
   lastVal = +this.selectedValue;
@@ -148,17 +191,25 @@ export class StatTierSelectionComponent
   FAST_DELTA = 5; // this many units of change …
   FAST_WINDOW = 200; // …within this many ms = “fast”
 
-  setValueFromSlider() {
-    const inputElem = this.valueSlider.nativeElement;
-    let newValue = parseInt(inputElem.value);
+  setValueFromSlider(value?: number) {
+    let newValue: number =
+      value !== undefined ? value : parseInt(this.valueSlider.nativeElement.value);
     let newTierValue = newValue / 10;
+    console.log(value);
 
     if (this.locked) {
-      inputElem.value = this.selectedValue.toString(); // Reset to last valid value
+      this.valueSlider.nativeElement.value = this.selectedValue.toString(); // Reset to last valid value
       return;
     }
 
-    if (+this.valueSlider.nativeElement.value == this.selectedValue) return;
+    if (
+      value !== undefined
+        ? this.selectedValue == newValue
+        : +this.valueSlider.nativeElement.value == this.selectedValue
+    ) {
+      console.log("r");
+      return;
+    }
 
     if (newValue <= this.maximumAvailableTier * 10) {
       const now = performance.now();
@@ -179,7 +230,7 @@ export class StatTierSelectionComponent
       this.lastVal = +this.valueSlider.nativeElement.value;
     } else {
       newTierValue = this.maximumAvailableTier;
-      inputElem.value = newTierValue.toString(); // Reset to last valid value
+      this.valueSlider.nativeElement.value = newTierValue.toString();
     }
     this.selectedTier = newTierValue;
     this.selectedValue = this.selectedTier * 10;
@@ -258,10 +309,10 @@ export class StatTierSelectionComponent
   }
 
   /**
-   * Check if this is the sixth stat (weapon stat)
+   * Check if this is the sixth stat
    */
   isSixthStat(): boolean {
-    return this.stat === ArmorStat.StatMelee;
+    return this.stat === Object.keys(ArmorStat).filter((x) => isNaN(Number(x))).length - 1;
   }
 
   /**

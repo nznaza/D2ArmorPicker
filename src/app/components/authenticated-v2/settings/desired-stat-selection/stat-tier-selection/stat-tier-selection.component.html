@@ -31,12 +31,14 @@
         <ng-container *ngFor="let value of statValues" sty>
           <div
             class="stat-line"
+            [attr.data-value]="value"
             [class.zero-line]="value === 0"
             [class.milestone-line]="value === 50 || value === 100 || value === 150 || value === 200"
             [class.selected]="value === selectedValue"
             [class.lower-than-selected]="value < selectedValue"
             [class.lower-than-hovered]="hoveredValue !== null && value < hoveredValue"
             [class.higher-than-hovered]="hoveredValue !== null && value >= hoveredValue"
+            [class.hovered]="value === hoveredValue"
             [class.disabled]="value > currentAnimatedMaxValue"
             [style.height]="
               value === 0 || value === 50 || value === 100 || value === 150 || value === 200
@@ -46,10 +48,9 @@
             [matTooltip]="
               'Value: ' + value + (value % 50 === 0 ? ' (Tier ' + value / 10 + ')' : '')
             "
-            [matTooltipDisabled]="value > currentAnimatedMaxValue"
+            [matTooltipDisabled]="hoveredValue !== value"
             matTooltipPosition="above"
             [matTooltipShowDelay]="0"
-            (click)="value <= maximumAvailableTier * 10 && setValueMob(value)"
             (mouseenter)="handleHover(value)"
             (mouseleave)="clearHover()">
           </div>
@@ -66,11 +67,11 @@
           position: absolute;
           top: 0;
           left: 0;
-          width: 100%;
+          width: 350px;
           height: 100%;
           z-index: 2;
           opacity: 0;
-          margin: 0;
+          margin-inline: auto;
           padding: 0;
         " />
     </div>
