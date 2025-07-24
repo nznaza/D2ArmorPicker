@@ -22,7 +22,7 @@ import { ConfigurationService } from "./configuration.service";
 import { debounceTime } from "rxjs/operators";
 import { BehaviorSubject, Observable, ReplaySubject, Subject } from "rxjs";
 import { BuildConfiguration } from "../data/buildConfiguration";
-import { ArmorPerkOrSlot, ArmorStat, STAT_MOD_VALUES, StatModifier } from "../data/enum/armor-stat";
+import { ArmorPerkOrSlot, STAT_MOD_VALUES, StatModifier } from "../data/enum/armor-stat";
 import { StatusProviderService } from "./status-provider.service";
 import { BungieApiService } from "./bungie-api.service";
 import { AuthService } from "./auth.service";
@@ -53,8 +53,6 @@ type info = {
   results: ResultDefinition[];
   totalResults: number;
   maximumPossibleTiers: number[];
-  statCombo3x100: ArmorStat[][];
-  statCombo4x100: ArmorStat[][];
   itemCount: number;
   totalTime: number;
 };
@@ -101,8 +99,6 @@ export class InventoryService {
   private results: IPermutatorArmorSet[] = [];
   private totalPermutationCount = 0;
   private resultMaximumTiers: number[][] = [];
-  private resultStatCombo3x100 = new Set<number>();
-  private resultStatCombo4x100 = new Set<number>();
   private selectedExotics: IManifestArmor[] = [];
   private inventoryArmorItems: IInventoryArmor[] = [];
   private permutatorArmorItems: IPermutatorArmor[] = [];
@@ -174,8 +170,6 @@ export class InventoryService {
       totalTime: 0,
       itemCount: 0,
       maximumPossibleTiers: [0, 0, 0, 0, 0, 0],
-      statCombo3x100: [],
-      statCombo4x100: [],
     });
   }
 
@@ -286,8 +280,6 @@ export class InventoryService {
       this.results = [];
       this.totalPermutationCount = 0;
       this.resultMaximumTiers = [];
-      this.resultStatCombo3x100 = new Set<number>();
-      this.resultStatCombo4x100 = new Set<number>();
       const startTime = Date.now();
 
       this.selectedExotics = await Promise.all(
@@ -475,8 +467,6 @@ export class InventoryService {
             doneWorkerCount++;
             this.totalPermutationCount += data.stats.permutationCount;
             this.resultMaximumTiers.push(data.runtime.maximumPossibleTiers);
-            for (let elem of data.runtime.statCombo3x100) this.resultStatCombo3x100.add(elem);
-            for (let elem of data.runtime.statCombo4x100) this.resultStatCombo4x100.add(elem);
           }
           if (data.done == true && doneWorkerCount == nthreads) {
             this.status.modifyStatus((s) => (s.calculatingResults = false));
@@ -552,18 +542,6 @@ export class InventoryService {
                   [0, 0, 0, 0, 0, 0]
                 )
                 .map((k) => Math.min(200, k) / 10),
-              statCombo3x100:
-                Array.from(this.resultStatCombo3x100 as Set<number>).map((d: number) => {
-                  let r: ArmorStat[] = [];
-                  for (let n = 0; n < 6; n++) if ((d & (1 << n)) > 0) r.push(n);
-                  return r;
-                }) || [],
-              statCombo4x100:
-                Array.from(this.resultStatCombo4x100 as Set<number>).map((d: number) => {
-                  let r = [];
-                  for (let n = 0; n < 6; n++) if ((d & (1 << n)) > 0) r.push(n);
-                  return r;
-                }, []) || [],
             });
             console.timeEnd("updateResults with WebWorker");
             this.workers[n].terminate();
