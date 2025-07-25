@@ -21,7 +21,7 @@ import { debounceTime, takeUntil } from "rxjs/operators";
 import { InventoryService } from "../../../../services/inventory.service";
 import { IInventoryArmor, InventoryArmorSource } from "../../../../data/types/IInventoryArmor";
 import { DatabaseService } from "../../../../services/database.service";
-import { ArmorSystem, IManifestArmor } from "../../../../data/types/IManifestArmor";
+import { IManifestArmor } from "../../../../data/types/IManifestArmor";
 import { ArmorSlot } from "../../../../data/enum/armor-slot";
 
 type LocalArmorInfo = {
@@ -39,7 +39,6 @@ type LocalArmorInfo = {
   discipline: number[];
   resilience: number[];
   hash: number;
-  armorSystem: ArmorSystem;
 };
 
 @Component({
@@ -63,8 +62,6 @@ export class ArmorInvestigationPageComponent implements OnInit, OnDestroy {
   armorHash: string | null = "";
   armorId: string | null = "";
 
-  armorSystemFilter: number = 0; // 0 = Any, 2 = Armor 2.0, 3 = Armor 3.0
-
   armorItemsPerSlot: Map<ArmorSlot, LocalArmorInfo[]> = new Map();
 
   plugData: { [p: string]: IManifestArmor } = {};
@@ -84,10 +81,6 @@ export class ArmorInvestigationPageComponent implements OnInit, OnDestroy {
 
   getPlugString(plugId: number) {
     var plugInfo = this.plugData[plugId];
-    if (!plugInfo) {
-      return "No Plug";
-    }
-
     let info = [0, 0, 0, 0, 0, 0];
     for (let stat of plugInfo.investmentStats) {
       switch (stat.statTypeHash) {
@@ -111,13 +104,7 @@ export class ArmorInvestigationPageComponent implements OnInit, OnDestroy {
           break;
       }
     }
-
-    let r = "[" + info.join(" ") + "]";
-    if (plugInfo.name) {
-      r += " " + plugInfo.name;
-    }
-
-    return r;
+    return "[" + info.join(" ") + "]";
   }
 
   async updateItems() {
@@ -145,16 +132,11 @@ export class ArmorInvestigationPageComponent implements OnInit, OnDestroy {
           totalStats: [0, 0, 0, 0, 0, 0],
           totalSum: 0,
           slot: i.slot,
-          armorSystem: (i as any).armorSystem, // falls vorhanden
         } as LocalArmorInfo;
         // add stat plugs
         if (i.statPlugHashes)
           for (let p of i.statPlugHashes) {
-            if (p == undefined || p == null) continue; // skip undefined plugs
             var plugInfo = plugData[p as number];
-            if (!plugInfo) {
-              continue;
-            }
             for (let stat of plugInfo.investmentStats) {
               switch (stat.statTypeHash) {
                 case 2996146975:
@@ -222,14 +204,6 @@ export class ArmorInvestigationPageComponent implements OnInit, OnDestroy {
         return result;
       });
 
-    // Filter nach armorSystem
-    if (
-      this.armorSystemFilter === ArmorSystem.Armor2 ||
-      this.armorSystemFilter === ArmorSystem.Armor3
-    ) {
-      armorItems = armorItems.filter((i) => i.armorSystem === this.armorSystemFilter);
-    }
-
     armorItems = this.filterItems(armorItems);
 
     this.armorItemsPerSlot = armorItems.reduce((p, v) => {
@@ -266,10 +240,6 @@ export class ArmorInvestigationPageComponent implements OnInit, OnDestroy {
 
   getPlugSum(plugId: number) {
     var plugInfo = this.plugData[plugId];
-    if (!plugInfo) {
-      console.warn(`Plug info not found for hash: ${plugId}`);
-      return 0;
-    }
     var total = 0;
     for (let stat of plugInfo.investmentStats) {
       switch (stat.statTypeHash) {
@@ -300,7 +270,6 @@ export class ArmorInvestigationPageComponent implements OnInit, OnDestroy {
 
     this.anyPlugWithN = 0;
     this.anyPlugBelowN = 17;
-    this.armorSystemFilter = 0;
   }
 
   private filterItems(armorItems: LocalArmorInfo[]) {
