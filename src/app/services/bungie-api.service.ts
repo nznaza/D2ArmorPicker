@@ -906,11 +906,10 @@ export class BungieApiService {
           }
         }
 
-        const isFeatured = !!(v as any)?.isFeaturedItem;
         return {
           hash: v.hash,
           icon: v.displayProperties.icon,
-          watermarkIcon: isFeatured ? (v as any).iconWatermarkFeatured : v.iconWatermark,
+          watermarkIcon: (v.quality?.displayVersionWatermarkIcons || [null])[0],
           name: v.displayProperties.name,
           description: v.displayProperties.description,
           clazz: clasz,
@@ -926,7 +925,7 @@ export class BungieApiService {
           // TODO: fix as soon as DIM Api is updated
           perk: this.getArmorPerk(v, (manifestTables as any).DestinyEquipableItemSetDefinition),
           socketEntries: v.sockets?.socketEntries ?? [],
-          isFeatured: isFeatured,
+          isFeatured: !!(v as any)?.isFeaturedItem, // TODO: Fix this as soon as DIM Api is updated
         } as IManifestArmor;
       });
 
