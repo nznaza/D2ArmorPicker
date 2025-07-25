@@ -48,7 +48,6 @@ import { ArmorSlot } from "../data/enum/armor-slot";
 import {
   ArmorPerkOrSlot,
   ArmorPerkSocketHashes,
-  ArmorStat,
   ArmorStatHashes,
   MapAlternativeSocketTypeToArmorPerkOrSlot,
   MapAlternativeToArmorPerkOrSlot,
@@ -109,24 +108,13 @@ function collectInvestmentStats(
   applyInvestmentStats(r, investmentStats);
 
   // TODO: THIS IS A QUICK HACK: FIX THIS
-  const investmentStatsOverZero = Object.entries(investmentStats).filter(([_, value]) => value > 0);
-  if (investmentStatsOverZero.length > 3) return;
-  r.archetypeStats = [];
-  const stats = [
-    ArmorStat.StatWeapon,
-    ArmorStat.StatHealth,
-    ArmorStat.StatClass,
-    ArmorStat.StatGrenade,
-    ArmorStat.StatSuper,
-    ArmorStat.StatMelee,
-  ];
-  for (let i = 0; i < stats.length; i++) {
-    const stat = stats[i];
-    const statHash = ArmorStatHashes[stat];
-    if (investmentStatsOverZero.find(([hash, _]) => parseInt(hash) == statHash)) {
-      r.archetypeStats.push(i);
-    }
-  }
+  const investmentStatsOverZero = Object.entries(investmentStats)
+    .filter(([_, value]) => value > 0)
+    .sort((a, b) => b[1] - a[1]);
+  if (investmentStatsOverZero.length > 3 || investmentStatsOverZero.length == 0) return;
+  r.archetypeStats = investmentStatsOverZero.map(([hash, _]) =>
+    Object.values(ArmorStatHashes).indexOf(parseInt(hash))
+  );
 }
 
 @Injectable({
@@ -483,7 +471,7 @@ export class BungieApiService {
 
         const collectionItem = createArmorItem(
           manifestArmorItem,
-          `c${manifestArmorItem.hash}`,
+          `c-${manifestArmorItem.hash}`,
           InventoryArmorSource.Collections
         );
 
