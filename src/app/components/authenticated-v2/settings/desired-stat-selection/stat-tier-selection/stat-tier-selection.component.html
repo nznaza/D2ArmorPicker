@@ -82,7 +82,6 @@
         *ngIf="selectedValue < -12 || selectedValue > 12"
         (click)="setValueMob(0)"
         mat-flat-button
-        [attr.tabindex]="tabIndexOffset + 1"
         >0</button
       >
       <div
@@ -108,8 +107,7 @@
         style="left: 100%"
         *ngIf="selectedValue < 188 || selectedValue > 212"
         (click)="setValueMob(maximumAvailableTier * 10)"
-        mat-flat-button
-        [attr.tabindex]="tabIndexOffset + 2">
+        mat-flat-button>
         <span class="max-text">MAX</span>
       </button>
     </div>
@@ -123,8 +121,7 @@
         *ngIf="!editingValue"
         (click)="startValueEdit()"
         class="clickable-value"
-        style="cursor: pointer; display: inline-block"
-        [attr.tabindex]="tabIndexOffset + 3">
+        style="cursor: pointer; display: inline-block">
         {{ selectedValue }}
       </span>
       <input
@@ -137,8 +134,7 @@
         [value]="selectedValue"
         (blur)="commitValueEdit(valueInput.value)"
         (keydown.enter)="commitValueEdit(valueInput.value)"
-        (keydown.escape)="cancelValueEdit()"
-        [attr.tabindex]="tabIndexOffset + 3" />
+        (keydown.escape)="cancelValueEdit()" />
     </div>
     <div class="separator-section">/</div>
     <div class="max-value-section">{{ maximumAvailableTier * 10 }}</div>
@@ -153,8 +149,7 @@
   <button
     mat-icon-button
     (click)="toggleLockState()"
-    matTooltip="Locking a stat enforces this stat to have exactly this value. Use this for example to get exact T3 of Mobility on a Titan."
-    [attr.tabindex]="tabIndexOffset + 4">
+    matTooltip="Locking a stat enforces this stat to have exactly this value. Use this for example to get exact T3 of Mobility on a Titan.">
     <mat-icon *ngIf="!locked">lock_open</mat-icon>
     <mat-icon *ngIf="locked" class="lock-locked">lock</mat-icon>
   </button>
