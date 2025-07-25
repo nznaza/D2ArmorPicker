@@ -40,7 +40,6 @@ export interface IDisplayManifestArmor {
   isExotic: 0 | 1;
   rarity: TierType;
   armorSystem: ArmorSystem;
-  isFeatured: boolean;
 }
 export interface IManifestArmor extends IDisplayManifestArmor {
   watermarkIcon: string;
