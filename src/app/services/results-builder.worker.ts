@@ -32,8 +32,6 @@ import {
 
 import { environment } from "../../environments/environment";
 
-import { precalculatedZeroWasteModCombinations } from "../data/generated/precalculatedZeroWasteModCombinations";
-import { precalculatedModCombinations } from "../data/generated/precalculatedModCombinations";
 import { ModOptimizationStrategy } from "../data/enum/mod-optimization-strategy";
 import { IPermutatorArmor } from "../data/types/IPermutatorArmor";
 import {
@@ -42,6 +40,7 @@ import {
   isIPermutatorArmorSet,
 } from "../data/types/IPermutatorArmorSet";
 import { ArmorSystem } from "../data/types/IManifestArmor";
+import { precalculatedModCombinations } from "../data/generated/precalculatedModCombinations";
 // endregion Imports
 
 // region Validation and Preparation Functions
@@ -899,6 +898,46 @@ function tryCreateArmorSetWithClassItem(
 }
 
 // region Mod Calculation Functions
+function get_mods_recursive(
+  distances_to_check: number[],
+  availableArtificeCount: number,
+  availableMajorMods: number,
+  availableMods: number
+): number[][] | null {
+  if (distances_to_check.length == 0) {
+    return [];
+  }
+  const distance = distances_to_check[0];
+  let precalculatedMods = precalculatedModCombinations[distance] || [[0, 0, 0, 0, 0, 0]];
+  // let precalculatedMods = precalculatedTuningModCombinations[0]
+  precalculatedMods = precalculatedMods.filter(
+    (mod) =>
+      mod[0] <= availableArtificeCount &&
+      mod[2] <= availableMajorMods &&
+      mod[2] + mod[1] <= availableMods
+  );
+
+  if (precalculatedMods.length == 0) {
+    return null;
+  }
+
+  for (const pickedMod of precalculatedMods) {
+    const totalMods = Math.max(0, availableMods - pickedMod[1] - pickedMod[2]);
+    const majorMods = Math.min(totalMods, Math.max(0, availableMajorMods - pickedMod[2]));
+    const artifice = Math.max(0, availableArtificeCount - pickedMod[0]);
+    const otherMods = get_mods_recursive(
+      distances_to_check.slice(1),
+      artifice,
+      majorMods,
+      totalMods
+    );
+    if (otherMods !== null) {
+      return [pickedMod, ...otherMods];
+    }
+  }
+  return null;
+}
+
 function get_mods_precalc(
   config: BuildConfiguration,
   distances: number[],
@@ -916,140 +955,20 @@ function get_mods_precalc(
     return [];
   }
 
-  const modCombinations = config.onlyShowResultsWithNoWastedStats
-    ? precalculatedZeroWasteModCombinations
-    : precalculatedModCombinations;
+  let pickedMods = get_mods_recursive(
+    distances,
+    availableArtificeCount,
+    config.statModLimits.maxMajorMods,
+    config.statModLimits.maxMods
+  );
 
-  // grab the precalculated mods for the distances
-  const precalculatedMods = [
-    modCombinations[distances[0]] || [[0, 0, 0, 0]], // mobility
-    modCombinations[distances[1]] || [[0, 0, 0, 0]], // resilience
-    modCombinations[distances[2]] || [[0, 0, 0, 0]], // recovery
-    modCombinations[distances[3]] || [[0, 0, 0, 0]], // discipline
-    modCombinations[distances[4]] || [[0, 0, 0, 0]], // intellect
-    modCombinations[distances[5]] || [[0, 0, 0, 0]], // strength
-  ];
-
-  // we handle locked exact stats as zero-waste in terms  of the mod selection
-  for (let i = 0; i < 6; i++) {
-    if (config.minimumStatTiers[i as ArmorStat].fixed && distances[i] > 0) {
-      precalculatedMods[i] = precalculatedZeroWasteModCombinations[distances[i]] || [[0, 0, 0, 0]];
-      // and now also remove every solution with >= 10 points of "overshoot"
-      precalculatedMods[i] = precalculatedMods[i].filter((d) => d[3] - distances[i] < 10);
-    }
-  }
-
-  // add optional distances to the precalculated mods
-  const limit = 3;
-  for (let i = 0; i < optionalDistances.length; i++) {
-    if (optionalDistances[i] > 0) {
-      const additionalCombosA = modCombinations[optionalDistances[i]].filter(
-        (d) =>
-          d[2] == 0 && // disallow major mods
-          d[3] % 10 > 0 && // we do not want to add exact stat tiers
-          (optionalDistances[i] + d[3]) % 10 < optionalDistances[i] // and the changes must have less waste than before
-      );
-      //(d) => d[3] % 10 > 0);
-      if (additionalCombosA != null) {
-        precalculatedMods[i] = additionalCombosA.slice(0, limit).concat(precalculatedMods[i]);
-      }
-    }
-  }
-
-  for (let i = 0; i < 6; i++) {
-    precalculatedMods[i] = precalculatedMods[i].filter(
-      (d) =>
-        d[2] <= config.statModLimits.maxMajorMods && d[1] + d[2] <= config.statModLimits.maxMods
-    );
-
-    if (precalculatedMods[i] == null || precalculatedMods[i].length == 0) {
-      // if there are no mods for this distance, we can not calculate anything
-      return null;
-    }
-  }
-
-  let bestMods: any = null;
-  let bestScore = 1000;
-
-  function score(entries: [number, number, number, number][]) {
-    if (optimize == ModOptimizationStrategy.ReduceUsedModSockets) {
-      const n1 = entries.reduce((a, b) => a + b[1] + b[2], 0);
-      return n1;
-    } else if (optimize == ModOptimizationStrategy.ReduceUsedModPoints) {
-      return entries.reduce((a, b, currentIndex) => a + 1 * b[1] + 3 * b[2], 0);
-    }
-    return entries.reduce((a, b) => a + b[3], 0);
-  }
-
-  function validate(entries: [number, number, number, number][]): boolean {
-    // sum up the stats
-    const sum = entries.reduce(
-      (a, b, i) => [a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3] - distances[i]],
-      [0, 0, 0, 0]
-    );
-
-    if (score(entries) > bestScore) return false;
-    if (sum[0] > availableArtificeCount) return false;
-    if (sum[1] + sum[2] > config.statModLimits.maxMods) return false;
-    if (sum[2] > config.statModLimits.maxMajorMods) return false;
-    if (sum[3] < 0) return false;
-
-    return true;
-  }
-
-  const mustExecuteOptimization = totalDistance > 0 && optimize != ModOptimizationStrategy.None;
-  root: for (let mobility of precalculatedMods[0]) {
-    if (!validate([mobility])) continue;
-    for (let resilience of precalculatedMods[1]) {
-      if (!validate([mobility, resilience])) continue;
-      for (let recovery of precalculatedMods[2]) {
-        if (!validate([mobility, resilience, recovery])) continue;
-        if (mustExecuteOptimization && score([mobility, resilience, recovery]) >= bestScore)
-          continue;
-        for (let discipline of precalculatedMods[3]) {
-          if (!validate([mobility, resilience, recovery, discipline])) continue;
-          if (
-            mustExecuteOptimization &&
-            score([mobility, resilience, recovery, discipline]) >= bestScore
-          )
-            continue;
-          for (let intellect of precalculatedMods[4]) {
-            if (!validate([mobility, resilience, recovery, discipline, intellect])) continue;
-            if (
-              mustExecuteOptimization &&
-              score([mobility, resilience, recovery, discipline, intellect]) >= bestScore
-            )
-              continue;
-            inner: for (let strength of precalculatedMods[5]) {
-              let mods = [mobility, resilience, recovery, discipline, intellect, strength];
-
-              if (!validate(mods)) continue;
-
-              // Fill optional distances
-              for (let m = 0; m < 6; m++)
-                if (optionalDistances[m] > 0 && mods[m][3] == 0 && bestMods != null) continue inner;
-
-              let scoreVal = score(mods);
-              if (scoreVal < bestScore) {
-                bestScore = scoreVal;
-                bestMods = mods;
-                if (!mustExecuteOptimization) {
-                  break root;
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  if (bestMods === null) return null;
+  if (pickedMods === null) return null;
 
   const usedMods = [];
-  for (let i = 0; i < bestMods.length; i++) {
-    for (let n = 0; n < bestMods[i][0]; n++) usedMods.push(3 + 3 * i);
-    for (let n = 0; n < bestMods[i][1]; n++) usedMods.push(1 + 3 * i);
-    for (let n = 0; n < bestMods[i][2]; n++) usedMods.push(2 + 3 * i);
+  for (let i = 0; i < pickedMods.length; i++) {
+    for (let n = 0; n < pickedMods[i][0]; n++) usedMods.push(3 + 3 * i);
+    for (let n = 0; n < pickedMods[i][1]; n++) usedMods.push(1 + 3 * i);
+    for (let n = 0; n < pickedMods[i][2]; n++) usedMods.push(2 + 3 * i);
   }
 
   return usedMods;
