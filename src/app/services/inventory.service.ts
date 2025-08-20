@@ -543,6 +543,8 @@ export class InventoryService {
               ) as IInventoryArmor[];
               let exotic = items.find((x) => x.isExotic);
               let v: ResultDefinition = {
+                loaded: false, // TODO check if loaded is even needed
+                tuningStats: armorSet.tuning,
                 exotic:
                   exotic == null
                     ? undefined
@@ -595,7 +597,7 @@ export class InventoryService {
                   (y) => y.source === InventoryArmorSource.Collections
                 ),
                 usesVendorRoll: items.some((y) => y.source === InventoryArmorSource.Vendor),
-              } as ResultDefinition;
+              };
               this.endResults.push(v);
             }
 

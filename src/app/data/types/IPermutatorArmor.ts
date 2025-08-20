@@ -9,5 +9,5 @@ export interface IPermutatorArmor extends IDestinyArmor {
   rarity: TierType;
   isSunset: boolean;
   exoticPerkHash: number[];
-  tuningStat?: ArmorStat; // for armor 3.0, this is the tuning stat hash
+  tuningStat: ArmorStat | null; // for armor 3.0, this is the tuning stat hash
 }

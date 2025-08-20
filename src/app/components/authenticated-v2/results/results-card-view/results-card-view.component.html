@@ -379,15 +379,15 @@
                       </td>
                     </tr>
                     <!-- Tuning stat row -->
-                    <tr class="tuning-row" *ngIf="result.tuning && isBreakdownExpanded(i)">
+                    <tr class="tuning-row" *ngIf="result.tuningStats && isBreakdownExpanded(i)">
                       <td class="tuning-label">Tuning</td>
                       <td *ngFor="let stat of STAT_ORDER">
-                        <span *ngIf="result.tuning.stats[stat] !== 0" class="tuning-value">
+                        <span *ngIf="result.tuningStats[stat] !== 0" class="tuning-value">
                           <span
-                            [class.positive]="result.tuning.stats[stat] > 0"
-                            [class.negative]="result.tuning.stats[stat] < 0">
-                            {{ result.tuning.stats[stat] > 0 ? "+" : ""
-                            }}{{ result.tuning.stats[stat] }}
+                            [class.positive]="result.tuningStats[stat] > 0"
+                            [class.negative]="result.tuningStats[stat] < 0">
+                            {{ result.tuningStats[stat] > 0 ? "+" : ""
+                            }}{{ result.tuningStats[stat] }}
                           </span>
                         </span>
                       </td>

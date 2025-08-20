@@ -115,7 +115,7 @@
 
         <!-- Tuning Affinity-->
         <td>
-          <span class="tuning-affinity" *ngIf="i.tuningStat !== undefined">
+          <span class="tuning-affinity" *ngIf="i.tuningStat !== null">
             <app-stat-icon [stat]="i.tuningStat"></app-stat-icon>
           </span>
         </td>
@@ -313,6 +313,71 @@
         </td>
       </tr>
     </ng-container>
+
+    <!-- Tuning -->
+    <tr class="tuning-row" *ngIf="element && element.tuningStats !== null">
+      <td class="tuning-label">Tuning</td>
+      <td>
+        <span *ngIf="element.tuningStats[ArmorStat.StatHealth] !== 0">
+          <span
+            [class.positive]="element.tuningStats[ArmorStat.StatHealth] > 0"
+            [class.negative]="element.tuningStats[ArmorStat.StatHealth] < 0">
+            {{ element.tuningStats[ArmorStat.StatHealth] > 0 ? "+" : ""
+            }}{{ element.tuningStats[ArmorStat.StatHealth] }}
+          </span>
+        </span>
+      </td>
+      <td>
+        <span *ngIf="element.tuningStats[ArmorStat.StatMelee] !== 0">
+          <span
+            [class.positive]="element.tuningStats[ArmorStat.StatMelee] > 0"
+            [class.negative]="element.tuningStats[ArmorStat.StatMelee] < 0">
+            {{ element.tuningStats[ArmorStat.StatMelee] > 0 ? "+" : ""
+            }}{{ element.tuningStats[ArmorStat.StatMelee] }}
+          </span>
+        </span>
+      </td>
+      <td>
+        <span *ngIf="element.tuningStats[ArmorStat.StatGrenade] !== 0">
+          <span
+            [class.positive]="element.tuningStats[ArmorStat.StatGrenade] > 0"
+            [class.negative]="element.tuningStats[ArmorStat.StatGrenade] < 0">
+            {{ element.tuningStats[ArmorStat.StatGrenade] > 0 ? "+" : ""
+            }}{{ element.tuningStats[ArmorStat.StatGrenade] }}
+          </span>
+        </span>
+      </td>
+      <td>
+        <span *ngIf="element.tuningStats[ArmorStat.StatSuper] !== 0">
+          <span
+            [class.positive]="element.tuningStats[ArmorStat.StatSuper] > 0"
+            [class.negative]="element.tuningStats[ArmorStat.StatSuper] < 0">
+            {{ element.tuningStats[ArmorStat.StatSuper] > 0 ? "+" : ""
+            }}{{ element.tuningStats[ArmorStat.StatSuper] }}
+          </span>
+        </span>
+      </td>
+      <td>
+        <span *ngIf="element.tuningStats[ArmorStat.StatClass] !== 0">
+          <span
+            [class.positive]="element.tuningStats[ArmorStat.StatClass] > 0"
+            [class.negative]="element.tuningStats[ArmorStat.StatClass] < 0">
+            {{ element.tuningStats[ArmorStat.StatClass] > 0 ? "+" : ""
+            }}{{ element.tuningStats[ArmorStat.StatClass] }}
+          </span>
+        </span>
+      </td>
+      <td>
+        <span *ngIf="element.tuningStats[ArmorStat.StatWeapon] !== 0">
+          <span
+            [class.positive]="element.tuningStats[ArmorStat.StatWeapon] > 0"
+            [class.negative]="element.tuningStats[ArmorStat.StatWeapon] < 0">
+            {{ element.tuningStats[ArmorStat.StatWeapon] > 0 ? "+" : ""
+            }}{{ element.tuningStats[ArmorStat.StatWeapon] }}
+          </span>
+        </span>
+      </td>
+    </tr>
 
     <!-- Final sum line -->
     <tr *ngVar="element?.stats as stats" class="result-total-all result-total highlight-row">

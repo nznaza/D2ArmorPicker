@@ -63,7 +63,7 @@ export interface IInventoryArmor
     ITimestampedEntry {
   // Note: this will be empty for vendor items
   statPlugHashes?: (number | undefined)[];
-  tuningStat?: ArmorStat; // for armor 3.0, this is the tuning stat hash
+  tuningStat: ArmorStat | null; // for armor 3.0, this is the tuning stat hash
   // exoticPerkHash is now inherited as number[] from IManifestArmor
 }
 
@@ -90,6 +90,7 @@ export function createArmorItem(
       intellect: 0,
       strength: 0,
       source,
+      tuningStat: null, // default to null for Armor 3.0
       created_at: Date.now(),
       updated_at: Date.now(),
     },
