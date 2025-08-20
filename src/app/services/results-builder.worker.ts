@@ -47,7 +47,7 @@ import { precalculatedTuningModCombinations } from "../data/generated/precalcula
 // endregion Imports
 
 type t5Improvement = {
-  tuningStatHash: ArmorStat;
+  tuningStat: ArmorStat;
   archetypeStats: ArmorStat[];
 };
 
@@ -560,9 +560,9 @@ function generate_tunings(possibleImprovements: t5Improvement[]): Tuning[] {
     for (let n = 0; n < 6; n++) {
       if (!imp.archetypeStats.includes(n)) ooo[n] = 1;
 
-      if (n == imp.tuningStatHash) continue;
+      if (n == imp.tuningStat) continue;
       let p = [0, 0, 0, 0, 0, 0];
-      p[imp.tuningStatHash] = 5;
+      p[imp.tuningStat] = 5;
       p[n] = -5;
       l.push(p);
     }
@@ -770,10 +770,10 @@ export function handlePermutation(
           i.armorSystem == ArmorSystem.Armor3 &&
           i.tier == 5 &&
           i.archetypeStats &&
-          i.tuningStatHash !== undefined
+          i.tuningStat !== undefined
       )
       .map((i) => ({
-        tuningStatHash: i.tuningStatHash!,
+        tuningStat: i.tuningStat!,
         archetypeStats: i.archetypeStats,
       }));
 

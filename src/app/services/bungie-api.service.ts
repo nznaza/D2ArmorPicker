@@ -51,6 +51,7 @@ import {
   ArmorPerkOrSlot,
   ArmorPerkSocketHashes,
   ArmorStat,
+  ArmorStatFromHash,
   ArmorStatHashes,
   MapAlternativeSocketTypeToArmorPerkOrSlot,
   MapAlternativeToArmorPerkOrSlot,
@@ -417,14 +418,21 @@ export class BungieApiService {
             const plugs =
               profile.Response.itemComponents.reusablePlugs.data?.[d.itemInstanceId!]?.plugs;
             if (plugs) {
-              // TODO: remove the hardcoding of 11 and 2
-              const modCheck = plugs[11][2].plugItemHash;
-              plugs[11][2].plugItemHash;
-              // Find the index of the first investment stat with value > 0
-              const tuningStat = modsMap[modCheck].investmentStats.find(
-                (p) => p.value > 0
-              )?.statTypeHash;
-              armorItem.tuningStatHash = tuningStat;
+              const availablePlugs = Object.values(plugs).find((value) => {
+                return value.length > 1 && value.some((p) => p.plugItemHash == 3122197216); // 3122197216 is the balanced tuning stat
+              });
+
+              if (availablePlugs && availablePlugs.length > 1) {
+                const pickedPlug = availablePlugs.find((p) => p.plugItemHash != 3122197216);
+                if (pickedPlug) {
+                  const statCheckHash = pickedPlug.plugItemHash;
+                  const mod = modsMap[statCheckHash];
+                  const tuningStatHash = mod?.investmentStats.find(
+                    (p) => p.value > 0
+                  )?.statTypeHash;
+                  if (tuningStatHash) armorItem.tuningStat = ArmorStatFromHash[tuningStatHash];
+                }
+              }
             }
           } catch (e) {
             this.logger.error(
