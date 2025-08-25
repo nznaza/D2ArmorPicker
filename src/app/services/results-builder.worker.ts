@@ -261,69 +261,8 @@ addEventListener("message", async ({ data }) => {
   let gauntlets = items.filter((i) => i.slot == ArmorSlot.ArmorSlotGauntlet);
   let chests = items.filter((i) => i.slot == ArmorSlot.ArmorSlotChest);
   let legs = items.filter((i) => i.slot == ArmorSlot.ArmorSlotLegs);
-
-  // Support multithreading. Find the largest set and split it by N, ensuring even exotic distribution.
-  if (threadSplit.count > 1) {
-    // Find the largest slot array
-    const slotArrays: [IPermutatorArmor[], number, string][] = [
-      [helmets, helmets.length, "helmets"],
-      [gauntlets, gauntlets.length, "gauntlets"],
-      [chests, chests.length, "chests"],
-      [legs, legs.length, "legs"],
-    ];
-    slotArrays.sort((a, b) => b[1] - a[1]);
-    const splitEntry = slotArrays[0][0];
-    const splitEntryName = slotArrays[0][2];
-
-    // Separate exotics and non-exotics
-    const exotics = splitEntry.filter((i) => i.isExotic);
-    const nonExotics = splitEntry.filter((i) => !i.isExotic);
-
-    // Deterministically sort both groups (by hash, then by masterworkLevel, then by name if available)
-    const stableSort = (arr: IPermutatorArmor[]) =>
-      arr.slice().sort((a, b) => {
-        if (a.hash !== b.hash) return a.hash - b.hash;
-        if ((a.masterworkLevel ?? 0) !== (b.masterworkLevel ?? 0))
-          return (a.masterworkLevel ?? 0) - (b.masterworkLevel ?? 0);
-        return 0;
-      });
-    const sortedExotics = stableSort(exotics);
-    const sortedNonExotics = stableSort(nonExotics);
-
-    // Helper to split an array into N nearly equal, deterministic batches
-    function splitIntoBatches<T>(arr: T[], batchCount: number): T[][] {
-      const batches: T[][] = Array.from({ length: batchCount }, () => []);
-      for (let i = 0; i < arr.length; ++i) {
-        // Distribute round-robin for determinism
-        batches[i % batchCount].push(arr[i]);
-      }
-      return batches;
-    }
-
-    const exoticBatches = splitIntoBatches(sortedExotics, threadSplit.count);
-    const nonExoticBatches = splitIntoBatches(sortedNonExotics, threadSplit.count);
-
-    // For this thread, combine the corresponding exotic and non-exotic batch
-    const batch = [...exoticBatches[threadSplit.current], ...nonExoticBatches[threadSplit.current]];
-
-    // Replace the original slot array with the batch for this thread
-    switch (splitEntryName) {
-      case "helmets":
-        helmets = batch;
-        break;
-      case "gauntlets":
-        gauntlets = batch;
-        break;
-      case "chests":
-        chests = batch;
-        break;
-      case "legs":
-        legs = batch;
-        break;
-    }
-  }
-
   let classItems = items.filter((i) => i.slot == ArmorSlot.ArmorSlotClass);
+
   // Sort by Masterwork, descending
   classItems = classItems.sort((a, b) => (b.masterworkLevel ?? 0) - (a.masterworkLevel ?? 0));
 
@@ -393,6 +332,71 @@ addEventListener("message", async ({ data }) => {
       )
   );
   //*/
+
+  // Support multithreading. Find the largest set and split it by N, ensuring even exotic distribution.
+  if (threadSplit.count > 1) {
+    // Find the largest slot array
+    const slotArrays: [IPermutatorArmor[], number, string][] = [
+      [helmets, helmets.length, "helmets"],
+      [gauntlets, gauntlets.length, "gauntlets"],
+      [chests, chests.length, "chests"],
+      [legs, legs.length, "legs"],
+      [classItems, classItems.length, "class"],
+    ];
+    slotArrays.sort((a, b) => b[1] - a[1]);
+    const splitEntry = slotArrays[0][0];
+    const splitEntryName = slotArrays[0][2];
+
+    // Separate exotics and non-exotics
+    const exotics = splitEntry.filter((i) => i.isExotic);
+    const nonExotics = splitEntry.filter((i) => !i.isExotic);
+
+    // Deterministically sort both groups (by hash, then by masterworkLevel, then by name if available)
+    const stableSort = (arr: IPermutatorArmor[]) =>
+      arr.slice().sort((a, b) => {
+        if (a.hash !== b.hash) return a.hash - b.hash;
+        if ((a.masterworkLevel ?? 0) !== (b.masterworkLevel ?? 0))
+          return (a.masterworkLevel ?? 0) - (b.masterworkLevel ?? 0);
+        return 0;
+      });
+    const sortedExotics = stableSort(exotics);
+    const sortedNonExotics = stableSort(nonExotics);
+
+    // Helper to split an array into N nearly equal, deterministic batches
+    function splitIntoBatches<T>(arr: T[], batchCount: number): T[][] {
+      const batches: T[][] = Array.from({ length: batchCount }, () => []);
+      for (let i = 0; i < arr.length; ++i) {
+        // Distribute round-robin for determinism
+        batches[i % batchCount].push(arr[i]);
+      }
+      return batches;
+    }
+
+    const exoticBatches = splitIntoBatches(sortedExotics, threadSplit.count);
+    const nonExoticBatches = splitIntoBatches(sortedNonExotics, threadSplit.count);
+
+    // For this thread, combine the corresponding exotic and non-exotic batch
+    const batch = [...exoticBatches[threadSplit.current], ...nonExoticBatches[threadSplit.current]];
+
+    // Replace the original slot array with the batch for this thread
+    switch (splitEntryName) {
+      case "helmets":
+        helmets = batch;
+        break;
+      case "gauntlets":
+        gauntlets = batch;
+        break;
+      case "chests":
+        chests = batch;
+        break;
+      case "legs":
+        legs = batch;
+        break;
+      case "class":
+        classItems = batch;
+        break;
+    }
+  }
 
   const exoticClassItems = classItems.filter((d) => d.isExotic);
   const legendaryClassItems = classItems.filter((d) => !d.isExotic);
