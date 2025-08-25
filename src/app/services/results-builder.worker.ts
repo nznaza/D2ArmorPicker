@@ -51,6 +51,22 @@ type t5Improvement = {
   archetypeStats: ArmorStat[];
 };
 
+function isT5WithTuning(i: IPermutatorArmor): boolean {
+  return (
+    i.armorSystem == ArmorSystem.Armor3 &&
+    i.tier == 5 &&
+    i.archetypeStats &&
+    i.tuningStat !== undefined
+  );
+}
+
+function mapItemToTuning(i: IPermutatorArmor): t5Improvement {
+  return {
+    tuningStat: i.tuningStat!,
+    archetypeStats: i.archetypeStats,
+  };
+}
+
 // region Validation and Preparation Functions
 function checkSlots(
   config: BuildConfiguration,
@@ -712,6 +728,9 @@ export function handlePermutation(
       distances[stat] = Math.max(distances[stat], v < 10 ? v : 0);
     }
   }
+  const possibleT5Improvements: t5Improvement[] = [helmet, gauntlet, chest, leg]
+    .filter(isT5WithTuning)
+    .map(mapItemToTuning);
 
   // distances required to reduce wasted stat points :)
   const optionalDistances = [0, 0, 0, 0, 0, 0];
@@ -802,21 +821,12 @@ export function handlePermutation(
     ];
     applyMasterworkStats(classItem, config, adjustedStatsWithoutMods);
 
-    const possibleT5Improvements: t5Improvement[] = [helmet, gauntlet, chest, leg, classItem]
-      //.filter((i) => i.armorSystem == ArmorSystem.Armor3 && i.tier > 0 && i.archetypeStats)
-      .filter(
-        (i) =>
-          i.armorSystem == ArmorSystem.Armor3 &&
-          i.tier == 5 &&
-          i.archetypeStats &&
-          i.tuningStat !== undefined
-      )
-      .map((i) => ({
-        tuningStat: i.tuningStat!,
-        archetypeStats: i.archetypeStats,
-      }));
+    let tmpPossibleT5Improvements = possibleT5Improvements;
+    if (isT5WithTuning(classItem)) {
+      tmpPossibleT5Improvements = [...tmpPossibleT5Improvements, mapItemToTuning(classItem)];
+    }
 
-    const availableTunings: Tuning[] = generate_tunings(possibleT5Improvements);
+    const availableTunings: Tuning[] = generate_tunings(tmpPossibleT5Improvements);
 
     // Recalculate distances with class item included
     const newDistances = [
