@@ -756,6 +756,9 @@ export function handlePermutation(
     let scoreA = 0,
       scoreB = 0;
 
+    if (a.tier == 5) scoreA += 10;
+    if (b.tier == 5) scoreB += 10;
+
     // add 10 if the class item is Armor 3.0
     if (a.armorSystem == ArmorSystem.Armor3) scoreA += 10;
     if (b.armorSystem == ArmorSystem.Armor3) scoreB += 10;
@@ -795,7 +798,7 @@ export function handlePermutation(
 
   // Try each class item with early termination
   let finalResult: IPermutatorArmorSet | never[] = [];
-  for (const classItem of sortedClassItems) {
+  classItemLoop: for (const classItem of sortedClassItems) {
     const adjustedStats = [...stats];
     const tmpArtificeCount =
       availableArtificeCount + (classItem.perk == ArmorPerkOrSlot.SlotArtifice ? 1 : 0);
@@ -830,6 +833,7 @@ export function handlePermutation(
       tmpPossibleT5Improvements = [...tmpPossibleT5Improvements, mapItemToTuning(classItem)];
     }
 
+    const availableTuningCount = tmpPossibleT5Improvements.length;
     const availableTunings: Tuning[] = generate_tunings(tmpPossibleT5Improvements);
 
     // Recalculate distances with class item included
@@ -872,11 +876,26 @@ export function handlePermutation(
       newDistances[5];
     const newTotalOptionalDistances = newOptionalDistances.reduce((a, b) => a + b, 0);
 
-    if (newDistanceSum > 10 * 5 + 5 * availableTunings.length) continue;
+    if (newDistanceSum > 50 * 5 + 3 * availableArtificeCount + 5 * availableTuningCount)
+      break classItemLoop;
+
+    for (let stat = 0; stat <= 6; stat++) {
+      const possibleIncreaseByTuning = availableTunings.sort((a, b) => b[stat] - a[stat])[0][stat];
+      const possibleIncreaseByMod =
+        10 * config.statModLimits.maxMajorMods +
+        5 * Math.max(0, config.statModLimits.maxMods - config.statModLimits.maxMajorMods);
+      const possibleIncreaseByArtifice = 3 * availableArtificeCount;
+      const possibleIncrease =
+        possibleIncreaseByMod + possibleIncreaseByTuning + possibleIncreaseByArtifice;
+
+      if (possibleIncrease < newDistances[stat]) {
+        break classItemLoop;
+      }
+    }
 
     let result: StatModifierPrecalc | null;
     if (newDistanceSum == 0 && newTotalOptionalDistances == 0)
-      result = { mods: [], tuning: [0, 0, 0, 0, 0, 0] };
+      result = { mods: [], tuning: [0, 0, 0, 0, 0, 0], modBonus: [0, 0, 0, 0, 0, 0] };
     else
       result = get_mods_precalc(
         adjustedStats,
@@ -927,6 +946,10 @@ export function handlePermutation(
   return finalResult;
 }
 
+function getStatVal(statId: ArmorStat, mods : StatModifierPrecalc, start: number) {
+  return start + mods.tuning[statId] + mods.modBonus[statId];
+}
+
 // region Tier Availability Testing
 function performTierAvailabilityTesting(
   runtime: any,
@@ -961,6 +984,8 @@ function performTierAvailabilityTesting(
     if (runtime.maximumPossibleTiers[stat] < stats[stat] + minimumTuning) {
       runtime.maximumPossibleTiers[stat] = stats[stat] + minimumTuning;
     }
+    //const tuningsWithoutNegatives = tmpTunings.filter((t) => t[stat] >= 0);
+
 
     if (minStat >= 200) continue; // Already at max value, no need to test
 
@@ -997,17 +1022,9 @@ function performTierAvailabilityTesting(
       );
 
       if (mods != null) {
-        // This value is achievable, try higher
-        if (mods?.tuning[stat] >= 0) {
-          low = mid + 1;
-          runtime.maximumPossibleTiers[stat] = mid;
-        } else {
-          runtime.maximumPossibleTiers[stat] = Math.max(
-            mid + mods?.tuning[stat],
-            runtime.maximumPossibleTiers[stat]
-          );
-          low = Math.max(mid + mods?.tuning[stat], low) + 1;
-        }
+        let val = getStatVal(stat, mods, minStat);
+        runtime.maximumPossibleTiers[stat] = Math.max(val, runtime.maximumPossibleTiers[stat]);
+        low = Math.max(runtime.maximumPossibleTiers[stat], mid) + 1;
       } else {
         // This value is not achievable, try lower
         high = mid - 1;
@@ -1030,6 +1047,14 @@ function performTierAvailabilityTesting(
       );
       if (mods != null) {
         runtime.maximumPossibleTiers[stat] = low;
+        // also set the other stats
+        // This may reduce the amount of required calculations for the stats that will be checked later on
+        for (let otherStat = stat+1; otherStat < 6; otherStat++) {
+            runtime.maximumPossibleTiers[otherStat] = Math.max(
+              getStatVal(otherStat, mods, stats[otherStat]),
+              runtime.maximumPossibleTiers[otherStat]
+            );
+        }
       }
     }
   }
@@ -1196,6 +1221,7 @@ function get_mods_recursive(
 
 type StatModifierPrecalc = {
   mods: StatModifier[];
+  modBonus: number[];
   tuning: Tuning;
 };
 
@@ -1211,11 +1237,11 @@ function get_mods_precalc(
 ): StatModifierPrecalc | null {
   const totalDistance =
     distances[0] + distances[1] + distances[2] + distances[3] + distances[4] + distances[5];
-  if (totalDistance > 75) return null;
+  if (totalDistance > 50 + 25) return null;
 
   if (totalDistance == 0 && optionalDistances.every((d) => d == 0)) {
     // no mods needed, return empty array
-    return { mods: [], tuning: [0, 0, 0, 0, 0, 0] };
+    return { mods: [], tuning: [0, 0, 0, 0, 0, 0], modBonus: [0, 0, 0, 0, 0, 0] };
   }
 
   let pickedMods = get_mods_recursive(
@@ -1232,15 +1258,26 @@ function get_mods_precalc(
   if (pickedMods === null) return null;
 
   const usedMods = [];
+  const modBonus = [0, 0, 0, 0, 0, 0];
   // The last entry is always the tuning
   for (let i = 0; i < pickedMods.length - 1; i++) {
-    for (let n = 0; n < pickedMods[i][0]; n++) usedMods.push(3 + 3 * i);
-    for (let n = 0; n < pickedMods[i][1]; n++) usedMods.push(1 + 3 * i);
-    for (let n = 0; n < pickedMods[i][2]; n++) usedMods.push(2 + 3 * i);
+    for (let n = 0; n < pickedMods[i][1]; n++) {
+      usedMods.push(1 + 3 * i);
+      modBonus[i] += 5;
+    }
+    for (let n = 0; n < pickedMods[i][2]; n++) {
+      usedMods.push(2 + 3 * i);
+      modBonus[i] += 10;
+    }
+    for (let n = 0; n < pickedMods[i][0]; n++) {
+      usedMods.push(3 + 3 * i)
+      modBonus[i] += 3;
+    }
   }
 
   return {
     mods: usedMods,
+    modBonus: modBonus,
     tuning: pickedMods[pickedMods.length - 1] as Tuning,
   };
 }
