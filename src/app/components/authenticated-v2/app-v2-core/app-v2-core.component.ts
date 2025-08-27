@@ -43,6 +43,10 @@ export class AppV2CoreComponent implements OnInit {
       name: "Home",
     },
     {
+      link: "/cluster",
+      name: "Clustering",
+    },
+    {
       link: "/help",
       name: "Help",
     },
