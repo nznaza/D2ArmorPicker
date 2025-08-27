@@ -34,6 +34,23 @@ export const CHANGELOG_DATA: {
   entries: ChangelogEntry[];
 }[] = [
   {
+    version: "2.9.7",
+    date: "August 27, 2025",
+    clearManifest: false,
+    entries: [
+      {
+        type: ChangelogEntryType.ADD,
+        text: "T5 Tuning has been implemented.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Clustering is updated and re-enabled.",
+        issues: [],
+      },
+    ],
+  },
+  {
     version: "2.9.6",
     date: "July 31, 2025",
     clearManifest: true,
