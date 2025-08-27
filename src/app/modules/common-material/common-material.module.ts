@@ -102,6 +102,7 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
     MatTabsModule,
     MatChipsModule,
     MatSidenavModule,
+    MatSliderModule,
   ],
 })
 export class CommonMaterialModule {}
