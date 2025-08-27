@@ -20,7 +20,7 @@ import { NGXLogger } from "ngx-logger";
 import { DatabaseService } from "./database.service";
 import { ArmorSystem, IManifestArmor } from "../data/types/IManifestArmor";
 import { ConfigurationService } from "./configuration.service";
-import { debounceTime } from "rxjs/operators";
+import { debounceTime, filter } from "rxjs/operators";
 import { BehaviorSubject, Observable, ReplaySubject, Subject } from "rxjs";
 import { BuildConfiguration } from "../data/buildConfiguration";
 import { STAT_MOD_VALUES, StatModifier } from "../data/enum/armor-stat";
@@ -132,41 +132,33 @@ export class InventoryService {
     let dataAlreadyFetched = false;
 
     // TODO: This gives a race condition on some parts.
-    router.events.pipe(debounceTime(5)).subscribe(async (val) => {
-      if (this.auth.refreshTokenExpired || !(await this.auth.autoRegenerateTokens())) {
-        this.logger.warn(
-          "InventoryService",
-          "router.events",
-          "Refresh token expired, we should probably log the user out"
-        );
-        this.status.setAuthError();
-      }
-      if (!auth.isAuthenticated()) {
-        this.logger.warn(
-          "InventoryService",
-          "router.events",
-          "User is not authenticated, skipping router event handling"
-        );
-        return;
-      }
-
-      if (val instanceof NavigationEnd) {
-        if (this._config == null) {
-          this._config = structuredClone(this.config.readonlyConfigurationSnapshot);
+    router.events
+      .pipe(
+        filter((event) => event instanceof NavigationEnd),
+        debounceTime(5)
+      )
+      .subscribe(async (val) => {
+        if (this.auth.refreshTokenExpired || !(await this.auth.autoRegenerateTokens())) {
+          this.logger.warn(
+            "InventoryService",
+            "router.events",
+            "Refresh token expired, we should probably log the user out"
+          );
+          this.status.setAuthError();
+        }
+        if (!auth.isAuthenticated()) {
+          this.logger.warn(
+            "InventoryService",
+            "router.events",
+            "User is not authenticated, skipping router event handling"
+          );
+          return;
         }
 
-        this.killWorkers();
-        this.clearResults();
-        this.logger.debug(
-          "InventoryService",
-          "router.events",
-          "Trigger refreshAll due to router.events"
-        );
         this.initialized = true;
         await this.refreshAll(!dataAlreadyFetched);
         dataAlreadyFetched = true;
-      }
-    });
+      });
 
     this.config.configuration.pipe(debounceTime(500)).subscribe(async (c) => {
       if (this.auth.refreshTokenExpired || !(await this.auth.autoRegenerateTokens())) {
