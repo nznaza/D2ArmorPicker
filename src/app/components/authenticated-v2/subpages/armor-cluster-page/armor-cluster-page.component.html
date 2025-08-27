@@ -181,22 +181,18 @@
         <mat-card-content>
           <div>
             <table width="100%">
-              <ng-container *ngFor="let entry of clusterInformation[idx].mean; let idx1 = index">
-                <tr
-                  *ngIf="idx1 > 0"
-                  [matTooltip]="
-                    ['', 'Weapon', 'Health', 'Class', 'Grenade', 'Super', 'Melee'][idx1]
-                  ">
+              <ng-container *ngFor="let stat of ARMORSTAT_ORDER">
+                <tr [matTooltip]="ArmorStatNames[stat]">
                   <td>
-                    {{ ["", "Weapon", "Health", "Class", "Grenade", "Super", "Melee"][idx1] }}
+                    {{ ArmorStatNames[stat] }}
                   </td>
                   <td width="100%">
                     <div class="stat-range">
                       <div
                         class="stat-range-bar"
-                        [style.width]="(clusterInformation[idx].mean[idx1] / 40) * 100 + '%'"></div>
+                        [style.width]="(clusterInformation[idx].mean[stat] / 40) * 100 + '%'"></div>
                       <span class="avg-stat-value">
-                        {{ clusterInformation[idx].mean[idx1] | number: "1.0-0" }}
+                        {{ clusterInformation[idx].mean[stat] | number: "1.0-0" }}
                       </span>
                     </div>
                   </td>

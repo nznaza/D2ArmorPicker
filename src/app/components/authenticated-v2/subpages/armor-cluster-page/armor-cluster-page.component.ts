@@ -23,6 +23,7 @@ import { InventoryService } from "../../../../services/inventory.service";
 import { debounceTime } from "rxjs/operators";
 import { ArmorSlot } from "../../../../data/enum/armor-slot";
 import { ArmorSystem } from "src/app/data/types/IManifestArmor";
+import { ARMORSTAT_ORDER, ArmorStatNames } from "src/app/data/enum/armor-stat";
 
 @Component({
   selector: "app-armor-cluster-page",
@@ -38,6 +39,9 @@ export class ArmorClusterPageComponent implements AfterViewInit {
   classFilter: number | undefined = undefined;
   armorSystemFilter: ArmorSystem | undefined = undefined;
   clusterCount: number = 10;
+
+  public ARMORSTAT_ORDER = ARMORSTAT_ORDER;
+  public ArmorStatNames = ArmorStatNames;
 
   constructor(
     private db: DatabaseService,
@@ -71,18 +75,13 @@ export class ArmorClusterPageComponent implements AfterViewInit {
 
     // Prepare stat vectors for clustering
     const statVectors = items.map((item) => [
-      item.mobility +
-        item.resilience +
-        item.recovery +
-        item.discipline +
-        item.intellect +
-        item.strength,
       item.mobility,
       item.resilience,
       item.recovery,
       item.discipline,
       item.intellect,
       item.strength,
+      //item.mobility +        item.resilience +        item.recovery +        item.discipline +        item.intellect +        item.strength,
     ]);
 
     // Run k-means clustering with deterministic seed
@@ -101,21 +100,15 @@ export class ArmorClusterPageComponent implements AfterViewInit {
       // Calculate mean for each stat in the cluster
       const clusterItems = clusters[i];
       if (clusterItems.length === 0) return { mean: centroid, size: 0 };
-      const mean = Array(7).fill(0);
+      const mean = Array(6).fill(0);
       clusterItems.forEach((item) => {
-        mean[0] +=
-          item.mobility +
-          item.resilience +
-          item.recovery +
-          item.discipline +
-          item.intellect +
-          item.strength;
-        mean[1] += item.mobility;
-        mean[2] += item.resilience;
-        mean[3] += item.recovery;
-        mean[4] += item.discipline;
-        mean[5] += item.intellect;
-        mean[6] += item.strength;
+        mean[0] += item.mobility;
+        mean[1] += item.resilience;
+        mean[2] += item.recovery;
+        mean[3] += item.discipline;
+        mean[4] += item.intellect;
+        mean[5] += item.strength;
+        //mean[6] +=item.mobility +          item.resilience +          item.recovery +          item.discipline +          item.intellect +          item.strength;
       });
       for (let j = 0; j < 7; j++) mean[j] /= clusterItems.length;
       return { mean, size: clusterItems.length };
