@@ -683,14 +683,13 @@ export function handlePermutation(
 
   for (let item of items) applyMasterworkStats(item, config, stats);
 
-  const targetStats = [
-    config.minimumStatTiers[0].value * 10,
-    config.minimumStatTiers[1].value * 10,
-    config.minimumStatTiers[2].value * 10,
-    config.minimumStatTiers[3].value * 10,
-    config.minimumStatTiers[4].value * 10,
-    config.minimumStatTiers[5].value * 10,
-  ];
+  const targetStats = [0, 0, 0, 0, 0, 0];
+  for (let n: ArmorStat = 0; n < 6; n++) {
+    const targetVal = config.minimumStatTiers[n].value * 10;
+    if (targetVal > 0) targetStats[n] = targetVal;
+    // When we did not set a target stat, then we could potentially reach negative values too.
+    else targetStats[n] = Math.min(0, stats[n]);
+  }
 
   const statsWithoutMods = [stats[0], stats[1], stats[2], stats[3], stats[4], stats[5]];
   stats[0] += constantBonus[0];
@@ -735,20 +734,6 @@ export function handlePermutation(
   const possibleT5Improvements: t5Improvement[] = [helmet, gauntlet, chest, leg]
     .filter(isT5WithTuning)
     .map(mapItemToTuning);
-
-  // distances required to reduce wasted stat points :)
-  const optionalDistances = [0, 0, 0, 0, 0, 0];
-  if (config.tryLimitWastedStats)
-    for (let stat: ArmorStat = 0; stat < 6; stat++) {
-      if (
-        distances[stat] == 0 &&
-        !config.minimumStatTiers[stat].fixed &&
-        stats[stat] < 200 &&
-        stats[stat] % 10 > 0
-      ) {
-        optionalDistances[stat] = 10 - (stats[stat] % 10);
-      }
-    }
 
   // Greedy class item selection with early termination
   // Sort class items by their stat contribution to current gaps
@@ -854,7 +839,7 @@ export function handlePermutation(
     }
 
     // Recalculate optional distances
-    const newOptionalDistances = [0, 0, 0, 0, 0, 0];
+    const newOptionalDistances: number[] = [0, 0, 0, 0, 0, 0];
     if (config.tryLimitWastedStats)
       for (let stat: ArmorStat = 0; stat < 6; stat++) {
         if (
@@ -946,7 +931,7 @@ export function handlePermutation(
   return finalResult;
 }
 
-function getStatVal(statId: ArmorStat, mods : StatModifierPrecalc, start: number) {
+function getStatVal(statId: ArmorStat, mods: StatModifierPrecalc, start: number) {
   return start + mods.tuning[statId] + mods.modBonus[statId];
 }
 
@@ -985,7 +970,6 @@ function performTierAvailabilityTesting(
       runtime.maximumPossibleTiers[stat] = stats[stat] + minimumTuning;
     }
     //const tuningsWithoutNegatives = tmpTunings.filter((t) => t[stat] >= 0);
-
 
     if (minStat >= 200) continue; // Already at max value, no need to test
 
@@ -1049,11 +1033,11 @@ function performTierAvailabilityTesting(
         runtime.maximumPossibleTiers[stat] = low;
         // also set the other stats
         // This may reduce the amount of required calculations for the stats that will be checked later on
-        for (let otherStat = stat+1; otherStat < 6; otherStat++) {
-            runtime.maximumPossibleTiers[otherStat] = Math.max(
-              getStatVal(otherStat, mods, stats[otherStat]),
-              runtime.maximumPossibleTiers[otherStat]
-            );
+        for (let otherStat = stat + 1; otherStat < 6; otherStat++) {
+          runtime.maximumPossibleTiers[otherStat] = Math.max(
+            getStatVal(otherStat, mods, stats[otherStat]),
+            runtime.maximumPossibleTiers[otherStat]
+          );
         }
       }
     }
@@ -1270,7 +1254,7 @@ function get_mods_precalc(
       modBonus[i] += 10;
     }
     for (let n = 0; n < pickedMods[i][0]; n++) {
-      usedMods.push(3 + 3 * i)
+      usedMods.push(3 + 3 * i);
       modBonus[i] += 3;
     }
   }

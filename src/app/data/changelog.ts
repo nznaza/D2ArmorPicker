@@ -48,6 +48,11 @@ export const CHANGELOG_DATA: {
         text: "Clustering is updated and re-enabled.",
         issues: [],
       },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Adapted the algorithm so that it allows negative stat values.",
+        issues: [],
+      },
     ],
   },
   {
