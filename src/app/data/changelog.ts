@@ -40,7 +40,7 @@ export const CHANGELOG_DATA: {
     entries: [
       {
         type: ChangelogEntryType.ADD,
-        text: "T5 Tuning has been implemented.",
+        text: "T5 Tuning has been implemented. This was a lot of work. A display of the used mods will follow in a later update.",
         issues: [],
       },
       {
