@@ -870,7 +870,7 @@ export function handlePermutation(
       else continue classItemLoop;
     }
 
-    for (let stat = 0; stat <= 6; stat++) {
+    for (let stat = 0; stat < 6; stat++) {
       const possibleIncreaseByTuning = availableTunings.sort((a, b) => b[stat] - a[stat])[0][stat];
       const possibleIncreaseByMod =
         10 * config.statModLimits.maxMajorMods +
