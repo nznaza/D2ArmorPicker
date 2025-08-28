@@ -96,6 +96,7 @@ export class BuildConfiguration {
   onlyUseMasterworkedLegendaries = false;
   modOptimizationStrategy: ModOptimizationStrategy = ModOptimizationStrategy.None;
   limitParsedResults = true; // Limits the amount of results that are parsed. This looses some results, but solves memory issues
+  earlyAbortClassItems = true; // High-Speed setting
   tryLimitWastedStats = false;
   onlyShowResultsWithNoWastedStats = false;
 
@@ -130,6 +131,7 @@ export class BuildConfiguration {
       assumeLegendariesMasterworked: true,
       assumeExoticsMasterworked: true,
       limitParsedResults: true,
+      earlyAbortClassItems: true,
       modOptimizationStrategy: ModOptimizationStrategy.None,
       tryLimitWastedStats: false,
       onlyShowResultsWithNoWastedStats: false,

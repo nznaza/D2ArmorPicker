@@ -861,8 +861,10 @@ export function handlePermutation(
       newDistances[5];
     const newTotalOptionalDistances = newOptionalDistances.reduce((a, b) => a + b, 0);
 
-    if (newDistanceSum > 50 * 5 + 3 * availableArtificeCount + 5 * availableTuningCount)
-      break classItemLoop;
+    if (newDistanceSum > 50 * 5 + 3 * availableArtificeCount + 5 * availableTuningCount) {
+      if (config.earlyAbortClassItems) break classItemLoop;
+      else continue classItemLoop;
+    }
 
     for (let stat = 0; stat <= 6; stat++) {
       const possibleIncreaseByTuning = availableTunings.sort((a, b) => b[stat] - a[stat])[0][stat];
@@ -874,7 +876,8 @@ export function handlePermutation(
         possibleIncreaseByMod + possibleIncreaseByTuning + possibleIncreaseByArtifice;
 
       if (possibleIncrease < newDistances[stat]) {
-        break classItemLoop;
+        if (config.earlyAbortClassItems) break classItemLoop;
+        else continue classItemLoop;
       }
     }
 

@@ -44,6 +44,11 @@ export const CHANGELOG_DATA: {
         issues: [],
       },
       {
+        type: ChangelogEntryType.ADD,
+        text: "Added advanced setting 'High Speed Mode' that will skip calculations in certain places. May result in missing results, though.",
+        issues: [],
+      },
+      {
         type: ChangelogEntryType.MODIFIED,
         text: "Clustering is updated and re-enabled.",
         issues: [],
