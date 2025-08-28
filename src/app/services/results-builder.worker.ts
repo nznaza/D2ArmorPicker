@@ -67,6 +67,81 @@ function mapItemToTuning(i: IPermutatorArmor): t5Improvement {
   };
 }
 
+function sortClassItemsForGaps(
+  classItems: IPermutatorArmor[],
+  config: BuildConfiguration,
+  distances: number[],
+  stats: number[]
+): IPermutatorArmor[] {
+  return [...classItems].sort((a, b) => {
+    let scoreA = 0,
+      scoreB = 0;
+
+    // Base tier and system bonuses
+    if (a.tier == 5) scoreA += 15;
+    if (b.tier == 5) scoreB += 15;
+
+    // Armor 3.0 bonus (higher for newer system)
+    if (a.armorSystem == ArmorSystem.Armor3) scoreA += 12;
+    if (b.armorSystem == ArmorSystem.Armor3) scoreB += 12;
+
+    // Artifice slot bonus
+    if (a.perk == ArmorPerkOrSlot.SlotArtifice) scoreA += 10;
+    if (b.perk == ArmorPerkOrSlot.SlotArtifice) scoreB += 10;
+
+    // Tuning potential bonus
+    if (isT5WithTuning(a)) scoreA += 8;
+    if (isT5WithTuning(b)) scoreB += 8;
+
+    // Masterwork potential bonus
+    const aMasterworkBonus =
+      (a.masterworkLevel ?? 0) +
+      (a.isExotic && config.assumeExoticsMasterworked ? 5 : 0) +
+      (!a.isExotic && config.assumeLegendariesMasterworked ? 5 : 0);
+    const bMasterworkBonus =
+      (b.masterworkLevel ?? 0) +
+      (b.isExotic && config.assumeExoticsMasterworked ? 5 : 0) +
+      (!b.isExotic && config.assumeLegendariesMasterworked ? 5 : 0);
+    scoreA += aMasterworkBonus;
+    scoreB += bMasterworkBonus;
+
+    // Source preference (inventory first, then vendor/collection)
+    if (a.source === InventoryArmorSource.Inventory) scoreA += 5;
+    if (b.source === InventoryArmorSource.Inventory) scoreB += 5;
+
+    // Stat contribution scoring with waste consideration
+    const aStats = [a.mobility, a.resilience, a.recovery, a.discipline, a.intellect, a.strength];
+    const bStats = [b.mobility, b.resilience, b.recovery, b.discipline, b.intellect, b.strength];
+
+    for (let i = 0; i < 6; i++) {
+      if (distances[i] > 0) {
+        // Direct contribution to gaps
+        const aContribution = Math.min(distances[i], aStats[i]);
+        const bContribution = Math.min(distances[i], bStats[i]);
+        scoreA += aContribution;
+        scoreB += bContribution;
+
+        // Bonus for filling large gaps
+        if (aContribution >= 5) scoreA += 2;
+        if (bContribution >= 5) scoreB += 2;
+      } else if (config.tryLimitWastedStats && stats[i] + aStats[i] > 200) {
+        // Penalty for creating waste
+        scoreA -= Math.max(0, stats[i] + aStats[i] - 200);
+      } else if (config.tryLimitWastedStats && stats[i] + bStats[i] > 200) {
+        scoreB -= Math.max(0, stats[i] + bStats[i] - 200);
+      }
+    }
+
+    // Total stat sum bonus (prefer higher total stats)
+    const aTotalStats = aStats.reduce((sum, stat) => sum + stat, 0);
+    const bTotalStats = bStats.reduce((sum, stat) => sum + stat, 0);
+    scoreA += aTotalStats * 0.1; // Small bonus for overall stat power
+    scoreB += bTotalStats * 0.1;
+
+    return scoreB - scoreA; // Higher contribution first
+  });
+}
+
 // region Validation and Preparation Functions
 function checkSlots(
   config: BuildConfiguration,
@@ -741,53 +816,13 @@ export function handlePermutation(
 
   // Greedy class item selection with early termination
   // Sort class items by their stat contribution to current gaps
-  const sortedClassItems = [...classItems].sort((a, b) => {
-    let scoreA = 0,
-      scoreB = 0;
-
-    if (a.tier == 5) scoreA += 10;
-    if (b.tier == 5) scoreB += 10;
-
-    // add 10 if the class item is Armor 3.0
-    if (a.armorSystem == ArmorSystem.Armor3) scoreA += 10;
-    if (b.armorSystem == ArmorSystem.Armor3) scoreB += 10;
-
-    // add 10 if the class item has an artifice slot
-    if (a.perk == ArmorPerkOrSlot.SlotArtifice) scoreA += 10;
-    if (b.perk == ArmorPerkOrSlot.SlotArtifice) scoreB += 10;
-
-    // vendor and collection rolls last
-    if (a.source === InventoryArmorSource.Inventory) scoreA += 5;
-    if (b.source === InventoryArmorSource.Inventory) scoreB += 5;
-
-    for (let i = 0; i < 6; i++) {
-      if (distances[i] > 0) {
-        scoreA += Math.min(
-          distances[i],
-          a.mobility * (i === 0 ? 1 : 0) +
-            a.resilience * (i === 1 ? 1 : 0) +
-            a.recovery * (i === 2 ? 1 : 0) +
-            a.discipline * (i === 3 ? 1 : 0) +
-            a.intellect * (i === 4 ? 1 : 0) +
-            a.strength * (i === 5 ? 1 : 0)
-        );
-        scoreB += Math.min(
-          distances[i],
-          b.mobility * (i === 0 ? 1 : 0) +
-            b.resilience * (i === 1 ? 1 : 0) +
-            b.recovery * (i === 2 ? 1 : 0) +
-            b.discipline * (i === 3 ? 1 : 0) +
-            b.intellect * (i === 4 ? 1 : 0) +
-            b.strength * (i === 5 ? 1 : 0)
-        );
-      }
-    }
-    return scoreB - scoreA; // Higher contribution first
-  });
+  const sortedClassItems = sortClassItemsForGaps(classItems, config, distances, stats);
 
   // Try each class item with early termination
   let finalResult: IPermutatorArmorSet | never[] = [];
+  let checkedClassItems = 0;
   classItemLoop: for (const classItem of sortedClassItems) {
+    checkedClassItems++;
     const adjustedStats = [...stats];
     const tmpArtificeCount =
       availableArtificeCount + (classItem.perk == ArmorPerkOrSlot.SlotArtifice ? 1 : 0);
@@ -866,7 +901,7 @@ export function handlePermutation(
     const newTotalOptionalDistances = newOptionalDistances.reduce((a, b) => a + b, 0);
 
     if (newDistanceSum > 50 * 5 + 3 * availableArtificeCount + 5 * availableTuningCount) {
-      if (config.earlyAbortClassItems) break classItemLoop;
+      if (config.earlyAbortClassItems && checkedClassItems >= 3) break classItemLoop;
       else continue classItemLoop;
     }
 
@@ -880,7 +915,7 @@ export function handlePermutation(
         possibleIncreaseByMod + possibleIncreaseByTuning + possibleIncreaseByArtifice;
 
       if (possibleIncrease < newDistances[stat]) {
-        if (config.earlyAbortClassItems) break classItemLoop;
+        if (config.earlyAbortClassItems && checkedClassItems >= 3) break classItemLoop;
         else continue classItemLoop;
       }
     }
