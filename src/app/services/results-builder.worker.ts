@@ -704,6 +704,7 @@ function generate_tunings(possibleImprovements: t5Improvement[]): Tuning[] {
       p[n] = -5;
       l.push(p);
     }
+    l.push(ooo);
 
     return l;
   });
