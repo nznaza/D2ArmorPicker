@@ -758,52 +758,63 @@ export function handlePermutation(
   doNotOutput = false
 ): never[] | IPermutatorArmorSet | null {
   const items = [helmet, gauntlet, chest, leg];
-  const stats = getStatSum(items);
-  stats[1] += !items[2].isExotic && config.addConstent1Health ? 1 : 0;
 
-  for (let item of items) applyMasterworkStats(item, config, stats);
+  // base stats and apply constant health tweak
+  const baseStats = getStatSum(items);
+  baseStats[1] += !items[2].isExotic && config.addConstent1Health ? 1 : 0;
 
-  const targetStats = [0, 0, 0, 0, 0, 0];
+  // apply masterwork effects to baseStats (assumed idempotent)
+  for (const it of items) applyMasterworkStats(it, config, baseStats);
+
+  // precompute targets and fixed flags
+  const targetVals: number[] = new Array(6);
+  const targetFixed: boolean[] = new Array(6);
   for (let n: ArmorStat = 0; n < 6; n++) {
-    const targetVal = config.minimumStatTiers[n].value * 10;
-    if (targetVal > 0) targetStats[n] = targetVal;
-    // When we did not set a target stat, then we could potentially reach negative values too.
-    else targetStats[n] = Math.min(0, stats[n]);
+    targetVals[n] = (config.minimumStatTiers[n].value || 0) * 10;
+    targetFixed[n] = !!config.minimumStatTiers[n].fixed;
   }
 
-  const statsWithoutMods = [stats[0], stats[1], stats[2], stats[3], stats[4], stats[5]];
-  stats[0] += constantBonus[0];
-  stats[1] += constantBonus[1];
-  stats[2] += constantBonus[2];
-  stats[3] += constantBonus[3];
-  stats[4] += constantBonus[4];
-  stats[5] += constantBonus[5];
+  // stats without mods, and stats with constant bonuses
+  const statsWithoutMods: number[] = [
+    baseStats[0],
+    baseStats[1],
+    baseStats[2],
+    baseStats[3],
+    baseStats[4],
+    baseStats[5],
+  ];
+  const stats: number[] = [
+    statsWithoutMods[0] + (constantBonus[0] || 0),
+    statsWithoutMods[1] + (constantBonus[1] || 0),
+    statsWithoutMods[2] + (constantBonus[2] || 0),
+    statsWithoutMods[3] + (constantBonus[3] || 0),
+    statsWithoutMods[4] + (constantBonus[4] || 0),
+    statsWithoutMods[5] + (constantBonus[5] || 0),
+  ];
 
+  // early abort if fixed tiers exceeded
   for (let n: ArmorStat = 0; n < 6; n++) {
-    // Abort here if we are already above the limit, in case of fixed stat tiers
-    if (config.minimumStatTiers[n].fixed) {
-      if (stats[n] > config.minimumStatTiers[n].value * 10) return null;
+    if (targetFixed[n] && stats[n] > targetVals[n]) return null;
+  }
+
+  // count available artifice slots
+  const assumeEveryLegendaryIsArtifice = !!config.assumeEveryLegendaryIsArtifice;
+  const assumeEveryExoticIsArtifice = !!config.assumeEveryExoticIsArtifice;
+  let availableArtificeCount = 0;
+  for (const d of items) {
+    if (
+      d.perk == ArmorPerkOrSlot.SlotArtifice ||
+      (d.armorSystem === ArmorSystem.Armor2 &&
+        ((assumeEveryLegendaryIsArtifice && !d.isExotic) ||
+          (assumeEveryExoticIsArtifice && d.isExotic)))
+    ) {
+      availableArtificeCount++;
     }
   }
 
-  // get the amount of armor with artifice slot
-  let availableArtificeCount = items.filter(
-    (d) =>
-      d.perk == ArmorPerkOrSlot.SlotArtifice ||
-      (d.armorSystem === ArmorSystem.Armor2 &&
-        ((config.assumeEveryLegendaryIsArtifice && !d.isExotic) ||
-          (config.assumeEveryExoticIsArtifice && d.isExotic)))
-  ).length;
-
-  // get distance
-  const distances = [
-    Math.max(0, config.minimumStatTiers[0].value * 10 - stats[0]),
-    Math.max(0, config.minimumStatTiers[1].value * 10 - stats[1]),
-    Math.max(0, config.minimumStatTiers[2].value * 10 - stats[2]),
-    Math.max(0, config.minimumStatTiers[3].value * 10 - stats[3]),
-    Math.max(0, config.minimumStatTiers[4].value * 10 - stats[4]),
-    Math.max(0, config.minimumStatTiers[5].value * 10 - stats[5]),
-  ];
+  // initial distances
+  const distances: number[] = new Array(6);
+  for (let n: ArmorStat = 0; n < 6; n++) distances[n] = Math.max(0, targetVals[n] - stats[n]);
 
   if (config.onlyShowResultsWithNoWastedStats) {
     for (let stat: ArmorStat = 0; stat < 6; stat++) {
@@ -811,66 +822,102 @@ export function handlePermutation(
       distances[stat] = Math.max(distances[stat], v < 10 ? v : 0);
     }
   }
-  const possibleT5Improvements: t5Improvement[] = [helmet, gauntlet, chest, leg]
-    .filter(isT5WithTuning)
-    .map(mapItemToTuning);
 
-  // Greedy class item selection with early termination
-  // Sort class items by their stat contribution to current gaps
+  // precompute base T5 improvements and per-stat tuning maxima
+  const baseT5Improvements: t5Improvement[] = [];
+  for (const it of items) {
+    if (isT5WithTuning(it)) baseT5Improvements.push(mapItemToTuning(it));
+  }
+
+  const preTuningMax: number[] = [0, 0, 0, 0, 0, 0];
+  for (const t5 of baseT5Improvements) {
+    const mask = [false, false, false, false, false, false];
+    for (const s of t5.archetypeStats) if (s >= 0 && s < 6) mask[s] = true;
+    const balanced: number[] = [0, 0, 0, 0, 0, 0];
+    for (let i = 0; i < 6; i++) balanced[i] = mask[i] ? 0 : 1;
+    for (let i = 0; i < 6; i++) preTuningMax[i] = Math.max(preTuningMax[i], balanced[i]);
+    for (let n = 0; n < 6; n++) {
+      if (n === t5.tuningStat) continue;
+      const p: number[] = [0, 0, 0, 0, 0, 0];
+      p[t5.tuningStat] = 5;
+      p[n] = -5;
+      for (let i = 0; i < 6; i++) preTuningMax[i] = Math.max(preTuningMax[i], p[i]);
+    }
+  }
+
+  // sort class items once
   const sortedClassItems = sortClassItemsForGaps(classItems, config, distances, stats);
 
-  // Try each class item with early termination
+  // reusable buffers
+  const adjustedStats = [0, 0, 0, 0, 0, 0];
+  const adjustedStatsWithoutMods = [0, 0, 0, 0, 0, 0];
+  const newDistances = [0, 0, 0, 0, 0, 0];
+  const newOptionalDistances = [0, 0, 0, 0, 0, 0];
+
+  // mod caps
+  const maxMajorMods = config.statModLimits?.maxMajorMods || 0;
+  const maxMods = config.statModLimits?.maxMods || 0;
+  const possibleIncreaseByMod = 10 * maxMajorMods + 5 * Math.max(0, maxMods - maxMajorMods);
+
+  // helper to compute tuning maxima with optional extra T5
+  function calcTuningMaxWithExtra(extra?: t5Improvement): number[] {
+    if (!extra) return preTuningMax.slice();
+    const result = preTuningMax.slice();
+    const mask = [false, false, false, false, false, false];
+    for (const s of extra.archetypeStats) if (s >= 0 && s < 6) mask[s] = true;
+    for (let i = 0; i < 6; i++) result[i] = Math.max(result[i], mask[i] ? 0 : 1);
+    for (let n = 0; n < 6; n++) {
+      if (n === extra.tuningStat) continue;
+      const p: number[] = [0, 0, 0, 0, 0, 0];
+      p[extra.tuningStat] = 5;
+      p[n] = -5;
+      for (let i = 0; i < 6; i++) result[i] = Math.max(result[i], p[i]);
+    }
+    return result;
+  }
+
   let finalResult: IPermutatorArmorSet | never[] = [];
   let checkedClassItems = 0;
+
   classItemLoop: for (const classItem of sortedClassItems) {
     checkedClassItems++;
-    const adjustedStats = [...stats];
+
+    // compute adjustedStats
+    adjustedStats[0] = stats[0] + (classItem.mobility || 0);
+    adjustedStats[1] = stats[1] + (classItem.resilience || 0);
+    adjustedStats[2] = stats[2] + (classItem.recovery || 0);
+    adjustedStats[3] = stats[3] + (classItem.discipline || 0);
+    adjustedStats[4] = stats[4] + (classItem.intellect || 0);
+    adjustedStats[5] = stats[5] + (classItem.strength || 0);
+    applyMasterworkStats(classItem, config, adjustedStats);
+
+    // quick fixed-tier abort
+    for (let n: ArmorStat = 0; n < 6; n++) {
+      if (targetFixed[n] && adjustedStats[n] > targetVals[n]) return null;
+    }
+
+    // adjustedStatsWithoutMods
+    adjustedStatsWithoutMods[0] = statsWithoutMods[0] + (classItem.mobility || 0);
+    adjustedStatsWithoutMods[1] = statsWithoutMods[1] + (classItem.resilience || 0);
+    adjustedStatsWithoutMods[2] = statsWithoutMods[2] + (classItem.recovery || 0);
+    adjustedStatsWithoutMods[3] = statsWithoutMods[3] + (classItem.discipline || 0);
+    adjustedStatsWithoutMods[4] = statsWithoutMods[4] + (classItem.intellect || 0);
+    adjustedStatsWithoutMods[5] = statsWithoutMods[5] + (classItem.strength || 0);
+    applyMasterworkStats(classItem, config, adjustedStatsWithoutMods);
+
+    // tmp artifice count
     const tmpArtificeCount =
       availableArtificeCount + (classItem.perk == ArmorPerkOrSlot.SlotArtifice ? 1 : 0);
 
-    adjustedStats[0] += classItem.mobility;
-    adjustedStats[1] += classItem.resilience;
-    adjustedStats[2] += classItem.recovery;
-    adjustedStats[3] += classItem.discipline;
-    adjustedStats[4] += classItem.intellect;
-    adjustedStats[5] += classItem.strength;
-    applyMasterworkStats(classItem, config, adjustedStats);
+    // candidate T5 from class item if any
+    const classItemT5 = isT5WithTuning(classItem) ? mapItemToTuning(classItem) : undefined;
 
-    for (let n: ArmorStat = 0; n < 6; n++) {
-      // Abort here if we are already above the limit, in case of fixed stat tiers
-      if (config.minimumStatTiers[n].fixed) {
-        if (adjustedStats[n] > config.minimumStatTiers[n].value * 10) return null;
-      }
-    }
+    // tuning maxima without full generate
+    const tuningMax = calcTuningMaxWithExtra(classItemT5);
 
-    const adjustedStatsWithoutMods = [
-      statsWithoutMods[0] + classItem.mobility,
-      statsWithoutMods[1] + classItem.resilience,
-      statsWithoutMods[2] + classItem.recovery,
-      statsWithoutMods[3] + classItem.discipline,
-      statsWithoutMods[4] + classItem.intellect,
-      statsWithoutMods[5] + classItem.strength,
-    ];
-    applyMasterworkStats(classItem, config, adjustedStatsWithoutMods);
-
-    let tmpPossibleT5Improvements = possibleT5Improvements;
-    if (isT5WithTuning(classItem)) {
-      tmpPossibleT5Improvements = [...tmpPossibleT5Improvements, mapItemToTuning(classItem)];
-    }
-
-    const availableTuningCount = tmpPossibleT5Improvements.length;
-    const availableTunings: Tuning[] = generate_tunings(tmpPossibleT5Improvements);
-
-    // Recalculate distances with class item included
-    const newDistances = [
-      Math.max(0, config.minimumStatTiers[0].value * 10 - adjustedStats[0]),
-      Math.max(0, config.minimumStatTiers[1].value * 10 - adjustedStats[1]),
-      Math.max(0, config.minimumStatTiers[2].value * 10 - adjustedStats[2]),
-      Math.max(0, config.minimumStatTiers[3].value * 10 - adjustedStats[3]),
-      Math.max(0, config.minimumStatTiers[4].value * 10 - adjustedStats[4]),
-      Math.max(0, config.minimumStatTiers[5].value * 10 - adjustedStats[5]),
-    ];
-
+    // newDistances
+    for (let n: ArmorStat = 0; n < 6; n++)
+      newDistances[n] = Math.max(0, targetVals[n] - adjustedStats[n]);
     if (config.onlyShowResultsWithNoWastedStats) {
       for (let stat: ArmorStat = 0; stat < 6; stat++) {
         const v = 10 - (adjustedStats[stat] % 10);
@@ -878,20 +925,22 @@ export function handlePermutation(
       }
     }
 
-    // Recalculate optional distances
-    const newOptionalDistances: number[] = [0, 0, 0, 0, 0, 0];
-    if (config.tryLimitWastedStats)
+    // newOptionalDistances
+    for (let stat: ArmorStat = 0; stat < 6; stat++) newOptionalDistances[stat] = 0;
+    if (config.tryLimitWastedStats) {
       for (let stat: ArmorStat = 0; stat < 6; stat++) {
         if (
-          newDistances[stat] == 0 &&
-          !config.minimumStatTiers[stat].fixed &&
+          newDistances[stat] === 0 &&
+          !targetFixed[stat] &&
           adjustedStats[stat] < 200 &&
           adjustedStats[stat] % 10 > 0
         ) {
           newOptionalDistances[stat] = 10 - (adjustedStats[stat] % 10);
         }
       }
+    }
 
+    // cheap global bound check
     const newDistanceSum =
       newDistances[0] +
       newDistances[1] +
@@ -899,35 +948,52 @@ export function handlePermutation(
       newDistances[3] +
       newDistances[4] +
       newDistances[5];
-    const newTotalOptionalDistances = newOptionalDistances.reduce((a, b) => a + b, 0);
+    const newTotalOptionalDistances =
+      newOptionalDistances[0] +
+      newOptionalDistances[1] +
+      newOptionalDistances[2] +
+      newOptionalDistances[3] +
+      newOptionalDistances[4] +
+      newOptionalDistances[5];
 
-    if (newDistanceSum > 50 * 5 + 3 * availableArtificeCount + 5 * availableTuningCount) {
+    if (
+      newDistanceSum >
+      50 * 5 + 3 * availableArtificeCount + 5 * (baseT5Improvements.length + (classItemT5 ? 1 : 0))
+    ) {
       if (config.earlyAbortClassItems && checkedClassItems >= 3) break classItemLoop;
       else continue classItemLoop;
     }
 
+    // per-stat quick feasibility check
+    let passesPerStat = true;
     for (let stat = 0; stat < 6; stat++) {
-      const possibleIncreaseByTuning = availableTunings.sort((a, b) => b[stat] - a[stat])[0][stat];
-      const possibleIncreaseByMod =
-        10 * config.statModLimits.maxMajorMods +
-        5 * Math.max(0, config.statModLimits.maxMods - config.statModLimits.maxMajorMods);
-      const possibleIncreaseByArtifice = 3 * availableArtificeCount;
+      const possibleIncreaseByTuning = tuningMax[stat];
+      const possibleIncreaseByArtifice = 3 * tmpArtificeCount;
       const possibleIncrease =
         possibleIncreaseByMod + possibleIncreaseByTuning + possibleIncreaseByArtifice;
-
       if (possibleIncrease < newDistances[stat]) {
-        if (config.earlyAbortClassItems && checkedClassItems >= 3) break classItemLoop;
-        else continue classItemLoop;
+        passesPerStat = false;
+        break;
       }
     }
+    if (!passesPerStat) {
+      if (config.earlyAbortClassItems && checkedClassItems >= 3) break classItemLoop;
+      else continue classItemLoop;
+    }
 
+    // lazy: only generate full tunings when cheaper checks pass
+    const tmpPossibleT5Improvements: t5Improvement[] = baseT5Improvements.slice();
+    if (classItemT5) tmpPossibleT5Improvements.push(classItemT5);
+    const availableTunings: Tuning[] = generate_tunings(tmpPossibleT5Improvements);
+
+    // heavy work: mod precalc
     let result: StatModifierPrecalc | null;
-    if (newDistanceSum == 0 && newTotalOptionalDistances == 0)
+    if (newDistanceSum === 0 && newTotalOptionalDistances === 0) {
       result = { mods: [], tuning: [0, 0, 0, 0, 0, 0], modBonus: [0, 0, 0, 0, 0, 0] };
-    else
+    } else {
       result = get_mods_precalc(
         adjustedStats,
-        targetStats,
+        targetVals,
         config,
         newDistances,
         newOptionalDistances,
@@ -935,23 +1001,20 @@ export function handlePermutation(
         config.modOptimizationStrategy,
         availableTunings
       );
+    }
 
     if (result !== null) {
-      // Perform Tier Availability Testing with this class item
       performTierAvailabilityTesting(
         runtime,
         config,
         adjustedStats,
-        targetStats,
+        targetVals,
         newDistances,
         tmpArtificeCount,
         availableTunings
       );
 
-      // This may lead to issues later.
-      // The performTierAvailabilityTesting must be executed for each class item.
-      // Found a working combination - return immediately with this class item
-      if (finalResult instanceof Array && finalResult.length == 0) {
+      if (Array.isArray(finalResult) && finalResult.length === 0) {
         finalResult = tryCreateArmorSetWithClassItem(
           runtime,
           config,
