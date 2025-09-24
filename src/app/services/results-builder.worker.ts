@@ -835,13 +835,12 @@ export function handlePermutation(
     for (const s of t5.archetypeStats) if (s >= 0 && s < 6) mask[s] = true;
     const balanced: number[] = [0, 0, 0, 0, 0, 0];
     for (let i = 0; i < 6; i++) balanced[i] = mask[i] ? 0 : 1;
-    for (let i = 0; i < 6; i++) preTuningMax[i] = Math.max(preTuningMax[i], balanced[i]);
     for (let n = 0; n < 6; n++) {
       if (n === t5.tuningStat) continue;
       const p: number[] = [0, 0, 0, 0, 0, 0];
       p[t5.tuningStat] = 5;
       p[n] = -5;
-      for (let i = 0; i < 6; i++) preTuningMax[i] = Math.max(preTuningMax[i], p[i]);
+      for (let i = 0; i < 6; i++) preTuningMax[i] += Math.max(balanced[i], p[i]);
     }
   }
 
@@ -865,13 +864,14 @@ export function handlePermutation(
     const result = preTuningMax.slice();
     const mask = [false, false, false, false, false, false];
     for (const s of extra.archetypeStats) if (s >= 0 && s < 6) mask[s] = true;
-    for (let i = 0; i < 6; i++) result[i] = Math.max(result[i], mask[i] ? 0 : 1);
+    const balanced: number[] = [0, 0, 0, 0, 0, 0];
+    for (let i = 0; i < 6; i++) balanced[i] = mask[i] ? 0 : 1;
     for (let n = 0; n < 6; n++) {
       if (n === extra.tuningStat) continue;
       const p: number[] = [0, 0, 0, 0, 0, 0];
       p[extra.tuningStat] = 5;
       p[n] = -5;
-      for (let i = 0; i < 6; i++) result[i] = Math.max(result[i], p[i]);
+      for (let i = 0; i < 6; i++) result[i] += Math.max(balanced[i], p[i]);
     }
     return result;
   }
@@ -958,7 +958,7 @@ export function handlePermutation(
 
     if (
       newDistanceSum >
-      50 * 5 + 3 * availableArtificeCount + 5 * (baseT5Improvements.length + (classItemT5 ? 1 : 0))
+      10 * 5 + 3 * availableArtificeCount + 5 * (baseT5Improvements.length + (classItemT5 ? 1 : 0))
     ) {
       if (config.earlyAbortClassItems && checkedClassItems >= 3) break classItemLoop;
       else continue classItemLoop;
@@ -1025,7 +1025,7 @@ export function handlePermutation(
           classItem,
           result,
           adjustedStats,
-          adjustedStatsWithoutMods,
+          adjustedStatsWithoutMods.slice(),
           newDistances,
           tmpArtificeCount,
           doNotOutput
