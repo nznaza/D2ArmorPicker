@@ -407,7 +407,7 @@ addEventListener("message", async ({ data }) => {
             // If there is no stat fixed, then we just use the masterwork level of the first item.
             // As it is already sorted descending, we can just check if the masterwork level is the same
             !anyStatFixed) &&
-          (doesNotRequireArmorPerks || i.perk === item.perk || i.gearSetHash === item.gearSetHash)
+          (doesNotRequireArmorPerks || (i.perk === item.perk && i.gearSetHash === item.gearSetHash))
       )
   );
   //*/
