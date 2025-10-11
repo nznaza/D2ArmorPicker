@@ -694,9 +694,9 @@ function generate_tunings(possibleImprovements: t5Improvement[]): Tuning[] {
   const impValues = possibleImprovements.map((imp) => {
     let l = [[0, 0, 0, 0, 0, 0]];
 
-    let ooo = [0, 0, 0, 0, 0, 0];
+    let balancedTuning = [0, 0, 0, 0, 0, 0];
     for (let n = 0; n < 6; n++) {
-      if (!imp.archetypeStats.includes(n)) ooo[n] = 1;
+      if (!imp.archetypeStats.includes(n)) balancedTuning[n] = 1;
 
       if (n == imp.tuningStat) continue;
       let p = [0, 0, 0, 0, 0, 0];
@@ -704,7 +704,7 @@ function generate_tunings(possibleImprovements: t5Improvement[]): Tuning[] {
       p[n] = -5;
       l.push(p);
     }
-    l.push(ooo);
+    l.push(balancedTuning);
 
     return l;
   });
