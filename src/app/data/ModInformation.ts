@@ -129,7 +129,7 @@ export const ModInformation: EnumDictionary<ModOrAbility, Modifier> = {
     name: "Echo of Provision",
     description: "Damaging targets with grenades grants melee energy.",
     type: ModifierType.Void,
-    bonus: [{ stat: ArmorStat.StatMelee, value: -10 }],
+    bonus: [{ stat: ArmorStat.StatMelee, value: 10 }],
     cost: 1,
     requiredArmorAffinity: DestinyEnergyType.Any,
     hash: 2272984664,
@@ -184,7 +184,17 @@ export const ModInformation: EnumDictionary<ModOrAbility, Modifier> = {
     name: "Echo of Undermining",
     description: "Your Void grenades weaken targets.",
     type: ModifierType.Void,
-    bonus: [{ stat: ArmorStat.StatGrenade, value: -20 }],
+    bonus: [{ stat: ArmorStat.StatGrenade, value: -10 }],
+    cost: 1,
+    requiredArmorAffinity: DestinyEnergyType.Any,
+    hash: 2272984668,
+  },
+  [ModOrAbility.EchoOfExchange]: {
+    id: ModOrAbility.EchoOfExchange,
+    name: "Echo of Exchange",
+    description: "Melee final blows grant grenade energy.",
+    type: ModifierType.Void,
+    bonus: [{ stat: ArmorStat.StatMelee, value: 10 }],
     cost: 1,
     requiredArmorAffinity: DestinyEnergyType.Any,
     hash: 2272984668,
@@ -198,16 +208,6 @@ export const ModInformation: EnumDictionary<ModOrAbility, Modifier> = {
     cost: 1,
     requiredArmorAffinity: DestinyEnergyType.Any,
     hash: 2661180600,
-  },
-  [ModOrAbility.EchoOfHarvest]: {
-    id: ModOrAbility.EchoOfHarvest,
-    name: "Echo of Harvest",
-    description: "Defeating weakened targets creates an Orb of Power and a Void Breach.",
-    type: ModifierType.Void,
-    bonus: [{ stat: ArmorStat.StatSuper, value: -10 }],
-    cost: 1,
-    requiredArmorAffinity: DestinyEnergyType.Any,
-    hash: 2661180601,
   },
   [ModOrAbility.EchoOfObscurity]: {
     id: ModOrAbility.EchoOfObscurity,
@@ -229,17 +229,7 @@ export const ModInformation: EnumDictionary<ModOrAbility, Modifier> = {
     requiredArmorAffinity: DestinyEnergyType.Any,
     hash: 2661180603,
   },
-  [ModOrAbility.EchoOfVigilance]: {
-    id: ModOrAbility.EchoOfVigilance,
-    name: "Echo of Vigilance",
-    description:
-      "Defeating a target while your shields are depleted grants you a temporary Void overshield.",
-    type: ModifierType.Void,
-    bonus: [{ stat: ArmorStat.StatClass, value: -10 }],
-    cost: 1,
-    requiredArmorAffinity: DestinyEnergyType.Any,
-    hash: 3854948621,
-  },
+
   // endregion Void
 
   // region Solar
