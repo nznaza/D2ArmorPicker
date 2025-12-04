@@ -330,6 +330,9 @@ addEventListener("message", async ({ data }) => {
           199733460, // titan masq
           2545426109, // warlock
           3224066584, // hunter
+          2390807586, // titan new fotl
+          2462335932, // hunter new fotl
+          4095816113, // warlock new fotl
         ].indexOf(k.hash) > -1
       );
     });

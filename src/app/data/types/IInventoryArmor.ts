@@ -102,7 +102,10 @@ export function createArmorItem(
   if (
     manifestItem.hash == 2545426109 ||
     manifestItem.hash == 199733460 ||
-    manifestItem.hash == 3224066584
+    manifestItem.hash == 3224066584 ||
+    manifestItem.hash == 2390807586 ||
+    manifestItem.hash == 2462335932 ||
+    manifestItem.hash == 4095816113
   ) {
     item.slot = ArmorSlot.ArmorSlotHelmet;
   }
