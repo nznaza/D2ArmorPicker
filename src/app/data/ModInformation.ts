@@ -129,7 +129,7 @@ export const ModInformation: EnumDictionary<ModOrAbility, Modifier> = {
     name: "Echo of Provision",
     description: "Damaging targets with grenades grants melee energy.",
     type: ModifierType.Void,
-    bonus: [{ stat: ArmorStat.StatMelee, value: 10 }],
+    bonus: [{ stat: ArmorStat.StatGrenade, value: 10 }],
     cost: 1,
     requiredArmorAffinity: DestinyEnergyType.Any,
     hash: 2272984664,
