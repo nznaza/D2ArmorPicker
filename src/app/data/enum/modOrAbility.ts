@@ -35,12 +35,14 @@ export enum ModOrAbility {
   EchoOfDomineering,
   EchoOfDilation,
   EchoOfUndermining,
-
+  EchoOfExchange,
   EchoOfInstability, //+10 str
-  EchoOfHarvest,
   EchoOfObscurity, //+10rec
   EchoOfStarvation,
-  EchoOfVigilance,
+  //EchoOfHarvest,
+  //EchoOfVigilance,
+  //EchoOfRemnants,
+  //EchoOfReprisal,
 
   // SOLAR
   EmberOfBenelovence = 1300,
@@ -54,9 +56,6 @@ export enum ModOrAbility {
   EmberOfSearing,
   EmberOfTorches,
   EmberOfMercy,
-  //EchoOfExchange ,
-  //EchoOfRemnants,
-  //EchoOfReprisal,
 
   SparkOfBrilliance = 1400,
   SparkOfFeedback,
