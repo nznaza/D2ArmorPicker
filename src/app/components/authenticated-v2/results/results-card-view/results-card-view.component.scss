@@ -578,7 +578,8 @@
 
   .minor-mods-row,
   .major-mods-row,
-  .artifice-mods-row {
+  .artifice-mods-row,
+  .tuning-row {
     background: rgba(255, 193, 7, 0.1);
     border: 1px solid rgba(255, 193, 7, 0.3);
   }
@@ -761,4 +762,12 @@
 // Utility classes
 .hidden {
   display: none !important;
+}
+
+// Center stat icon and value in summary rows
+.stat-summary-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }

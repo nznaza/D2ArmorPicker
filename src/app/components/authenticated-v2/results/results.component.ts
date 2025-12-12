@@ -15,7 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Component, OnDestroy, OnInit, ViewChild } from "@angular/core";
+import { AfterViewInit, Component, OnDestroy, ViewChild } from "@angular/core";
+import { NGXLogger } from "ngx-logger";
 import { InventoryService } from "../../../services/inventory.service";
 import { MatTableDataSource } from "@angular/material/table";
 import { ConfigurationService } from "../../../services/configuration.service";
@@ -26,10 +27,12 @@ import { StatusProviderService } from "../../../services/status-provider.service
 import { animate, state, style, transition, trigger } from "@angular/animations";
 import { DestinyClass } from "bungie-api-ts/destiny2";
 import { ArmorSlot } from "../../../data/enum/armor-slot";
-import { FixableSelection } from "../../../data/buildConfiguration";
+import { BuildConfiguration } from "../../../data/buildConfiguration";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { InventoryArmorSource } from "src/app/data/types/IInventoryArmor";
+import { MAXIMUM_STAT_MOD_AMOUNT } from "src/app/data/constants";
+import { Tuning } from "src/app/data/types/IPermutatorArmorSet";
 
 export interface ResultDefinition {
   exotic:
@@ -37,10 +40,12 @@ export interface ResultDefinition {
     | {
         icon: string;
         name: string;
-        hash: string;
+        watermark: string;
+        hash: number;
       };
   artifice: number[];
   mods: number[];
+  tuningStats: Tuning;
   stats: number[];
   statsNoMods: number[];
   items: ResultItem[];
@@ -68,6 +73,7 @@ export interface ResultItem {
   tier: number; // 0 = exotic, 1-5 = legendary
   name: string;
   exotic: boolean;
+  tuningStat: ArmorStat | null;
   masterworked: boolean;
   armorSystem: number; // 2 = Armor 2.0, 3 = Armor 3.0
   masterworkLevel: number; // 0-5, 5 = full masterwork
@@ -93,7 +99,7 @@ export interface ResultItem {
     ]),
   ],
 })
-export class ResultsComponent implements OnInit, OnDestroy {
+export class ResultsComponent implements AfterViewInit, OnDestroy {
   ArmorStat = ArmorStat;
   public StatModifier = StatModifier;
 
@@ -101,7 +107,6 @@ export class ResultsComponent implements OnInit, OnDestroy {
   _config_assumeLegendariesMasterworked: Boolean = false;
   _config_assumeExoticsMasterworked: Boolean = false;
 
-  _config_maximumStatMods: number = 5;
   _config_selectedExotics: number[] = [];
   _config_tryLimitWastedStats: boolean = false;
   _config_onlyUseMasterworkedExotics: Boolean = false;
@@ -112,8 +117,8 @@ export class ResultsComponent implements OnInit, OnDestroy {
   _config_assumeEveryLegendaryIsArtifice: Boolean = false;
   _config_assumeEveryExoticIsArtifice: Boolean = false;
   _config_enforceFeaturedArmor: Boolean = false;
-  _config_modslotLimitation: FixableSelection<number>[] = [];
-  _config_armorPerkLimitation: FixableSelection<ArmorPerkOrSlot>[] = [];
+  _config_modslotLimitation: boolean = false;
+  _config_armorPerkLimitation: boolean = false;
 
   tableDataSource = new MatTableDataSource<ResultDefinition>();
   @ViewChild(MatPaginator) paginator: MatPaginator | null = null;
@@ -148,7 +153,8 @@ export class ResultsComponent implements OnInit, OnDestroy {
   constructor(
     private inventory: InventoryService,
     public configService: ConfigurationService,
-    public status: StatusProviderService
+    public status: StatusProviderService,
+    private logger: NGXLogger
   ) {
     // Load saved view mode from localStorage
     const savedViewMode = localStorage.getItem("d2ap-view-mode") as "table" | "cards";
@@ -157,72 +163,7 @@ export class ResultsComponent implements OnInit, OnDestroy {
     }
   }
 
-  ngOnInit(): void {
-    this.status.status.pipe(takeUntil(this.ngUnsubscribe)).subscribe((s) => {
-      this.isCalculatingPermutations = s.calculatingPermutations || s.calculatingResults;
-
-      if (this.isCalculatingPermutations) {
-        this.initializing = false;
-      }
-      this.cancelledCalculation = s.cancelledCalculation;
-    });
-
-    this.inventory.calculationProgress.subscribe((progress) => {
-      this.computationProgress = progress;
-    });
-    //
-    this.configService.configuration.pipe(takeUntil(this.ngUnsubscribe)).subscribe((c: any) => {
-      this.selectedClass = c.characterClass;
-      this._config_assumeLegendariesMasterworked = c.assumeLegendariesMasterworked;
-      this._config_assumeExoticsMasterworked = c.assumeExoticsMasterworked;
-      this._config_tryLimitWastedStats = c.tryLimitWastedStats;
-
-      this._config_maximumStatMods = c.maximumStatMods;
-      this._config_legacyArmor = c.allowLegacyArmor;
-      this._config_onlyUseMasterworkedExotics = c.onlyUseMasterworkedExotics;
-      this._config_onlyUseMasterworkedLegendaries = c.onlyUseMasterworkedLegendaries;
-      this._config_includeCollectionRolls = c.includeCollectionRolls;
-      this._config_includeVendorRolls = c.includeVendorRolls;
-      this._config_onlyShowResultsWithNoWastedStats = c.onlyShowResultsWithNoWastedStats;
-      this._config_assumeEveryLegendaryIsArtifice = c.assumeEveryLegendaryIsArtifice;
-      this._config_assumeEveryExoticIsArtifice = c.assumeEveryExoticIsArtifice;
-      this._config_enforceFeaturedArmor = c.enforceFeaturedArmor;
-      this._config_selectedExotics = c.selectedExotics;
-      this._config_armorPerkLimitation = Object.entries(c.armorPerks)
-        .filter((v: any) => v[1].value != ArmorPerkOrSlot.Any)
-        .map((k: any) => k[1]);
-      this._config_modslotLimitation = Object.entries(c.maximumModSlots)
-        .filter((v: any) => v[1].value < 5)
-        .map((k: any) => k[1]);
-
-      let columns = [
-        "exotic",
-        "health",
-        "melee",
-        "grenade",
-        "super",
-        "class",
-        "weapon",
-        "total",
-        "mods",
-      ];
-      if (c.includeVendorRolls || c.includeCollectionRolls) columns.push("source");
-      columns.push("dropdown");
-      this.shownColumns = columns;
-    });
-
-    this.inventory.armorResults.pipe(takeUntil(this.ngUnsubscribe)).subscribe(async (value) => {
-      this._results = value.results;
-      this.itemCount = value.itemCount;
-      this.totalTime = value.totalTime;
-      this.totalResults = value.totalResults;
-      this.parsedResults = this._results.length;
-
-      this.status.modifyStatus((s) => (s.updatingResultsTable = true));
-      await this.updateData();
-      this.status.modifyStatus((s) => (s.updatingResultsTable = false));
-    });
-
+  ngAfterViewInit(): void {
     this.tableDataSource.paginator = this.paginator;
     this.tableDataSource.sort = this.sort;
     this.tableDataSource.sortingDataAccessor = (data, sortHeaderId) => {
@@ -252,6 +193,72 @@ export class ResultsComponent implements OnInit, OnDestroy {
       }
       return 0;
     };
+
+    this.status.status.pipe(takeUntil(this.ngUnsubscribe)).subscribe((s) => {
+      this.isCalculatingPermutations = s.calculatingPermutations || s.calculatingResults;
+
+      if (this.isCalculatingPermutations) {
+        this.initializing = false;
+      }
+      this.cancelledCalculation = s.cancelledCalculation;
+    });
+
+    this.inventory.calculationProgress.subscribe((progress) => {
+      this.computationProgress = progress;
+    });
+    //
+    this.configService.configuration
+      .pipe(takeUntil(this.ngUnsubscribe))
+      .subscribe((c: BuildConfiguration) => {
+        this.selectedClass = c.characterClass;
+        this._config_assumeLegendariesMasterworked = c.assumeLegendariesMasterworked;
+        this._config_assumeExoticsMasterworked = c.assumeExoticsMasterworked;
+        this._config_tryLimitWastedStats = c.tryLimitWastedStats;
+
+        this._config_legacyArmor = c.allowLegacyLegendaryArmor || c.allowLegacyExoticArmor;
+        this._config_onlyUseMasterworkedExotics = c.onlyUseMasterworkedExotics;
+        this._config_onlyUseMasterworkedLegendaries = c.onlyUseMasterworkedLegendaries;
+        this._config_includeCollectionRolls = c.includeCollectionRolls;
+        this._config_includeVendorRolls = c.includeVendorRolls;
+        this._config_onlyShowResultsWithNoWastedStats = c.onlyShowResultsWithNoWastedStats;
+        this._config_assumeEveryLegendaryIsArtifice = c.assumeEveryLegendaryIsArtifice;
+        this._config_assumeEveryExoticIsArtifice = c.assumeEveryExoticIsArtifice;
+        this._config_enforceFeaturedArmor =
+          c.enforceFeaturedLegendaryArmor || c.enforceFeaturedExoticArmor;
+        this._config_selectedExotics = c.selectedExotics;
+        this._config_armorPerkLimitation = c.armorRequirements.length > 0;
+        this._config_modslotLimitation = c.statModLimits.maxMajorMods < MAXIMUM_STAT_MOD_AMOUNT;
+
+        let columns = [
+          "exotic",
+          "health",
+          "melee",
+          "grenade",
+          "super",
+          "class",
+          "weapon",
+          "total",
+          "mods",
+        ];
+        if (c.includeVendorRolls || c.includeCollectionRolls) columns.push("source");
+        columns.push("dropdown");
+        this.shownColumns = columns;
+      });
+
+    this.inventory.armorResults.pipe(takeUntil(this.ngUnsubscribe)).subscribe(async (value) => {
+      if (value.results.length > 0 && this.initializing) {
+        this.initializing = false;
+      }
+      this._results = value.results;
+      this.itemCount = value.itemCount;
+      this.totalTime = value.totalTime;
+      this.totalResults = value.totalResults;
+      this.parsedResults = this._results.length;
+
+      this.status.modifyStatus((s) => (s.updatingResultsTable = true));
+      await this.updateData();
+      this.status.modifyStatus((s) => (s.updatingResultsTable = false));
+    });
   }
 
   cancelCalculation() {
@@ -259,8 +266,12 @@ export class ResultsComponent implements OnInit, OnDestroy {
   }
 
   async updateData() {
-    console.info("Table total results:", this._results.length);
-    console.time("Update Table Data");
+    this.logger.info(
+      "ResultsComponent",
+      "updateData",
+      "Table total results: " + this._results.length
+    );
+    const start = performance.now();
     this.tableDataSource.paginator = this.paginator;
     this.tableDataSource.sort = this.sort;
     this.tableDataSource.data = this._results;
@@ -272,7 +283,8 @@ export class ResultsComponent implements OnInit, OnDestroy {
       }, 50);
     }
 
-    console.timeEnd("Update Table Data");
+    const end = performance.now();
+    this.logger.info("ResultsComponent", "updateData", `Update Table Data took ${end - start} ms`);
   }
 
   getTotalStats(element: ResultDefinition): number {

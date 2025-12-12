@@ -38,6 +38,7 @@ export interface IDestinyArmor {
   masterworkLevel: number; // 0-5; 5 = full masterwork
   archetypeStats: Array<ArmorStat>;
   tier: number; // 1-5, 0 = exotic
+  gearSetHash: number | null;
 
   mobility: number;
   resilience: number;
@@ -62,6 +63,7 @@ export interface IInventoryArmor
     ITimestampedEntry {
   // Note: this will be empty for vendor items
   statPlugHashes?: (number | undefined)[];
+  tuningStat: ArmorStat | null; // for armor 3.0, this is the tuning stat hash
   // exoticPerkHash is now inherited as number[] from IManifestArmor
 }
 
@@ -88,6 +90,7 @@ export function createArmorItem(
       intellect: 0,
       strength: 0,
       source,
+      tuningStat: null, // default to null for Armor 3.0
       created_at: Date.now(),
       updated_at: Date.now(),
     },
@@ -99,7 +102,10 @@ export function createArmorItem(
   if (
     manifestItem.hash == 2545426109 ||
     manifestItem.hash == 199733460 ||
-    manifestItem.hash == 3224066584
+    manifestItem.hash == 3224066584 ||
+    manifestItem.hash == 2390807586 ||
+    manifestItem.hash == 2462335932 ||
+    manifestItem.hash == 4095816113
   ) {
     item.slot = ArmorSlot.ArmorSlotHelmet;
   }

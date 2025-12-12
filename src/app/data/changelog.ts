@@ -34,6 +34,70 @@ export const CHANGELOG_DATA: {
   entries: ChangelogEntry[];
 }[] = [
   {
+    version: "2.9.7",
+    date: "August 27, 2025",
+    clearManifest: false,
+    entries: [
+      {
+        type: ChangelogEntryType.ADD,
+        text: "T5 Tuning has been implemented. This was a lot of work. A display of the used mods will follow in a later update.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Added advanced setting 'High Speed Mode' that will skip calculations in certain places. May result in missing results, though.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Clustering is updated and re-enabled.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Adapted the algorithm so that it allows negative stat values.",
+        issues: [],
+      },
+    ],
+  },
+  {
+    version: "2.9.6",
+    date: "July 31, 2025",
+    clearManifest: true,
+    entries: [
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Added gearset selection feature, allowing users to easily select and combine gearsets.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Simplified the modslot configuration.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Simplified the mod cost selection. You now only select how many mods the app is allowed to place, as well as how many 'major' mods you want to use, and the app will do the rest of the work.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Drastically improved performance of the calculation algorithm, especially for large inventories.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Refactored code to remove unused functions and improve performance.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Ensured correct handling of class item artifice assumptions and perk updates.",
+        issues: [],
+      },
+    ],
+  },
+  {
     version: "2.9.5",
     date: "July 31, 2025",
     clearManifest: true,
