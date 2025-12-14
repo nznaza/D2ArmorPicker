@@ -154,6 +154,16 @@ export class AdvancedSettingsComponent implements OnInit, OnDestroy {
             impactsResultCount: true,
             help: "Only parse the first 30,000 results. Deactivating this may crash your browser. The results will still be limited to 1,000,000 entries. Note that you will not miss any significant results by leaving this enabled.",
           },
+          {
+            name: "High-Speed mode: Only check one class item for each permutation",
+            type: "boolean",
+            onToggle: (v: boolean) =>
+              this.config.modifyConfiguration((c) => (c.earlyAbortClassItems = v)),
+            value: c.earlyAbortClassItems,
+            disabled: false,
+            impactsResultCount: true,
+            help: "This will speed up the calculation by aborting early if no valid class item is found for a permutation.",
+          },
         ],
         "Wasted Stats": [
           {

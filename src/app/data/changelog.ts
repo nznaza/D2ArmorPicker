@@ -34,6 +34,33 @@ export const CHANGELOG_DATA: {
   entries: ChangelogEntry[];
 }[] = [
   {
+    version: "2.9.7",
+    date: "August 27, 2025",
+    clearManifest: false,
+    entries: [
+      {
+        type: ChangelogEntryType.ADD,
+        text: "T5 Tuning has been implemented. This was a lot of work. A display of the used mods will follow in a later update.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Added advanced setting 'High Speed Mode' that will skip calculations in certain places. May result in missing results, though.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Clustering is updated and re-enabled.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Adapted the algorithm so that it allows negative stat values.",
+        issues: [],
+      },
+    ],
+  },
+  {
     version: "2.9.6",
     date: "July 31, 2025",
     clearManifest: true,
