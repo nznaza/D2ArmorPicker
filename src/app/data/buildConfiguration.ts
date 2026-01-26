@@ -78,8 +78,9 @@ export class BuildConfiguration {
   // New compact stat mod limits (global, not per-slot)
   statModLimits: StatModLimits = { maxMods: 5, maxMajorMods: 5 };
 
+  calculateTierFiveTuning = false;
   putArtificeMods = true;
-  useFotlArmor = true;
+  useFotlArmor = false;
   allowBlueArmorPieces = true;
   // Allow armor 2.0, which is the legacy armor system
   allowLegacyLegendaryArmor = true;
@@ -113,6 +114,7 @@ export class BuildConfiguration {
       enabledMods: [],
       disabledItems: [],
       addConstent1Health: false,
+      calculateTierFiveTuning: false,
       assumeEveryLegendaryIsArtifice: false,
       assumeEveryExoticIsArtifice: false,
       assumeClassItemIsArtifice: false,

@@ -34,6 +34,18 @@ export const CHANGELOG_DATA: {
   entries: ChangelogEntry[];
 }[] = [
   {
+    version: "2.9.8",
+    date: "January 25, 2026",
+    clearManifest: false,
+    entries: [
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Add toggle for T5 tuning calculations.",
+        issues: [],
+      },
+    ],
+  },
+  {
     version: "2.9.7",
     date: "August 27, 2025",
     clearManifest: false,

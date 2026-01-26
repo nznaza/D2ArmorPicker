@@ -198,7 +198,7 @@ const routes: Routes = [
     BrowserModule,
     BrowserAnimationsModule,
     HttpClientModule,
-    RouterModule.forRoot(routes, { useHash: true }),
+    RouterModule.forRoot(routes, { useHash: false }),
     ClipboardModule,
     LayoutModule,
     LoggerModule.forRoot({

@@ -26,7 +26,7 @@ const is_beta = release === "BETA";
 const is_canary = release === "CANARY";
 const is_dev = release === "DEV";
 
-const version = "2.9.7";
+const version = "2.9.8";
 
 // Configure Angular `environment.ts` file path
 const targetPath = "./src/environments/environment.ts";
@@ -35,7 +35,9 @@ const copyPath = is_production
   ? "./src/environments/environment.prod.ts"
   : is_beta
     ? "./src/environments/environment.beta.ts"
-    : "./src/environments/environment.canary.ts";
+    : is_canary
+      ? "./src/environments/environment.canary.ts"
+      : "./src/environments/environment.dev.ts";
 // Load node modules
 
 const dotenvfile = is_production
