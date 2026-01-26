@@ -17,7 +17,7 @@
 
 const writeFile = require("fs").writeFile;
 
-// RELEASE can be one of: 'PROD', 'BETA', 'CANARY'. Defaults to 'CANARY' if missing/invalid
+// RELEASE can be one of: 'PROD', 'BETA', 'CANARY'. Defaults to 'DEV' if missing/invalid
 const releaseRaw = (process.env["RELEASE"] || "").toUpperCase();
 const release = ["PROD", "BETA", "CANARY", "DEV"].includes(releaseRaw) ? releaseRaw : "DEV";
 
@@ -26,7 +26,7 @@ const is_beta = release === "BETA";
 const is_canary = release === "CANARY";
 const is_dev = release === "DEV";
 
-const version = "2.9.7";
+const version = "2.9.6";
 
 // Configure Angular `environment.ts` file path
 const targetPath = "./src/environments/environment.ts";
