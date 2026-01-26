@@ -32,6 +32,7 @@ import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { InventoryArmorSource } from "src/app/data/types/IInventoryArmor";
 import { MAXIMUM_STAT_MOD_AMOUNT } from "src/app/data/constants";
+import { Tuning } from "src/app/data/types/IPermutatorArmorSet";
 
 export interface ResultDefinition {
   exotic:
@@ -39,10 +40,12 @@ export interface ResultDefinition {
     | {
         icon: string;
         name: string;
-        hash: string;
+        watermark: string;
+        hash: number;
       };
   artifice: number[];
   mods: number[];
+  tuningStats: Tuning;
   stats: number[];
   statsNoMods: number[];
   items: ResultItem[];
@@ -70,6 +73,7 @@ export interface ResultItem {
   tier: number; // 0 = exotic, 1-5 = legendary
   name: string;
   exotic: boolean;
+  tuningStat: ArmorStat | null;
   masterworked: boolean;
   armorSystem: number; // 2 = Armor 2.0, 3 = Armor 3.0
   masterworkLevel: number; // 0-5, 5 = full masterwork
