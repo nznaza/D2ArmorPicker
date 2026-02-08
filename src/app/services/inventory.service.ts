@@ -137,6 +137,11 @@ export class InventoryService {
         debounceTime(5)
       )
       .subscribe(async (val) => {
+        if (val instanceof NavigationEnd) {
+          if (val.id != 1) {
+            return;
+          }
+        }
         await this.refreshManifestIfConfigUpdated();
         // only subscribe to config changes after the Manifest is loaded, to avoid multiple calls to refreshManifestAndArmor when the app is initialized and the config is loaded before the manifest
         this.config.configuration.pipe(debounceTime(5)).subscribe(async (c) => {
