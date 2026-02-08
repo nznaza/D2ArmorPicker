@@ -42,13 +42,13 @@ export class AppComponent implements AfterViewInit {
         this.logger.warn(
           "AppComponent",
           "ngAfterViewInit",
-          "InventoryService is not initialized after 2 seconds, triggering initial refreshAll."
+          "InventoryService is not initialized after 2 seconds, triggering initial refreshManifestAndArmor."
         );
-        this.inventoryService.refreshAll(true, true).catch((err) => {
+        this.inventoryService.refreshManifestAndArmor(true, true).catch((err) => {
           this.logger.error(
             "AppComponent",
             "ngAfterViewInit",
-            "Error during initial refreshAll:",
+            "Error during initial refreshManifestAndArmor:",
             err
           );
         });

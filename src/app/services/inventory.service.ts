@@ -104,6 +104,7 @@ export class InventoryService {
   private inventoryArmorItems: IInventoryArmor[] = [];
   private permutatorArmorItems: IPermutatorArmor[] = [];
   private endResults: ResultDefinition[] = [];
+  private previouslyFetchedManifest = false;
 
   constructor(
     private db: DatabaseService,
@@ -129,69 +130,48 @@ export class InventoryService {
     this.reachableTiers = this._reachableTiers.asObservable();
 
     this.workers = [];
-    let dataAlreadyFetched = false;
 
-    // TODO: This gives a race condition on some parts.
     router.events
       .pipe(
         filter((event) => event instanceof NavigationEnd),
         debounceTime(5)
       )
       .subscribe(async (val) => {
-        if (this.auth.refreshTokenExpired || !(await this.auth.autoRegenerateTokens())) {
-          this.logger.warn(
-            "InventoryService",
-            "router.events",
-            "Refresh token expired, we should probably log the user out"
-          );
-          this.status.setAuthError();
-        }
-        if (!auth.isAuthenticated()) {
-          this.logger.warn(
-            "InventoryService",
-            "router.events",
-            "User is not authenticated, skipping router event handling"
-          );
-          return;
-        }
-
-        this.initialized = true;
-        await this.refreshAll(!dataAlreadyFetched);
-        dataAlreadyFetched = true;
+        await this.refreshManifestIfConfigUpdated();
+        // only subscribe to config changes after the Manifest is loaded, to avoid multiple calls to refreshManifestAndArmor when the app is initialized and the config is loaded before the manifest
+        this.config.configuration.pipe(debounceTime(5)).subscribe(async (c) => {
+          this.refreshManifestIfConfigUpdated(c);
+        });
       });
+  }
 
-    this.config.configuration.pipe(debounceTime(500)).subscribe(async (c) => {
-      if (this.auth.refreshTokenExpired || !(await this.auth.autoRegenerateTokens())) {
-        this.logger.warn(
-          "InventoryService",
-          "config.configuration",
-          "Refresh token expired, we should probably log the user out"
-        );
-        this.status.setAuthError();
-        //await this.auth.logout();
-        //return;
-      }
-      if (!auth.isAuthenticated()) {
-        this.logger.warn(
-          "InventoryService",
-          "config.configuration",
-          "User is not authenticated, skipping config change handling"
-        );
-        return;
-      }
-
+  private async refreshManifestIfConfigUpdated(c?: BuildConfiguration) {
+    if (this.auth.refreshTokenExpired || !(await this.auth.autoRegenerateTokens())) {
+      this.logger.warn(
+        "InventoryService",
+        "Refresh token expired, we should probably log the user out"
+      );
+      this.status.setAuthError();
+    }
+    if (!this.auth.isAuthenticated()) {
+      this.logger.warn(
+        "InventoryService",
+        "User is not authenticated, skipping router event handling"
+      );
+      return;
+    }
+    if (c) {
       if (_isEqual(c, this._config)) return;
       this.logger.debug(
         "InventoryService",
-        "config.configuration",
         "Build configuration changed: " + JSON.stringify(getDifferences(this._config, c))
       );
-
       this._config = structuredClone(c);
-      this.initialized = true;
-      await this.refreshAll(!dataAlreadyFetched);
-      dataAlreadyFetched = true;
-    });
+    }
+
+    this.initialized = true;
+    await this.refreshManifestAndArmor(!this.previouslyFetchedManifest);
+    this.previouslyFetchedManifest = true;
   }
 
   private clearResults() {
@@ -211,31 +191,41 @@ export class InventoryService {
 
   private refreshing: boolean = false;
 
-  async refreshAll(forceArmor: boolean = false, forceManifest = false) {
+  async refreshManifestAndArmor(
+    forceUpdateInventoryArmor: boolean = false,
+    forceUpdateManifest = false
+  ) {
     if (this.refreshing) {
       this.logger.warn(
         "InventoryService",
-        "refreshAll",
+        "refreshManifestAndArmor",
         "Refresh already in progress, skipping new refresh request"
       );
       return;
     }
-    this.logger.debug("InventoryService", "refreshAll", "Refreshing inventory and manifest");
+    this.refreshing = true;
+    this.logger.debug(
+      "InventoryService",
+      "refreshManifestAndArmor",
+      "Refreshing inventory and manifest"
+    );
     try {
-      this.refreshing = true;
       if (this.auth.refreshTokenExpired && !(await this.auth.autoRegenerateTokens())) {
         this.refreshing = false;
         this.status.setAuthError(); // Better way to logout the user?
         if (!this.status.getStatus().apiError) await this.auth.logout();
         return;
       }
+      let manifestUpdated = false;
       let armorUpdated = false;
       try {
-        let manifestUpdated = await this.updateManifest(forceManifest);
-        armorUpdated = await this.updateInventoryItems(manifestUpdated || forceArmor);
+        manifestUpdated = await this.updateManifest(forceUpdateManifest);
+        armorUpdated = await this.updateInventoryItems(
+          manifestUpdated || forceUpdateInventoryArmor
+        );
         this.updateVendorsAsync();
       } catch (e) {
-        this.logger.error("InventoryService", "refreshAll", "Error: " + e);
+        this.logger.error("InventoryService", "refreshManifestAndArmor", "Error: " + e);
       }
 
       await this.triggerArmorUpdateAndUpdateResults(armorUpdated);
@@ -265,8 +255,10 @@ export class InventoryService {
       this.vendors
         .updateVendorArmorItemsCache()
         .then((success) => {
-          if (!success) return;
-          this.triggerArmorUpdateAndUpdateResults(success, this._config.includeVendorRolls);
+          // trigger armor update if vendor items were updated and changes are relevant
+          if (success && this._config.includeVendorRolls) {
+            this.triggerArmorUpdateAndUpdateResults(success);
+          }
         })
         .finally(() => {
           this.status.modifyStatus((s) => (s.updatingVendors = false));
@@ -318,6 +310,14 @@ export class InventoryService {
 
   async updateResults(nthreads: number = 3) {
     let config = this._config;
+    if (config.characterClass == DestinyClass.Unknown) {
+      this.logger.info(
+        "InventoryService",
+        "updateResults",
+        "Character class is unknown, probably not loaded yet, skipping updateResults"
+      );
+      return;
+    }
     this.logger.debug(
       "InventoryService",
       "updateResults",

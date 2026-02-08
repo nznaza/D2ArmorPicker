@@ -56,7 +56,7 @@ export class AccountConfigPageComponent {
 
   async resetDatabase() {
     await this.db.resetDatabase();
-    await this.inv.refreshAll(true, true);
+    await this.inv.refreshManifestAndArmor(true, true);
   }
 
   async resetEverything() {

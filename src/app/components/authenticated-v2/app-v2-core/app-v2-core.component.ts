@@ -95,7 +95,7 @@ export class AppV2CoreComponent implements OnInit {
 
   async refreshAll(b: boolean) {
     this.logger.debug("AppV2CoreComponent", "refreshAll", "Trigger refreshAll due to button press");
-    await this.inv.refreshAll(b);
+    await this.inv.refreshManifestAndArmor(b);
   }
 
   logout() {

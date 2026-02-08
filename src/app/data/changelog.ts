@@ -34,6 +34,23 @@ export const CHANGELOG_DATA: {
   entries: ChangelogEntry[];
 }[] = [
   {
+    version: "2.9.9",
+    date: "February 07, 2026",
+    clearManifest: false,
+    entries: [
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Changed logic for Manifest and Armor Initialization to avoid race conditions.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Only retrigger armor calculation when vendor data is updated if the vendor data is going to be used",
+        issues: [],
+      },
+    ],
+  },
+  {
     version: "2.9.8",
     date: "January 25, 2026",
     clearManifest: false,
