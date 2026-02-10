@@ -11,7 +11,8 @@ import { getMembershipDataForCurrentUser } from "bungie-api-ts/user";
 import { HttpClientService } from "./http-client.service";
 import { StatusProviderService } from "./status-provider.service";
 import { NGXLogger } from "ngx-logger";
-import { H } from "highlight.run";
+import { tracker } from "../app.module";
+// import { H } from "highlight.run";
 
 @Injectable({
   providedIn: "root",
@@ -37,14 +38,27 @@ export class MembershipService {
     );
     var membershipDataAge = JSON.parse(localStorage.getItem("auth-membershipInfo-date") || "0");
     if (membershipData && Date.now() - membershipDataAge < 1000 * 60 * 60 * 24) {
-      H.identify(`I${membershipData.membershipId}T${membershipData.membershipType}`, {
-        highlightDisplayName: `${membershipData.displayName}(I${membershipData.membershipId}T${membershipData.membershipType})`,
-        avatar: `https://bungie.net${membershipData.iconPath}`,
-        bungieGlobalDisplayName: membershipData.bungieGlobalDisplayName,
-        bungieGlobalDisplayNameCode: membershipData.bungieGlobalDisplayNameCode ?? -1,
-        membershipType: membershipData.membershipType,
-        applicableMembershipTypes: JSON.stringify(membershipData.applicableMembershipTypes),
-      });
+      tracker.identify(
+        `${membershipData.bungieGlobalDisplayName}#${(membershipData.bungieGlobalDisplayNameCode ?? -1).toString()}${membershipData.displayName}(I${membershipData.membershipId}T${membershipData.membershipType})`
+      );
+      tracker.setMetadata("bungieGlobalDisplayName", membershipData.bungieGlobalDisplayName);
+      tracker.setMetadata(
+        "bungieGlobalDisplayNameCode",
+        (membershipData.bungieGlobalDisplayNameCode ?? -1).toString()
+      );
+      tracker.setMetadata("membershipType", membershipData.membershipType.toString());
+      tracker.setMetadata(
+        "applicableMembershipTypes",
+        JSON.stringify(membershipData.applicableMembershipTypes)
+      );
+      // H.identify(`I${membershipData.membershipId}T${membershipData.membershipType}`, {
+      //   highlightDisplayName: `${membershipData.displayName}(I${membershipData.membershipId}T${membershipData.membershipType})`,
+      //   avatar: `https://bungie.net${membershipData.iconPath}`,
+      //   bungieGlobalDisplayName: membershipData.bungieGlobalDisplayName,
+      //   bungieGlobalDisplayNameCode: membershipData.bungieGlobalDisplayNameCode ?? -1,
+      //   membershipType: membershipData.membershipType,
+      //   applicableMembershipTypes: JSON.stringify(membershipData.applicableMembershipTypes),
+      // });
       return membershipData;
     }
 
@@ -118,14 +132,26 @@ export class MembershipService {
 
     localStorage.setItem("auth-membershipInfo", JSON.stringify(result));
     localStorage.setItem("auth-membershipInfo-date", JSON.stringify(Date.now()));
-    H.identify(`I${result.membershipId}T${result.membershipType}`, {
-      highlightDisplayName: `${result.displayName}(I${result.membershipId}T${result.membershipType})`,
-      avatar: `https://bungie.net${result.iconPath}`,
-      bungieGlobalDisplayName: result.bungieGlobalDisplayName,
-      bungieGlobalDisplayNameCode: result.bungieGlobalDisplayNameCode ?? -1,
-      membershipType: result.membershipType,
-      applicableMembershipTypes: JSON.stringify(result.applicableMembershipTypes),
-    });
+    tracker.identify(`${result.displayName}(I${result.membershipId}T${result.membershipType})`);
+    tracker.setMetadata("bungieGlobalDisplayName", result.bungieGlobalDisplayName);
+    tracker.setMetadata(
+      "bungieGlobalDisplayNameCode",
+      (result.bungieGlobalDisplayNameCode ?? -1).toString()
+    );
+    tracker.setMetadata("membershipType", result.membershipType.toString());
+    tracker.setMetadata(
+      "applicableMembershipTypes",
+      JSON.stringify(result.applicableMembershipTypes)
+    );
+
+    // H.identify(`I${result.membershipId}T${result.membershipType}`, {
+    //   highlightDisplayName: `${result.displayName}(I${result.membershipId}T${result.membershipType})`,
+    //   avatar: `https://bungie.net${result.iconPath}`,
+    //   bungieGlobalDisplayName: result.bungieGlobalDisplayName,
+    //   bungieGlobalDisplayNameCode: result.bungieGlobalDisplayNameCode ?? -1,
+    //   membershipType: result.membershipType,
+    //   applicableMembershipTypes: JSON.stringify(result.applicableMembershipTypes),
+    // });
     return result;
   }
 

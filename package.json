@@ -30,6 +30,8 @@
     "@angular/platform-browser-dynamic": "^16.2.12",
     "@angular/router": "^16.2.12",
     "@destinyitemmanager/dim-api-types": "^1.31.0",
+    "@openreplay/tracker": "^17.1.6",
+    "@openreplay/tracker-assist": "^11.0.11",
     "all-contributors-cli": "^6.26.1",
     "angular-cli-ghpages": "^1.0.7",
     "angular-oauth2-oidc": "^12.1.0",

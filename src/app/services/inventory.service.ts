@@ -116,6 +116,7 @@ export class InventoryService {
     private vendors: VendorsService,
     private logger: NGXLogger
   ) {
+    logger.debug("InventoryService", "constructor", "Initializing InventoryService");
     this._inventory = new ReplaySubject(1);
     this.inventory = this._inventory.asObservable();
     this._manifest = new ReplaySubject(1);
@@ -131,23 +132,34 @@ export class InventoryService {
 
     this.workers = [];
 
-    router.events
+    let initialNavigation = true;
+    this.router.events
       .pipe(
         filter((event) => event instanceof NavigationEnd),
         debounceTime(5)
       )
       .subscribe(async (val) => {
-        if (val instanceof NavigationEnd) {
-          if (val.id != 1) {
-            return;
+        if (initialNavigation) {
+          if (val instanceof NavigationEnd) {
+            if (val.url != "/") {
+              logger.debug(
+                "InventoryService",
+                "router events",
+                "Navigation ended, not in maing page, skipping manifest and armor refresh"
+              );
+              logger.debug("InventoryService", val);
+              return;
+            }
           }
+          await this.refreshManifestIfConfigUpdated();
+          // only subscribe to config changes after the Manifest is loaded, to avoid multiple calls to refreshManifestAndArmor when the app is initialized and the config is loaded before the manifest
+          this.config.configuration.pipe(debounceTime(5)).subscribe(async (c) => {
+            this.refreshManifestIfConfigUpdated(c);
+          });
+          initialNavigation = false;
         }
-        await this.refreshManifestIfConfigUpdated();
-        // only subscribe to config changes after the Manifest is loaded, to avoid multiple calls to refreshManifestAndArmor when the app is initialized and the config is loaded before the manifest
-        this.config.configuration.pipe(debounceTime(5)).subscribe(async (c) => {
-          this.refreshManifestIfConfigUpdated(c);
-        });
       });
+    logger.debug("InventoryService", "constructor", "Finished initializing InventoryService");
   }
 
   private async refreshManifestIfConfigUpdated(c?: BuildConfiguration) {
@@ -188,10 +200,6 @@ export class InventoryService {
       itemCount: 0,
       maximumPossibleTiers: [0, 0, 0, 0, 0, 0],
     });
-  }
-
-  shouldCalculateResults(): boolean {
-    return this.router.url == "/";
   }
 
   private refreshing: boolean = false;
@@ -244,11 +252,18 @@ export class InventoryService {
     triggerResultsUpdate: boolean = true
   ) {
     // trigger armor update behaviour
-    if (triggerInventoryUpdate) this._inventory.next(null);
-
-    // Do not update results in Help and Cluster pages
-    if (this.shouldCalculateResults()) {
+    try {
+      if (triggerInventoryUpdate) {
+        this.logger.debug(
+          "InventoryService",
+          "triggerArmorUpdateAndUpdateResults",
+          "Inventory update triggered, refreshing inventory observable"
+        );
+        this._inventory.next(null);
+      }
       await this.updateResults();
+    } catch (e) {
+      this.logger.error("InventoryService", "triggerArmorUpdateAndUpdateResults", "Error: " + e);
     }
   }
 

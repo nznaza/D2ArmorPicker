@@ -35,14 +35,14 @@ export class AppComponent implements AfterViewInit {
     private logger: NGXLogger
   ) {}
   ngAfterViewInit(): void {
-    // Check if InventoryService is initialized after 2 seconds
+    // Check if InventoryService is initialized after 10 seconds
     // if not, forcefully trigger an initial refreshAll
     setTimeout(() => {
       if (!this.inventoryService.isInitialized) {
         this.logger.warn(
           "AppComponent",
           "ngAfterViewInit",
-          "InventoryService is not initialized after 2 seconds, triggering initial refreshManifestAndArmor."
+          "InventoryService is not initialized after 10 seconds, triggering initial refreshManifestAndArmor."
         );
         this.inventoryService.refreshManifestAndArmor(true, true).catch((err) => {
           this.logger.error(
@@ -53,6 +53,6 @@ export class AppComponent implements AfterViewInit {
           );
         });
       }
-    }, 2000);
+    }, 10 * 1000);
   }
 }

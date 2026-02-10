@@ -73,34 +73,45 @@ import {
 } from "./components/authenticated-v2/pipes/vendor-name-pipe";
 
 import { environment } from "../environments/environment";
-import { H } from "highlight.run";
+// import { H } from "highlight.run";
+import Tracker from "@openreplay/tracker";
+import trackerAssist from "@openreplay/tracker-assist";
+
 import { ResultsCardViewComponent } from "./components/authenticated-v2/results/results-card-view/results-card-view.component";
 import { GearsetSelectionComponent } from "./components/authenticated-v2/settings/desired-mod-limit-selection/gearset-selection/gearset-selection.component";
 import { GearsetcTooltipDirective as GearsetTooltipDirective } from "./components/authenticated-v2/overlays/gearset-tooltip/gearset-tooltip.directive";
 import { GearsetTooltipComponent } from "./components/authenticated-v2/overlays/gearset-tooltip/gearset-tooltip.component";
 
-if (!!environment.highlight_project_id) {
-  H.init(environment.highlight_project_id, {
-    environment: environment.production
-      ? "production"
-      : environment.beta
-        ? "beta"
-        : environment.canary
-          ? "canary"
-          : "dev",
-    tracingOrigins: true,
-    inlineImages: false,
-    version: environment.version,
-    networkRecording: {
-      enabled: true,
-      recordHeadersAndBody: false,
-      urlBlocklist: [
-        "https://bungie.net/common/destiny2_content/icons/",
-        "https://www.bungie.net/img/",
-      ],
-    },
-  });
-}
+// if (!!environment.highlight_project_id) {
+//   H.init(environment.highlight_project_id, {
+//     environment: environment.production
+//       ? "production"
+//       : environment.beta
+//         ? "beta"
+//         : environment.canary
+//           ? "canary"
+//           : "dev",
+//     tracingOrigins: true,
+//     inlineImages: false,
+//     version: environment.version,
+//     networkRecording: {
+//       enabled: true,
+//       recordHeadersAndBody: false,
+//       urlBlocklist: [
+//         "https://bungie.net/common/destiny2_content/icons/",
+//         "https://www.bungie.net/img/",
+//       ],
+//     },
+//   });
+// }
+
+export const tracker = new Tracker({
+  projectKey: environment.open_replay_project_key,
+});
+
+tracker.start();
+const options = {};
+tracker.use(trackerAssist(options)); // check the list of available options below
 
 import { ModslotVisualizationComponent } from "./components/authenticated-v2/settings/desired-mod-limit-selection/modslot-visualization/modslot-visualization.component";
 import { ModLimitSegmentedComponent } from "./components/authenticated-v2/settings/desired-mod-limit-selection/mod-limit-segmented/mod-limit-segmented.component";
@@ -202,7 +213,7 @@ const routes: Routes = [
     ClipboardModule,
     LayoutModule,
     LoggerModule.forRoot({
-      serverLoggingUrl: "/api/logs",
+      // serverLoggingUrl: "/api/logs",
       level: environment.production ? NgxLoggerLevel.ERROR : NgxLoggerLevel.DEBUG,
       serverLogLevel: NgxLoggerLevel.ERROR,
     }),

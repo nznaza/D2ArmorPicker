@@ -53,7 +53,7 @@ const requiredEnvKeys = [
   "D2AP_BUNGIE_API_KEY",
   "D2AP_BUNGIE_CLIENT_ID",
   "D2AP_BUNGIE_CLIENT_SECRET",
-  "D2AP_HIGHLIGHT_MONITORING_ID",
+  "D2AP_OPEN_REPLAY_PROJECT_KEY",
   "D2AP_FEATURE_ENABLE_MODSLOT_LIMITATION",
   "D2AP_FEATURE_ENABLE_ZERO_WASTE",
   "D2AP_FEATURE_ENABLE_GUARDIAN_GAMES_FEATURES",
@@ -99,7 +99,8 @@ const data = {
   client_secret: process.env["D2AP_BUNGIE_CLIENT_SECRET"],
   nodeEnv: process.env["NODE_ENV"],
   offlineMode: false,
-  highlight_project_id: process.env["D2AP_HIGHLIGHT_MONITORING_ID"],
+  // highlight_project_id: process.env["D2AP_HIGHLIGHT_MONITORING_ID"],
+  open_replay_project_key: process.env["D2AP_OPEN_REPLAY_PROJECT_KEY"],
   featureFlags: {
     enableModslotLimitation: process.env["D2AP_FEATURE_ENABLE_MODSLOT_LIMITATION"] == "1",
     enableZeroWaste: process.env["D2AP_FEATURE_ENABLE_ZERO_WASTE"] == "1",

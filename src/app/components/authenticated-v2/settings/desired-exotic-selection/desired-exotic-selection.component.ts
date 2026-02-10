@@ -105,6 +105,11 @@ export class DesiredExoticSelectionComponent implements OnInit, OnDestroy {
   }
 
   private async updateExoticsForClass() {
+    this.logger.debug(
+      "DesiredExoticSelectionComponent",
+      "updateExoticsForClass",
+      "Updating exotics for class: " + this.currentClass
+    );
     const armors = await this.inventory.getExoticsForClass(this.currentClass);
 
     this.exotics = [

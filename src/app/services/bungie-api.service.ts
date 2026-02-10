@@ -35,6 +35,8 @@ import {
   DestinyItemComponent,
   DestinyManifestComponentName,
   AllDestinyManifestComponents,
+  DestinyManifest,
+  ServerResponse,
 } from "bungie-api-ts/destiny2";
 import { DatabaseService } from "./database.service";
 import { environment } from "../../environments/environment";
@@ -783,35 +785,53 @@ export class BungieApiService {
     await this.db.manifestCollectibles.bulkPut(exoticArmorCollectibles);
   }
 
-  async updateManifest(force = false) {
+  isManifestCacheValid(manifestCache: { updatedAt: number; version: string }) {
     if (environment.offlineMode) {
-      this.logger.info("BungieApiService", "updateManifest", "offline mode, skipping");
-      if (!this.manifestAlreadyUpdated) {
-        this.manifestAlreadyUpdated = true;
-        this.manifestUpdatedSubject.next();
-      }
-      return;
+      this.logger.info(
+        "BungieApiService",
+        "isManifestCacheValid",
+        "marking manifest cache as valid due to offline mode"
+      );
+      return true;
     }
+    if (Date.now() - manifestCache.updatedAt < 1000 * 3600 * 24) {
+      this.logger.info(
+        "BungieApiService",
+        "isManifestCacheValid",
+        "marking manifest cache as valid, Manifest is less than a day old"
+      );
+      return true;
+    }
+    return false;
+  }
 
+  async updateManifest(force = false) {
     const manifestCache = this.db.lastManifestUpdate();
-
     let destinyManifest = null;
     if (manifestCache && !force) {
-      if (Date.now() - manifestCache.updatedAt > 1000 * 3600 * 0.25) {
-        destinyManifest = await getDestinyManifest((d) => this.http.$httpWithoutBearerToken(d));
-        const version = destinyManifest.Response.version;
-        if (manifestCache.version == version) {
-          this.logger.info("BungieApiService", "updateManifest", "Manifest is last version");
-          if (!this.manifestAlreadyUpdated) {
-            this.manifestAlreadyUpdated = true;
-            this.manifestUpdatedSubject.next();
+      let isCacheValid = this.isManifestCacheValid(manifestCache);
+
+      if (!isCacheValid) {
+        this.logger.info(
+          "BungieApiService",
+          "updateManifest",
+          "Manifest Cache is considered invalid, Checking manifest version"
+        );
+        if (Date.now() - manifestCache.updatedAt > 1000 * 3600 * 0.25) {
+          destinyManifest = await getDestinyManifest((d) => this.http.$httpWithoutBearerToken(d));
+          const version = destinyManifest.Response.version;
+          if (manifestCache.version == version) {
+            this.logger.info("BungieApiService", "updateManifest", "Manifest is last version");
+            isCacheValid = true;
           }
-          return;
         }
       }
-
-      if (Date.now() - manifestCache.updatedAt < 1000 * 3600 * 24) {
-        this.logger.info("BungieApiService", "updateManifest", "Manifest is less than a day old");
+      if (isCacheValid) {
+        this.logger.info(
+          "BungieApiService",
+          "updateManifest",
+          "Manifest cache is valid, skipping update"
+        );
         if (!this.manifestAlreadyUpdated) {
           this.manifestAlreadyUpdated = true;
           this.manifestUpdatedSubject.next();
@@ -819,6 +839,7 @@ export class BungieApiService {
         return;
       }
     }
+
     this.logger.info("BungieApiService", "updateManifest", "Requesting manifest");
 
     if (destinyManifest == null) {
@@ -840,18 +861,29 @@ export class BungieApiService {
       language: "en",
     });
 
-    const enManifestTables = await getDestinyManifestSlice((d) => this.http.$httpWithoutApiKey(d), {
-      destinyManifest: destinyManifest.Response,
-      tableNames: ["DestinyCollectibleDefinition", "DestinyPresentationNodeDefinition"],
-      language: "en",
-    });
-
     await this.updateExoticCollectibles(manifestTables);
     await this.updateVendorNames(manifestTables);
     await this.updateAbilities(manifestTables);
     await this.updateVendorItemSubScreens(manifestTables);
     await this.updateEquipableItemSetDefinitions(manifestTables);
     await this.updateSandboxPerks(manifestTables);
+
+    let entries = await this.extractArmorDataFromManifest(destinyManifest, manifestTables);
+
+    await this.db.writeManifestArmor(entries, manifestVersion);
+    this.manifestUpdatedSubject.next();
+    return manifestTables;
+  }
+
+  private async extractArmorDataFromManifest(
+    destinyManifest: ServerResponse<DestinyManifest>,
+    manifestTables: DestinyManifestSlice<(keyof AllDestinyManifestComponents)[]>
+  ) {
+    const enManifestTables = await getDestinyManifestSlice((d) => this.http.$httpWithoutApiKey(d), {
+      destinyManifest: destinyManifest.Response,
+      tableNames: ["DestinyCollectibleDefinition", "DestinyPresentationNodeDefinition"],
+      language: "en",
+    });
 
     // NOTE: This is also storing emotes, as these have itemType 19 (mods)
     let entries = Object.entries(manifestTables.DestinyInventoryItemDefinition)
@@ -1024,11 +1056,9 @@ export class BungieApiService {
           isFeatured: isFeatured,
         } as IManifestArmor;
       });
-
-    await this.db.writeManifestArmor(entries, manifestVersion);
-    this.manifestUpdatedSubject.next();
-    return manifestTables;
+    return entries;
   }
+
   getGearSet(
     v: DestinyInventoryItemDefinition,
     itemSetDefinitions: DestinyEquipableItemSetDefinition[]

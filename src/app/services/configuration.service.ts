@@ -183,7 +183,7 @@ export class ConfigurationService {
   }
 
   saveCurrentConfiguration(configuration: BuildConfiguration) {
-    this.logger.debug("Writing configuration", { configuration: configuration });
+    this.logger.debug("Writing configuration", JSON.stringify({ configuration: configuration }));
     // deep copy it
     this.__configuration = Object.assign(
       BuildConfiguration.buildEmptyConfiguration(),

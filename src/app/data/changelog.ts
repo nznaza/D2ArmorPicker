@@ -35,7 +35,7 @@ export const CHANGELOG_DATA: {
 }[] = [
   {
     version: "2.9.9",
-    date: "February 07, 2026",
+    date: "February 09, 2026",
     clearManifest: false,
     entries: [
       {
@@ -45,7 +45,17 @@ export const CHANGELOG_DATA: {
       },
       {
         type: ChangelogEntryType.MODIFIED,
+        text: "Changed logic to validate Manifest cache, to reduce calls and time validating with the BungieAPI.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
         text: "Only retrigger armor calculation when vendor data is updated if the vendor data is going to be used",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Changed session replay solution.",
         issues: [],
       },
     ],

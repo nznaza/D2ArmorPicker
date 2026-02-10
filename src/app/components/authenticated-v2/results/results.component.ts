@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AfterViewInit, Component, OnDestroy, ViewChild } from "@angular/core";
+import { Component, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { InventoryService } from "../../../services/inventory.service";
 import { MatTableDataSource } from "@angular/material/table";
@@ -99,7 +99,7 @@ export interface ResultItem {
     ]),
   ],
 })
-export class ResultsComponent implements AfterViewInit, OnDestroy {
+export class ResultsComponent implements OnInit, OnDestroy {
   ArmorStat = ArmorStat;
   public StatModifier = StatModifier;
 
@@ -163,7 +163,7 @@ export class ResultsComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  ngAfterViewInit(): void {
+  ngOnInit(): void {
     this.tableDataSource.paginator = this.paginator;
     this.tableDataSource.sort = this.sort;
     this.tableDataSource.sortingDataAccessor = (data, sortHeaderId) => {
