@@ -82,6 +82,73 @@ import { GearsetSelectionComponent } from "./components/authenticated-v2/setting
 import { GearsetcTooltipDirective as GearsetTooltipDirective } from "./components/authenticated-v2/overlays/gearset-tooltip/gearset-tooltip.directive";
 import { GearsetTooltipComponent } from "./components/authenticated-v2/overlays/gearset-tooltip/gearset-tooltip.component";
 
+let openReplayTracker: Tracker;
+
+export function identifyUserWithTracker(membershipData: GroupUserInfoCard) {
+  if (!membershipData) return;
+
+  try {
+    const identifier = `${membershipData.displayName}(I${membershipData.membershipId}T${membershipData.membershipType})`;
+
+    openReplayTracker.identify(identifier);
+    openReplayTracker.setMetadata(
+      "bungieGlobalDisplayName",
+      membershipData.bungieGlobalDisplayName
+    );
+    openReplayTracker.setMetadata(
+      "bungieGlobalDisplayNameCode",
+      (membershipData.bungieGlobalDisplayNameCode ?? -1).toString()
+    );
+    openReplayTracker.setMetadata("membershipType", membershipData.membershipType.toString());
+    openReplayTracker.setMetadata(
+      "applicableMembershipTypes",
+      JSON.stringify(membershipData.applicableMembershipTypes)
+    );
+    // H.identify(identifier, {
+    //   highlightDisplayName: `${membershipData.displayName}(I${membershipData.membershipId}T${membershipData.membershipType})`,
+    //   avatar: `https://bungie.net${membershipData.iconPath}`,
+    //   bungieGlobalDisplayName: membershipData.bungieGlobalDisplayName,
+    //   bungieGlobalDisplayNameCode: membershipData.bungieGlobalDisplayNameCode ?? -1,
+    //   membershipType: membershipData.membershipType,
+    //   applicableMembershipTypes: JSON.stringify(membershipData.applicableMembershipTypes),
+    // });
+  } catch (err) {
+    console.error("Error identifying user with tracker", err);
+  }
+}
+
+try {
+  openReplayTracker = new Tracker({
+    projectKey: environment.open_replay_project_key,
+  });
+
+  openReplayTracker.start();
+  const options = {};
+  openReplayTracker.use(trackerAssist(options)); // check the list of available options below
+
+  let membershipInfo = JSON.parse(localStorage.getItem("auth-membershipInfo") || "null");
+  if (membershipInfo) {
+    openReplayTracker.identify(
+      `${membershipInfo.displayName}(I${membershipInfo.membershipId}T${membershipInfo.membershipType})`
+    );
+    openReplayTracker.setMetadata(
+      "bungieGlobalDisplayName",
+      membershipInfo.bungieGlobalDisplayName
+    );
+    openReplayTracker.setMetadata(
+      "bungieGlobalDisplayNameCode",
+      (membershipInfo.bungieGlobalDisplayNameCode ?? -1).toString()
+    );
+    openReplayTracker.setMetadata("membershipType", membershipInfo.membershipType.toString());
+    openReplayTracker.setMetadata(
+      "applicableMembershipTypes",
+      JSON.stringify(membershipInfo.applicableMembershipTypes)
+    );
+  }
+} catch (e) {
+  console.error("Failed to initialize OpenReplay tracker", e);
+}
+
 // if (!!environment.highlight_project_id) {
 //   H.init(environment.highlight_project_id, {
 //     environment: environment.production
@@ -105,17 +172,10 @@ import { GearsetTooltipComponent } from "./components/authenticated-v2/overlays/
 //   });
 // }
 
-export const tracker = new Tracker({
-  projectKey: environment.open_replay_project_key,
-});
-
-tracker.start();
-const options = {};
-tracker.use(trackerAssist(options)); // check the list of available options below
-
 import { ModslotVisualizationComponent } from "./components/authenticated-v2/settings/desired-mod-limit-selection/modslot-visualization/modslot-visualization.component";
 import { ModLimitSegmentedComponent } from "./components/authenticated-v2/settings/desired-mod-limit-selection/mod-limit-segmented/mod-limit-segmented.component";
 import { PrivacyPolicyComponent } from "./components/privacy-policy/privacy-policy.component";
+import { GroupUserInfoCard } from "bungie-api-ts/groupv2";
 
 const routes: Routes = [
   {
