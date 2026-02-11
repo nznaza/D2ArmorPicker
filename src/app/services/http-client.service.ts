@@ -75,7 +75,7 @@ export class HttpClientService {
           this.logger.info(
             "HttpClientService",
             "$http",
-            "System is disabled. Revoking auth, must re-login"
+            "System is disabled. Not revoking auth, system is probably down for maintenance."
           );
           this.status.setApiError();
         }
@@ -98,10 +98,12 @@ export class HttpClientService {
             this.status.setAuthError();
             this.authService.logout();
           }
-        }
-        if (err.ErrorStatus != "Internal Server Error") {
+        } else if (err.ErrorStatus != "Internal Server Error") {
           this.logger.info("HttpClientService", "$http", "API-Error");
           //this.status.setApiError();
+        } else {
+          this.logger.info("HttpClientService", "$http", "Generic API-Error");
+          this.status.setApiError();
         }
       });
   }
