@@ -104,6 +104,7 @@ export function identifyUserWithTracker(membershipData: GroupUserInfoCard) {
       "applicableMembershipTypes",
       JSON.stringify(membershipData.applicableMembershipTypes)
     );
+    openReplayTracker.setMetadata("version", `${environment.version}`);
     // H.identify(identifier, {
     //   highlightDisplayName: `${membershipData.displayName}(I${membershipData.membershipId}T${membershipData.membershipType})`,
     //   avatar: `https://bungie.net${membershipData.iconPath}`,
@@ -126,24 +127,12 @@ try {
   const options = {};
   openReplayTracker.use(trackerAssist(options)); // check the list of available options below
 
-  let membershipInfo = JSON.parse(localStorage.getItem("auth-membershipInfo") || "null");
+  let membershipInfo: GroupUserInfoCard | null = JSON.parse(
+    localStorage.getItem("auth-membershipInfo") || "null"
+  );
   if (membershipInfo) {
-    openReplayTracker.identify(
-      `${membershipInfo.displayName}(I${membershipInfo.membershipId}T${membershipInfo.membershipType})`
-    );
-    openReplayTracker.setMetadata(
-      "bungieGlobalDisplayName",
-      membershipInfo.bungieGlobalDisplayName
-    );
-    openReplayTracker.setMetadata(
-      "bungieGlobalDisplayNameCode",
-      (membershipInfo.bungieGlobalDisplayNameCode ?? -1).toString()
-    );
-    openReplayTracker.setMetadata("membershipType", membershipInfo.membershipType.toString());
-    openReplayTracker.setMetadata(
-      "applicableMembershipTypes",
-      JSON.stringify(membershipInfo.applicableMembershipTypes)
-    );
+    console.log("Found cached membership info, using it to identify user in OpenReplay");
+    identifyUserWithTracker(membershipInfo);
   }
 } catch (e) {
   console.error("Failed to initialize OpenReplay tracker", e);
