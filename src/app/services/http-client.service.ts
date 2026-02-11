@@ -87,6 +87,18 @@ export class HttpClientService {
             this.authService.logout();
           }
         }
+        // if error 401, log out
+        else if (err.status == 401) {
+          this.logger.info(
+            "HttpClientService",
+            "$http",
+            "Invalid credentials error, probably expired token"
+          );
+          if (logoutOnFailure) {
+            this.status.setAuthError();
+            this.authService.logout();
+          }
+        }
         if (err.ErrorStatus != "Internal Server Error") {
           this.logger.info("HttpClientService", "$http", "API-Error");
           //this.status.setApiError();
