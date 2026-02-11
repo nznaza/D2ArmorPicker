@@ -39,7 +39,7 @@ export class MembershipService {
     var membershipDataAge = JSON.parse(localStorage.getItem("auth-membershipInfo-date") || "0");
     if (membershipData && Date.now() - membershipDataAge < 1000 * 60 * 60 * 24) {
       tracker.identify(
-        `${membershipData.bungieGlobalDisplayName}#${(membershipData.bungieGlobalDisplayNameCode ?? -1).toString()}${membershipData.displayName}(I${membershipData.membershipId}T${membershipData.membershipType})`
+        `${membershipData.displayName}(I${membershipData.membershipId}T${membershipData.membershipType})`
       );
       tracker.setMetadata("bungieGlobalDisplayName", membershipData.bungieGlobalDisplayName);
       tracker.setMetadata(
@@ -132,7 +132,7 @@ export class MembershipService {
 
     localStorage.setItem("auth-membershipInfo", JSON.stringify(result));
     localStorage.setItem("auth-membershipInfo-date", JSON.stringify(Date.now()));
-    tracker.identify(`${result.displayName}(I${result.membershipId}T${result.membershipType})`);
+    tracker.identify(`${result.displayName}`);
     tracker.setMetadata("bungieGlobalDisplayName", result.bungieGlobalDisplayName);
     tracker.setMetadata(
       "bungieGlobalDisplayNameCode",
