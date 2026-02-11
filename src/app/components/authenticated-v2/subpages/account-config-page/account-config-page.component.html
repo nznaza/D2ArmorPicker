@@ -70,6 +70,28 @@
     </mat-card-content>
   </mat-card>
 
+  <mat-card appearance="outlined">
+    <mat-card-header>
+      <mat-card-title> Privacy & Legal </mat-card-title>
+      <mat-card-subtitle> Information about data handling and privacy. </mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      Learn about how we handle your data and what information we collect:<br />
+      <a
+        class="btn-download"
+        color="primary"
+        mat-raised-button
+        routerLink="/privacy-policy"
+        target="_blank">
+        View Privacy Policy
+      </a>
+      <br /><br />
+      This application uses the Bungie.net API. Bungie's privacy policy also applies to data
+      accessed through their API.
+    </mat-card-content>
+  </mat-card>
+
   <a class="returnbutton hide-gt-sm" color="primary" mat-raised-button routerLink="/">
     Return to D2ArmorPicker
   </a>

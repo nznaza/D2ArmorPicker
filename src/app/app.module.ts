@@ -115,6 +115,7 @@ tracker.use(trackerAssist(options)); // check the list of available options belo
 
 import { ModslotVisualizationComponent } from "./components/authenticated-v2/settings/desired-mod-limit-selection/modslot-visualization/modslot-visualization.component";
 import { ModLimitSegmentedComponent } from "./components/authenticated-v2/settings/desired-mod-limit-selection/mod-limit-segmented/mod-limit-segmented.component";
+import { PrivacyPolicyPageComponent } from "./components/authenticated-v2/subpages/privacy-policy-page/privacy-policy-page.component";
 
 const routes: Routes = [
   {
@@ -141,6 +142,10 @@ const routes: Routes = [
       {
         path: "account",
         component: AccountConfigPageComponent,
+      },
+      {
+        path: "privacy-policy",
+        component: PrivacyPolicyPageComponent,
       },
     ],
   },
@@ -201,6 +206,7 @@ const routes: Routes = [
     GearsetSelectionComponent,
     ModslotVisualizationComponent,
     ModLimitSegmentedComponent,
+    PrivacyPolicyPageComponent,
   ],
   imports: [
     CommonModule,

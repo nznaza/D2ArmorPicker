@@ -54,6 +54,10 @@ export class AppV2CoreComponent implements OnInit {
       link: "/account",
       name: "Account",
     },
+    {
+      link: "/privacy-policy",
+      name: "Privacy Policy",
+    },
   ];
 
   constructor(
