@@ -21,7 +21,7 @@ import { HttpClient } from "@angular/common/http";
 import { Observable, BehaviorSubject } from "rxjs";
 
 import type { CharacterStats } from "../data/character_stats/schema";
-import { InventoryService } from "./inventory.service";
+import { UserInformationService } from "src/app/services/user-information.service";
 
 const BASE_URL = "https://Database-Clarity.github.io/Character-Stats";
 export const SUPPORTED_SCHEMA_VERSION = "1.9";
@@ -52,11 +52,11 @@ export class ClarityService {
 
   constructor(
     private http: HttpClient,
-    private inv: InventoryService,
+    private userInfo: UserInformationService,
     private logger: NGXLogger
   ) {
     // trigger a clarity reload on manifest change
-    this.inv.manifest.subscribe((_) => this.load());
+    this.userInfo.manifest.subscribe((_) => this.load());
   }
 
   async load() {

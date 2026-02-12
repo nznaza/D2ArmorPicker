@@ -24,6 +24,8 @@ import { MatDialog } from "@angular/material/dialog";
   providedIn: "root",
 })
 export class ChangelogService {
+  private hasCheckedForChangelog = false;
+
   constructor(public dialog: MatDialog) {}
 
   setChangelogSeenFlag() {
@@ -54,5 +56,16 @@ export class ChangelogService {
     dialogRef.afterClosed().subscribe((result) => {
       this.setChangelogSeenFlag();
     });
+  }
+
+  /**
+   * Automatically shows the changelog dialog if needed.
+   * Should be called once during app initialization.
+   */
+  checkAndShowChangelog() {
+    if (!this.hasCheckedForChangelog && this.mustShowChangelog) {
+      this.hasCheckedForChangelog = true;
+      this.openChangelogDialog();
+    }
   }
 }

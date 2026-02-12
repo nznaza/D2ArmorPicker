@@ -17,7 +17,7 @@
 
 import { Component } from "@angular/core";
 import { DatabaseService } from "../../../../services/database.service";
-import { InventoryService } from "../../../../services/inventory.service";
+import { UserInformationService } from "src/app/services/user-information.service";
 import { AuthService } from "../../../../services/auth.service";
 
 @Component({
@@ -28,7 +28,7 @@ import { AuthService } from "../../../../services/auth.service";
 export class AccountConfigPageComponent {
   constructor(
     private db: DatabaseService,
-    public inv: InventoryService,
+    public inv: UserInformationService,
     private loginService: AuthService
   ) {}
 

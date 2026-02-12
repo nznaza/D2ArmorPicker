@@ -15,13 +15,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Component, OnInit } from "@angular/core";
+import { Component, OnInit, AfterViewInit } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { StatusProviderService } from "../../../services/status-provider.service";
 import { Observable } from "rxjs";
 import { BreakpointObserver, Breakpoints } from "@angular/cdk/layout";
 import { map, shareReplay } from "rxjs/operators";
-import { InventoryService } from "../../../services/inventory.service";
+import { UserInformationService } from "src/app/services/user-information.service";
 import { AuthService } from "../../../services/auth.service";
 import { NavigationEnd, Router } from "@angular/router";
 import { environment } from "../../../../environments/environment";
@@ -33,7 +33,7 @@ import { CharacterStatsService } from "../../../services/character-stats.service
   templateUrl: "./app-v2-core.component.html",
   styleUrls: ["./app-v2-core.component.scss"],
 })
-export class AppV2CoreComponent implements OnInit {
+export class AppV2CoreComponent implements OnInit, AfterViewInit {
   version = environment.version;
   activeLinkIndex = 0;
   computationProgress = 0;
@@ -63,7 +63,7 @@ export class AppV2CoreComponent implements OnInit {
   constructor(
     public status: StatusProviderService,
     private breakpointObserver: BreakpointObserver,
-    private inv: InventoryService,
+    private inv: UserInformationService,
     private auth: AuthService,
     private router: Router,
     private characterStats: CharacterStatsService,
@@ -89,12 +89,19 @@ export class AppV2CoreComponent implements OnInit {
           this.navLinks.find((tab) => tab.link === this.router.url) as any
         );
     });
+  }
 
+  ngAfterViewInit(): void {
     this.characterStats.loadCharacterStats();
 
     this.inv.calculationProgress.subscribe((progress) => {
       this.computationProgress = progress;
     });
+
+    // Check and show changelog after view init is complete
+    setTimeout(() => {
+      this.changelog.checkAndShowChangelog();
+    }, 1000);
   }
 
   async refreshAll(b: boolean) {

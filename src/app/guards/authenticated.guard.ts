@@ -33,7 +33,12 @@ export class AuthenticatedGuard {
     state: RouterStateSnapshot
   ): Observable<boolean | UrlTree> | Promise<boolean | UrlTree> | boolean | UrlTree {
     if (!this.auth.isAuthenticated()) {
-      this.router.navigate(["login"]);
+      // Check if there's a code parameter in the query string
+      if (state.url.includes("?code=") || route.queryParams["code"]) {
+        this.router.navigate(["authenticate"], { queryParams: route.queryParams });
+      } else {
+        this.router.navigate(["login"]);
+      }
       return false;
     }
     return true;

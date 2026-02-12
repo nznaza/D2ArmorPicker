@@ -48,6 +48,7 @@ import { VendorsService } from "./vendors.service";
 import { ModOptimizationStrategy } from "../data/enum/mod-optimization-strategy";
 import { isEqual as _isEqual } from "lodash";
 import { getDifferences } from "../data/commonFunctions";
+import { MembershipService } from "./membership.service";
 
 type info = {
   results: ResultDefinition[];
@@ -68,7 +69,7 @@ export type ClassExoticInfo = {
 @Injectable({
   providedIn: "root",
 })
-export class InventoryService {
+export class UserInformationService {
   /**
    * An Int32Array that holds all permutations for the currently selected class, before filters are applied.
    * It consists of N items of length 11:
@@ -79,6 +80,12 @@ export class InventoryService {
   private currentClass: DestinyClass = DestinyClass.Unknown;
   private initialized: boolean = false;
 
+  private _characters: ReplaySubject<
+    { emblemUrl: string; characterId: string; clazz: DestinyClass; lastPlayed: number }[]
+  >;
+  public readonly characters: Observable<
+    { emblemUrl: string; characterId: string; clazz: DestinyClass; lastPlayed: number }[]
+  >;
   private _manifest: ReplaySubject<null>;
   public readonly manifest: Observable<null>;
   private _inventory: ReplaySubject<null>;
@@ -86,10 +93,8 @@ export class InventoryService {
 
   private _armorResults: BehaviorSubject<info>;
   public readonly armorResults: Observable<info>;
-
   private _reachableTiers: BehaviorSubject<number[]>;
   public readonly reachableTiers: Observable<number[]>;
-
   private _calculationProgress: Subject<number> = new Subject<number>();
   public readonly calculationProgress: Observable<number> =
     this._calculationProgress.asObservable();
@@ -114,9 +119,12 @@ export class InventoryService {
     private auth: AuthService,
     private router: Router,
     private vendors: VendorsService,
+    private membership: MembershipService,
     private logger: NGXLogger
   ) {
-    logger.debug("InventoryService", "constructor", "Initializing InventoryService");
+    logger.debug("UserInformationService", "constructor", "Initializing UserInformationService");
+    this._characters = new ReplaySubject(1);
+    this.characters = this._characters.asObservable();
     this._inventory = new ReplaySubject(1);
     this.inventory = this._inventory.asObservable();
     this._manifest = new ReplaySubject(1);
@@ -132,47 +140,58 @@ export class InventoryService {
 
     this.workers = [];
 
+    // Clear character data on logout
+    this.auth.logoutEvent.subscribe((k) => this.clearCachedCharacterData());
+
     let initialNavigation = true;
     this.router.events
       .pipe(
         filter((event) => event instanceof NavigationEnd),
-        debounceTime(5)
+        debounceTime(100)
       )
       .subscribe(async (val) => {
         if (initialNavigation) {
           if (val instanceof NavigationEnd) {
             if (val.url != "/") {
               logger.debug(
-                "InventoryService",
+                "UserInformationService",
                 "router events",
                 "Navigation ended, not in maing page, skipping manifest and armor refresh"
               );
-              logger.debug("InventoryService", val);
+              logger.debug("UserInformationService", val);
               return;
             }
           }
+          // Initialize character data
+          this.loadCachedCharacterData();
+          await this.updateCharacterData();
+
           await this.refreshManifestIfConfigUpdated();
           // only subscribe to config changes after the Manifest is loaded, to avoid multiple calls to refreshManifestAndArmor when the app is initialized and the config is loaded before the manifest
-          this.config.configuration.pipe(debounceTime(5)).subscribe(async (c) => {
+          this.config.configuration.pipe(debounceTime(100)).subscribe(async (c) => {
             this.refreshManifestIfConfigUpdated(c);
           });
           initialNavigation = false;
         }
       });
-    logger.debug("InventoryService", "constructor", "Finished initializing InventoryService");
+    logger.debug(
+      "UserInformationService",
+      "constructor",
+      "Finished initializing UserInformationService"
+    );
   }
 
   private async refreshManifestIfConfigUpdated(c?: BuildConfiguration) {
     if (this.auth.refreshTokenExpired || !(await this.auth.autoRegenerateTokens())) {
       this.logger.warn(
-        "InventoryService",
+        "UserInformationService",
         "Refresh token expired, we should probably log the user out"
       );
       this.status.setAuthError();
     }
     if (!this.auth.isAuthenticated()) {
       this.logger.warn(
-        "InventoryService",
+        "UserInformationService",
         "User is not authenticated, skipping router event handling"
       );
       return;
@@ -180,7 +199,7 @@ export class InventoryService {
     if (c) {
       if (_isEqual(c, this._config)) return;
       this.logger.debug(
-        "InventoryService",
+        "UserInformationService",
         "Build configuration changed: " + JSON.stringify(getDifferences(this._config, c))
       );
       this._config = structuredClone(c);
@@ -210,7 +229,7 @@ export class InventoryService {
   ) {
     if (this.refreshing) {
       this.logger.warn(
-        "InventoryService",
+        "UserInformationService",
         "refreshManifestAndArmor",
         "Refresh already in progress, skipping new refresh request"
       );
@@ -218,7 +237,7 @@ export class InventoryService {
     }
     this.refreshing = true;
     this.logger.debug(
-      "InventoryService",
+      "UserInformationService",
       "refreshManifestAndArmor",
       "Refreshing inventory and manifest"
     );
@@ -232,13 +251,13 @@ export class InventoryService {
       let manifestUpdated = false;
       let armorUpdated = false;
       try {
-        manifestUpdated = await this.updateManifest(forceUpdateManifest);
+        manifestUpdated = await this.executeUpdateManifest(forceUpdateManifest);
         armorUpdated = await this.updateInventoryItems(
           manifestUpdated || forceUpdateInventoryArmor
         );
         this.updateVendorsAsync();
       } catch (e) {
-        this.logger.error("InventoryService", "refreshManifestAndArmor", "Error: " + e);
+        this.logger.error("UserInformationService", "refreshManifestAndArmor", "Error: " + e);
       }
 
       await this.triggerArmorUpdateAndUpdateResults(armorUpdated);
@@ -255,7 +274,7 @@ export class InventoryService {
     try {
       if (triggerInventoryUpdate) {
         this.logger.debug(
-          "InventoryService",
+          "UserInformationService",
           "triggerArmorUpdateAndUpdateResults",
           "Inventory update triggered, refreshing inventory observable"
         );
@@ -263,7 +282,11 @@ export class InventoryService {
       }
       await this.updateResults();
     } catch (e) {
-      this.logger.error("InventoryService", "triggerArmorUpdateAndUpdateResults", "Error: " + e);
+      this.logger.error(
+        "UserInformationService",
+        "triggerArmorUpdateAndUpdateResults",
+        "Error: " + e
+      );
     }
   }
 
@@ -287,7 +310,7 @@ export class InventoryService {
   }
 
   private killWorkers() {
-    this.logger.debug("InventoryService", "killWorkers", "Terminating all workers");
+    this.logger.debug("UserInformationService", "killWorkers", "Terminating all workers");
     this.workers.forEach((w) => {
       w.terminate();
     });
@@ -319,7 +342,7 @@ export class InventoryService {
   }
 
   cancelCalculation() {
-    this.logger.info("InventoryService", "cancelCalculation", "Cancelling calculation");
+    this.logger.info("UserInformationService", "cancelCalculation", "Cancelling calculation");
     this.killWorkers();
     this.status.modifyStatus((s) => (s.calculatingResults = false));
     this.status.modifyStatus((s) => (s.cancelledCalculation = true));
@@ -332,14 +355,14 @@ export class InventoryService {
     let config = this._config;
     if (config.characterClass == DestinyClass.Unknown) {
       this.logger.info(
-        "InventoryService",
+        "UserInformationService",
         "updateResults",
         "Character class is unknown, probably not loaded yet, skipping updateResults"
       );
       return;
     }
     this.logger.debug(
-      "InventoryService",
+      "UserInformationService",
       "updateResults",
       "Using config for Workers: " + JSON.stringify({ configuration: config })
     );
@@ -438,7 +461,7 @@ export class InventoryService {
         )
         // sunset armor
         .filter((item) => !config.ignoreSunsetArmor || !item.isSunset);
-      // this.logger.debug("InventoryService", "updateResults", items.map(d => "id:'"+d.itemInstanceId+"'").join(" or "))
+      // this.logger.debug("UserInformationService", "updateResults", items.map(d => "id:'"+d.itemInstanceId+"'").join(" or "))
 
       // Remove collection items if they are in inventory
       this.inventoryArmorItems = this.inventoryArmorItems.filter((item) => {
@@ -486,7 +509,7 @@ export class InventoryService {
       });
 
       nthreads = this.estimateRequiredThreads();
-      this.logger.info("InventoryService", "updateResults", "Estimated threads: " + nthreads);
+      this.logger.info("UserInformationService", "updateResults", "Estimated threads: " + nthreads);
 
       // Values to calculate ETA
       const threadCalculationAmountArr = [...Array(nthreads).keys()].map(() => 0);
@@ -630,7 +653,7 @@ export class InventoryService {
             });
             const updateResultsEnd = performance.now();
             this.logger.info(
-              "InventoryService",
+              "UserInformationService",
               "updateResults",
               `updateResults with WebWorker took ${updateResultsEnd - updateResultsStart} ms`
             );
@@ -759,21 +782,134 @@ export class InventoryService {
       .sort((x, y) => x.items[0].name.localeCompare(y.items[0].name));
   }
 
-  async updateManifest(force: boolean = false): Promise<boolean> {
+  async executeUpdateManifest(force: boolean = false): Promise<boolean> {
     if (this.status.getStatus().updatingManifest) {
       this.logger.error(
-        "InventoryService",
-        "updateManifest",
+        "UserInformationService",
+        "executeUpdateManifest",
         "Already updating the manifest - abort"
       );
       return false;
     }
     this.status.modifyStatus((s) => (s.updatingManifest = true));
-    let r = await this.api.updateManifest(force).finally(() => {
+
+    try {
+      // Update manifest only
+      const manifestResult = await this.api.updateManifest(force);
+
+      if (!!manifestResult) {
+        this._manifest.next(null);
+      }
+
+      return !!manifestResult;
+    } finally {
       this.status.modifyStatus((s) => (s.updatingManifest = false));
+    }
+  }
+
+  public clearCachedCharacterData() {
+    this._characters.next([]);
+    localStorage.removeItem("cachedCharacters");
+    localStorage.removeItem("cachedCharactersTimestamp");
+  }
+
+  public isCharacterCacheValid(): boolean {
+    const characterCache = this.getCharacterCache();
+    return characterCache ? this.api.isCharacterCacheValid(characterCache) : false;
+  }
+
+  private loadCachedCharacterData() {
+    const characterCache = this.getCharacterCache();
+    if (characterCache && this.api.isCharacterCacheValid(characterCache)) {
+      this._characters.next(characterCache.characters);
+      this.logger.info(
+        "UserInformationService",
+        "loadCachedCharacterData",
+        "Loaded valid cached character data"
+      );
+    } else {
+      this._characters.next([]);
+      this.logger.info(
+        "UserInformationService",
+        "loadCachedCharacterData",
+        "No valid cached character data found"
+      );
+    }
+  }
+
+  private getCharacterCache(): { updatedAt: number; characters: any[] } | null {
+    const charactersData = localStorage.getItem("cachedCharacters");
+    const timestamp = localStorage.getItem("cachedCharactersTimestamp");
+
+    if (!charactersData || !timestamp) {
+      return null;
+    }
+
+    try {
+      return {
+        updatedAt: parseInt(timestamp),
+        characters: JSON.parse(charactersData),
+      };
+    } catch (e) {
+      this.logger.warn(
+        "UserInformationService",
+        "getCharacterCache",
+        "Failed to parse cached character data: " + e
+      );
+      return null;
+    }
+  }
+
+  private async updateCharacterData() {
+    // Check if character cache is still valid
+    const characterCache = this.getCharacterCache();
+    if (characterCache && this.api.isCharacterCacheValid(characterCache)) {
+      this.logger.info(
+        "UserInformationService",
+        "updateCharacterData",
+        "Character cache is still valid, skipping update"
+      );
+      this._characters.next(characterCache.characters);
+      return;
+    }
+
+    this.logger.info(
+      "UserInformationService",
+      "updateCharacterData",
+      "Fetching fresh character data"
+    );
+
+    const fetchedCharacters = await this.membership.getCharacters();
+    this._characters.next(fetchedCharacters);
+    this.config.modifyConfiguration((d) => {
+      if (d.characterClass == DestinyClass.Unknown && fetchedCharacters.length > 0) {
+        d.characterClass = fetchedCharacters[0].clazz;
+      }
     });
-    if (!!r) this._manifest.next(null);
-    return !!r;
+
+    // Store both the data and timestamp
+    localStorage.setItem("cachedCharacters", JSON.stringify(fetchedCharacters));
+    localStorage.setItem("cachedCharactersTimestamp", Date.now().toString());
+  }
+
+  public async forceUpdateCharacterData(): Promise<void> {
+    this.logger.info(
+      "UserInformationService",
+      "forceUpdateCharacterData",
+      "Forcing character data refresh"
+    );
+
+    const fetchedCharacters = await this.membership.getCharacters();
+    this._characters.next(fetchedCharacters);
+    this.config.modifyConfiguration((d) => {
+      if (d.characterClass == DestinyClass.Unknown && fetchedCharacters.length > 0) {
+        d.characterClass = fetchedCharacters[0].clazz;
+      }
+    });
+
+    // Store both the data and timestamp
+    localStorage.setItem("cachedCharacters", JSON.stringify(fetchedCharacters));
+    localStorage.setItem("cachedCharactersTimestamp", Date.now().toString());
   }
 
   async updateInventoryItems(force: boolean = false, errorLoop = 0): Promise<boolean> {
@@ -794,7 +930,7 @@ export class InventoryService {
       }
 
       this.status.modifyStatus((s) => (s.updatingInventory = false));
-      this.logger.error("InventoryService", "updateInventoryItems", "Error: " + e);
+      this.logger.error("UserInformationService", "updateInventoryItems", "Error: " + e);
 
       await this.status.setApiError();
 

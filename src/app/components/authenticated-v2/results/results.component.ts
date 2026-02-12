@@ -17,7 +17,7 @@
 
 import { Component, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
-import { InventoryService } from "../../../services/inventory.service";
+import { UserInformationService } from "src/app/services/user-information.service";
 import { MatTableDataSource } from "@angular/material/table";
 import { ConfigurationService } from "../../../services/configuration.service";
 import { ArmorPerkOrSlot, ArmorStat, StatModifier } from "../../../data/enum/armor-stat";
@@ -151,7 +151,7 @@ export class ResultsComponent implements OnInit, OnDestroy {
   cancelledCalculation: boolean = false;
 
   constructor(
-    private inventory: InventoryService,
+    private inventory: UserInformationService,
     public configService: ConfigurationService,
     public status: StatusProviderService,
     private logger: NGXLogger

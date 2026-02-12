@@ -52,7 +52,6 @@ import { ItemTooltipRendererDirective } from "./components/authenticated-v2/over
 import { ItemIconComponent } from "./components/authenticated-v2/components/item-icon/item-icon.component";
 import { ArmorInvestigationPageComponent } from "./components/authenticated-v2/subpages/armor-investigation-page/armor-investigation-page.component";
 import { ChangelogDialogComponent } from "./components/authenticated-v2/components/changelog-dialog/changelog-dialog.component";
-import { ChangelogDialogControllerComponent } from "./components/authenticated-v2/components/changelog-dialog-controller/changelog-dialog-controller.component";
 import { ChangelogListComponent } from "./components/authenticated-v2/components/changelog-list/changelog-list.component";
 import { LayoutModule } from "@angular/cdk/layout";
 import { ArmorPerkIconComponent } from "./components/authenticated-v2/components/armor-perk-icon/armor-perk-icon.component";
@@ -84,10 +83,11 @@ import { GearsetTooltipComponent } from "./components/authenticated-v2/overlays/
 
 let openReplayTracker: Tracker;
 
-export function identifyUserWithTracker(membershipData: GroupUserInfoCard) {
-  if (!membershipData) return;
-
+export function identifyUserWithTracker(membershipData: GroupUserInfoCard | null) {
   try {
+    openReplayTracker.setMetadata("version", `${environment.version}`);
+
+    if (!membershipData) return;
     const identifier = `${membershipData.displayName}(I${membershipData.membershipId}T${membershipData.membershipType})`;
 
     openReplayTracker.identify(identifier);
@@ -104,7 +104,6 @@ export function identifyUserWithTracker(membershipData: GroupUserInfoCard) {
       "applicableMembershipTypes",
       JSON.stringify(membershipData.applicableMembershipTypes)
     );
-    openReplayTracker.setMetadata("version", `${environment.version}`);
     // H.identify(identifier, {
     //   highlightDisplayName: `${membershipData.displayName}(I${membershipData.membershipId}T${membershipData.membershipType})`,
     //   avatar: `https://bungie.net${membershipData.iconPath}`,
@@ -132,8 +131,8 @@ try {
   );
   if (membershipInfo) {
     console.log("Found cached membership info, using it to identify user in OpenReplay");
-    identifyUserWithTracker(membershipInfo);
   }
+  identifyUserWithTracker(membershipInfo);
 } catch (e) {
   console.error("Failed to initialize OpenReplay tracker", e);
 }
@@ -197,7 +196,7 @@ const routes: Routes = [
   //{path: '', component: MainComponent, canActivate: [AuthenticatedGuard]},
   { path: "privacy-policy", component: PrivacyPolicyComponent },
   { path: "login", component: LoginComponent, canActivate: [NotAuthenticatedGuard] },
-  { path: "login-bungie", component: HandleBungieLoginComponent },
+  { path: "authenticate", component: HandleBungieLoginComponent },
   { path: "**", redirectTo: "/" },
 ];
 
@@ -236,7 +235,6 @@ const routes: Routes = [
     ItemIconComponent,
     ArmorInvestigationPageComponent,
     ChangelogDialogComponent,
-    ChangelogDialogControllerComponent,
     ChangelogListComponent,
     ArmorPerkIconComponent,
     ExoticPerkTooltipComponent,

@@ -17,7 +17,7 @@
 
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
-import { ClassExoticInfo, InventoryService } from "../../../../services/inventory.service";
+import { ClassExoticInfo, UserInformationService } from "src/app/services/user-information.service";
 import { ConfigurationService } from "../../../../services/configuration.service";
 import { BungieApiService } from "../../../../services/bungie-api.service";
 import { animate, query, stagger, style, transition, trigger } from "@angular/animations";
@@ -68,7 +68,7 @@ export class DesiredExoticSelectionComponent implements OnInit, OnDestroy {
   availableSecondPerks: { name: string; value: ArmorPerkOrSlot }[] = [];
 
   constructor(
-    public inventory: InventoryService,
+    public inventory: UserInformationService,
     public config: ConfigurationService,
     private bungieApi: BungieApiService,
     private logger: NGXLogger

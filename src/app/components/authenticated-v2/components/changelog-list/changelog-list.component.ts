@@ -17,6 +17,7 @@
 
 import { Component } from "@angular/core";
 import { ChangelogService } from "../../../../services/changelog.service";
+import { ChangelogEntryType, ChangelogEntry } from "../../../../data/changelog";
 
 @Component({
   selector: "app-changelog-list",
@@ -25,4 +26,64 @@ import { ChangelogService } from "../../../../services/changelog.service";
 })
 export class ChangelogListComponent {
   constructor(public changelog: ChangelogService) {}
+
+  trackByVersion(index: number, item: any): string {
+    return item.version;
+  }
+
+  trackByEntry(index: number, item: ChangelogEntry): string {
+    return `${index}-${item.type}-${item.text.substring(0, 50)}`;
+  }
+
+  getEntryIcon(type: ChangelogEntryType): string {
+    switch (type) {
+      case ChangelogEntryType.ADD:
+        return "add_circle";
+      case ChangelogEntryType.REMOVE:
+        return "remove_circle";
+      case ChangelogEntryType.MODIFIED:
+        return "edit";
+      default:
+        return "info";
+    }
+  }
+
+  getIconClass(type: ChangelogEntryType): string {
+    switch (type) {
+      case ChangelogEntryType.ADD:
+        return "icon-add";
+      case ChangelogEntryType.REMOVE:
+        return "icon-remove";
+      case ChangelogEntryType.MODIFIED:
+        return "icon-modified";
+      default:
+        return "icon-default";
+    }
+  }
+
+  getEntryClass(type: ChangelogEntryType): string {
+    switch (type) {
+      case ChangelogEntryType.ADD:
+        return "entry-add";
+      case ChangelogEntryType.REMOVE:
+        return "entry-remove";
+      case ChangelogEntryType.MODIFIED:
+        return "entry-modified";
+      default:
+        return "entry-default";
+    }
+  }
+
+  getTooltipText(type: ChangelogEntryType): string {
+    switch (type) {
+      case ChangelogEntryType.ADD:
+        return "New feature or addition";
+      case ChangelogEntryType.REMOVE:
+        return "Removed feature or functionality";
+      case ChangelogEntryType.MODIFIED:
+        return "Modified or improved feature";
+      default:
+        return "Changelog entry";
+    }
+  }
 }

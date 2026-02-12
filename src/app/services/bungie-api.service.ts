@@ -805,6 +805,38 @@ export class BungieApiService {
     return false;
   }
 
+  isCharacterCacheValid(characterCache: { updatedAt: number; characters: any[] }) {
+    if (environment.offlineMode) {
+      this.logger.info(
+        "BungieApiService",
+        "isCharacterCacheValid",
+        "marking character cache as valid due to offline mode"
+      );
+      return true;
+    }
+
+    // Check if we have cached characters data
+    if (!characterCache || !characterCache.characters || characterCache.characters.length === 0) {
+      this.logger.info(
+        "BungieApiService",
+        "isCharacterCacheValid",
+        "no character data in cache, marking as invalid"
+      );
+      return false;
+    }
+
+    // Character data is considered valid for 24 hours (same as manifest cache)
+    if (Date.now() - characterCache.updatedAt < 1000 * 3600 * 24) {
+      this.logger.info(
+        "BungieApiService",
+        "isCharacterCacheValid",
+        "marking character cache as valid, Character data is less than a day old"
+      );
+      return true;
+    }
+    return false;
+  }
+
   async updateManifest(force = false) {
     const manifestCache = this.db.lastManifestUpdate();
     let destinyManifest = null;
@@ -817,13 +849,11 @@ export class BungieApiService {
           "updateManifest",
           "Manifest Cache is considered invalid, Checking manifest version"
         );
-        if (Date.now() - manifestCache.updatedAt > 1000 * 3600 * 0.25) {
-          destinyManifest = await getDestinyManifest((d) => this.http.$httpWithoutBearerToken(d));
-          const version = destinyManifest.Response.version;
-          if (manifestCache.version == version) {
-            this.logger.info("BungieApiService", "updateManifest", "Manifest is last version");
-            isCacheValid = true;
-          }
+        destinyManifest = await getDestinyManifest((d) => this.http.$httpWithoutBearerToken(d));
+        const version = destinyManifest.Response.version;
+        if (manifestCache.version == version) {
+          this.logger.info("BungieApiService", "updateManifest", "Manifest is last version");
+          isCacheValid = true;
         }
       }
       if (isCacheValid) {
@@ -846,8 +876,6 @@ export class BungieApiService {
       destinyManifest = await getDestinyManifest((d) => this.http.$httpWithoutBearerToken(d));
     }
 
-    const manifestVersion = destinyManifest.Response.version;
-
     const manifestTables = await getDestinyManifestSlice((d) => this.http.$httpWithoutApiKey(d), {
       destinyManifest: destinyManifest.Response,
       tableNames: [
@@ -867,6 +895,8 @@ export class BungieApiService {
     await this.updateVendorItemSubScreens(manifestTables);
     await this.updateEquipableItemSetDefinitions(manifestTables);
     await this.updateSandboxPerks(manifestTables);
+
+    const manifestVersion = destinyManifest.Response.version;
 
     let entries = await this.extractArmorDataFromManifest(destinyManifest, manifestTables);
 

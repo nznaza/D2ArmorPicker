@@ -51,7 +51,7 @@ mat-card {
   max-width: 800px;
   width: 100%;
   margin: 0;
-  backdrop-filter: blur(10px);
+  /*backdrop-filter: blur(10px);*/
   border-radius: 16px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
 }

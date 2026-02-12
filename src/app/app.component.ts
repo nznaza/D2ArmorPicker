@@ -17,8 +17,9 @@
 
 import { AfterViewInit, Component } from "@angular/core";
 import { environment } from "../environments/environment";
-import { InventoryService } from "./services/inventory.service";
+import { UserInformationService } from "src/app/services/user-information.service";
 import { NGXLogger } from "ngx-logger";
+import { AuthService } from "./services/auth.service";
 
 @Component({
   selector: "app-root",
@@ -31,20 +32,21 @@ export class AppComponent implements AfterViewInit {
   is_canary = environment.canary;
 
   constructor(
-    private inventoryService: InventoryService,
-    private logger: NGXLogger
+    private userInformationService: UserInformationService,
+    private logger: NGXLogger,
+    public authService: AuthService
   ) {}
   ngAfterViewInit(): void {
-    // Check if InventoryService is initialized after 10 seconds
+    // Check if UserInformationService is initialized after 10 seconds
     // if not, forcefully trigger an initial refreshAll
     setTimeout(() => {
-      if (!this.inventoryService.isInitialized) {
+      if (!this.userInformationService.isInitialized) {
         this.logger.warn(
           "AppComponent",
           "ngAfterViewInit",
-          "InventoryService is not initialized after 10 seconds, triggering initial refreshManifestAndArmor."
+          "UserInformationService is not initialized after 10 seconds, triggering initial refreshManifestAndArmor."
         );
-        this.inventoryService.refreshManifestAndArmor(true, true).catch((err) => {
+        this.userInformationService.refreshManifestAndArmor(true, true).catch((err) => {
           this.logger.error(
             "AppComponent",
             "ngAfterViewInit",

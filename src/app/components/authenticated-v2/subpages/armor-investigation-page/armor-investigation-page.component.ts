@@ -19,7 +19,7 @@ import { Component, OnDestroy, OnInit } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { Subject } from "rxjs";
 import { debounceTime, takeUntil } from "rxjs/operators";
-import { InventoryService } from "../../../../services/inventory.service";
+import { UserInformationService } from "src/app/services/user-information.service";
 import { IInventoryArmor, InventoryArmorSource } from "../../../../data/types/IInventoryArmor";
 import { DatabaseService } from "../../../../services/database.service";
 import { ArmorSystem, IManifestArmor } from "../../../../data/types/IManifestArmor";
@@ -71,7 +71,7 @@ export class ArmorInvestigationPageComponent implements OnInit, OnDestroy {
   plugData: { [p: string]: IManifestArmor } = {};
 
   constructor(
-    public inventory: InventoryService,
+    public inventory: UserInformationService,
     private db: DatabaseService,
     private logger: NGXLogger
   ) {}
@@ -236,8 +236,8 @@ export class ArmorInvestigationPageComponent implements OnInit, OnDestroy {
 
     this.armorItemsPerSlot = armorItems.reduce((p, v) => {
       const slot = !v.slot ? 10 : v.slot;
-      if (!p.has(slot)) p.set(slot, []);
-      p.get(slot)?.push(v);
+      if (!p.has(slot as ArmorSlot)) p.set(slot as ArmorSlot, []);
+      p.get(slot as ArmorSlot)?.push(v);
 
       return p;
     }, new Map<ArmorSlot, LocalArmorInfo[]>());

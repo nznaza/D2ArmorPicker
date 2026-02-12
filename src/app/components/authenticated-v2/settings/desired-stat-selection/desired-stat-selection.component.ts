@@ -20,7 +20,7 @@ import { ArmorStat, ArmorStatNames, ARMORSTAT_ORDER } from "../../../../data/enu
 import { ConfigurationService } from "../../../../services/configuration.service";
 import { EnumDictionary } from "../../../../data/types/EnumDictionary";
 import { FixableSelection, getDefaultStatDict } from "../../../../data/buildConfiguration";
-import { InventoryService } from "../../../../services/inventory.service";
+import { UserInformationService } from "src/app/services/user-information.service";
 import { ModInformation } from "../../../../data/ModInformation";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
@@ -42,7 +42,7 @@ export class DesiredStatSelectionComponent implements OnInit, OnDestroy {
 
   constructor(
     public config: ConfigurationService,
-    private inventory: InventoryService
+    private inventory: UserInformationService
   ) {
     this.stats = ARMORSTAT_ORDER.map((value) => {
       return { name: (ArmorStatNames as any)[+value], value: +value };
