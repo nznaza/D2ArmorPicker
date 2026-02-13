@@ -15,25 +15,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Component, AfterViewInit } from "@angular/core";
+import { Component, OnInit } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { ActivatedRoute, Router } from "@angular/router";
-import { AuthService } from "../../services/auth.service";
+import { HttpClientService } from "../../services/http-client.service";
+import { UserInformationService } from "../../services/user-information.service";
 
 @Component({
   selector: "app-handle-bungie-login",
   templateUrl: "./handle-bungie-login.component.html",
   styleUrls: ["./handle-bungie-login.component.css"],
 })
-export class HandleBungieLoginComponent implements AfterViewInit {
+export class HandleBungieLoginComponent implements OnInit {
   constructor(
     private activatedRoute: ActivatedRoute,
     private router: Router,
-    private loginService: AuthService,
+    private httpClient: HttpClientService,
+    private userInfo: UserInformationService,
     private logger: NGXLogger
   ) {}
 
-  ngAfterViewInit(): void {
+  ngOnInit(): void {
     this.activatedRoute.queryParams.subscribe(async (params) => {
       let code = params["code"];
       if (window.location.search.indexOf("?code=") > -1) code = window.location.search.substr(6);
@@ -51,10 +53,11 @@ export class HandleBungieLoginComponent implements AfterViewInit {
       this.logger.info(
         "HandleBungieLoginComponent",
         "ngAfterViewInit",
-        "Code: " + JSON.stringify({ code })
+        // replace code with asterisks to avoid leaking it in logs
+        "Code: " + code.replace(/./g, "*")
       );
 
-      this.loginService.authCode = code;
+      this.httpClient.authCode = code;
 
       this.logger.info(
         "HandleBungieLoginComponent",
@@ -63,16 +66,20 @@ export class HandleBungieLoginComponent implements AfterViewInit {
       );
 
       try {
-        const tokenGenerationSuccess = await this.loginService.generateTokens();
+        const tokenGenerationSuccess = await this.httpClient.generateTokens();
 
-        if (tokenGenerationSuccess && this.loginService.isAuthenticated()) {
+        if (tokenGenerationSuccess && this.httpClient.isAuthenticated()) {
           this.logger.info(
             "HandleBungieLoginComponent",
             "ngAfterViewInit",
-            "Authentication successful, navigating to /"
+            "Authentication successful, initializing user data"
           );
+
+          // Initialize user information service for authenticated user
+          this.userInfo.initializeForAuthenticatedUser();
+
           // Clear the auth code from localStorage after successful token generation
-          this.loginService.authCode = null;
+          this.httpClient.authCode = null;
           // Use Angular router navigation with replaceUrl to clean up the URL history
           await this.router.navigate(["/"], { replaceUrl: true });
         } else {

@@ -264,7 +264,7 @@ export class DesiredExoticSelectionComponent implements OnInit, OnDestroy {
   }
 
   async refreshAll() {
-    await this.inventory.refreshManifestAndArmor(true, true);
+    await this.inventory.refreshManifestAndInventory(true, true);
   }
 
   async importEquippedExotic() {

@@ -110,6 +110,8 @@
           border-left: 4px solid transparent;
           transition: all 0.2s ease-in-out;
           min-height: auto;
+          height: auto;
+          align-items: flex-start;
 
           &:hover {
             background-color: rgba(0, 0, 0, 0.04);
@@ -153,16 +155,23 @@
             width: 20px;
             height: 20px;
             margin-right: 16px;
+            margin-top: 2px;
+            flex-shrink: 0;
           }
 
           .entry-content {
             flex: 1;
+            min-width: 0; // Prevent flex item from overflowing
 
             .entry-text {
               line-height: 1.6;
               color: rgba(0, 0, 0, 0.87);
               word-wrap: break-word;
+              overflow-wrap: break-word;
+              hyphens: auto;
+              white-space: normal;
               margin-bottom: 8px;
+              max-width: 100%;
             }
 
             .entry-issues {

@@ -17,7 +17,7 @@
 
 <div class="changelog-container">
   <ng-container
-    *ngFor="let log of changelog.changelogData; trackBy: trackByVersion; let isFirst = first">
+    *ngFor="let log of displayedChangelogData; trackBy: trackByVersion; let isFirst = first">
     <mat-card class="version-card" [class.latest-version]="isFirst">
       <mat-card-header class="version-header">
         <div class="version-info">

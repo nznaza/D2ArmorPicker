@@ -15,13 +15,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Component, OnInit, AfterViewInit } from "@angular/core";
+import { Component, OnInit, AfterViewInit, ChangeDetectionStrategy } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { StatusProviderService } from "../../../services/status-provider.service";
 import { Observable } from "rxjs";
 import { BreakpointObserver, Breakpoints } from "@angular/cdk/layout";
 import { map, shareReplay } from "rxjs/operators";
 import { UserInformationService } from "src/app/services/user-information.service";
+import { ArmorCalculatorService } from "../../../services/armor-calculator.service";
 import { AuthService } from "../../../services/auth.service";
 import { NavigationEnd, Router } from "@angular/router";
 import { environment } from "../../../../environments/environment";
@@ -32,6 +33,7 @@ import { CharacterStatsService } from "../../../services/character-stats.service
   selector: "app-app-v2-core",
   templateUrl: "./app-v2-core.component.html",
   styleUrls: ["./app-v2-core.component.scss"],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppV2CoreComponent implements OnInit, AfterViewInit {
   version = environment.version;
@@ -64,6 +66,7 @@ export class AppV2CoreComponent implements OnInit, AfterViewInit {
     public status: StatusProviderService,
     private breakpointObserver: BreakpointObserver,
     private inv: UserInformationService,
+    private armorCalculator: ArmorCalculatorService,
     private auth: AuthService,
     private router: Router,
     private characterStats: CharacterStatsService,
@@ -92,21 +95,16 @@ export class AppV2CoreComponent implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
+    this.changelog.checkAndShowChangelog();
     this.characterStats.loadCharacterStats();
-
-    this.inv.calculationProgress.subscribe((progress) => {
+    this.armorCalculator.calculationProgress.subscribe((progress) => {
       this.computationProgress = progress;
     });
-
-    // Check and show changelog after view init is complete
-    setTimeout(() => {
-      this.changelog.checkAndShowChangelog();
-    }, 1000);
   }
 
   async refreshAll(b: boolean) {
     this.logger.debug("AppV2CoreComponent", "refreshAll", "Trigger refreshAll due to button press");
-    await this.inv.refreshManifestAndArmor(b);
+    await this.inv.refreshManifestAndInventory(b);
   }
 
   logout() {

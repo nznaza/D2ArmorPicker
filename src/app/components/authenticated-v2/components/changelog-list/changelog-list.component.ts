@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Component } from "@angular/core";
+import { Component, Input } from "@angular/core";
 import { ChangelogService } from "../../../../services/changelog.service";
 import { ChangelogEntryType, ChangelogEntry } from "../../../../data/changelog";
 
@@ -25,7 +25,16 @@ import { ChangelogEntryType, ChangelogEntry } from "../../../../data/changelog";
   styleUrls: ["./changelog-list.component.scss"],
 })
 export class ChangelogListComponent {
+  @Input() itemsToShow: number = -1; // -1 means show all items
+
   constructor(public changelog: ChangelogService) {}
+
+  get displayedChangelogData() {
+    if (this.itemsToShow === -1) {
+      return this.changelog.changelogData;
+    }
+    return this.changelog.changelogData.slice(0, this.itemsToShow);
+  }
 
   trackByVersion(index: number, item: any): string {
     return item.version;

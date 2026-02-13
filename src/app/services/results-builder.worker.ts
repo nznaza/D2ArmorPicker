@@ -312,6 +312,7 @@ addEventListener("message", async ({ data }) => {
   }
 
   const startTime = Date.now();
+  console.log(`Thread ${threadSplit.current} started with ${items.length} items to process.`);
   console.time(`Total run thread#${threadSplit.current}`);
   // toggle feature flags
   config.onlyShowResultsWithNoWastedStats =

@@ -19,7 +19,7 @@ import { Injectable } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { BehaviorSubject, Observable } from "rxjs";
 import { isEqual as _isEqual } from "lodash";
-import { getDifferences } from "../data/commonFunctions";
+import { getHumanReadableDifferences } from "../data/commonFunctions";
 
 export interface Status {
   cancelledCalculation: boolean;
@@ -71,11 +71,15 @@ export class StatusProviderService {
       this.logger.debug(
         "StatusProviderService",
         "modifyStatus",
-        `Status changed: ${JSON.stringify(getDifferences(this.__last_Status, this.__status))}`
+        `Status changed: ${getHumanReadableDifferences(this.__last_Status, this.__status)}`
       );
     }
     this.__last_Status = structuredClone(this.__status);
-    this._status.next(this.__status);
+
+    // Push status update to next microtask to avoid change detection conflicts
+    setTimeout(() => {
+      this._status.next(this.__status);
+    }, 0);
   }
 
   setApiError() {

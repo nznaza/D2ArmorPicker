@@ -406,14 +406,17 @@
                   #tooltip="matTooltip"
                   class="itemIcon"
                   matTooltip="{{ element.exotic.name }}"
+                  loading="lazy"
                   src="https://bungie.net/{{ element.exotic.icon }}" />
                 <img
                   *ngIf="element.exotic !== undefined"
                   class="itemIconWatermark"
+                  loading="lazy"
                   src="https://bungie.net/{{ element.exotic.watermark }}" />
                 <img
                   *ngIf="element.exotic === undefined"
                   class="itemIcon"
+                  loading="lazy"
                   src="https://www.bungie.net/common/destiny2_content/icons/b4d05ef69d0c3227a7d4f7f35bbc2848.png" />
               </div>
             </td>

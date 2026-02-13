@@ -46,7 +46,7 @@ export class AppComponent implements AfterViewInit {
           "ngAfterViewInit",
           "UserInformationService is not initialized after 10 seconds, triggering initial refreshManifestAndArmor."
         );
-        this.userInformationService.refreshManifestAndArmor(true, true).catch((err) => {
+        this.userInformationService.refreshManifestAndInventory(true, true).catch((err) => {
           this.logger.error(
             "AppComponent",
             "ngAfterViewInit",

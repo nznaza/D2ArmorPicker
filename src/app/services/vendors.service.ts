@@ -241,9 +241,22 @@ export class VendorsService {
 
     try {
       const vendorArmorItems = await Promise.all(
-        characters.map(({ characterId }) =>
-          this.getVendorArmorItemsForCharacter(manifestItems, destinyMembership, characterId)
-        )
+        characters.map(({ characterId }) => {
+          if (destinyMembership) {
+            return this.getVendorArmorItemsForCharacter(
+              manifestItems,
+              destinyMembership,
+              characterId
+            );
+          } else {
+            this.logger.error(
+              "VendorsService",
+              "updateVendorArmorItemsCache",
+              "No destiny membership found, cannot fetch vendor items"
+            );
+            return { items: [], nextRefreshDate: Date.now() };
+          }
+        })
       );
 
       const allItems = vendorArmorItems.flatMap(({ items }) => items);

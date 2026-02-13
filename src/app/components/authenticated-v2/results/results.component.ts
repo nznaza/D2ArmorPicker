@@ -17,7 +17,7 @@
 
 import { Component, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
-import { UserInformationService } from "src/app/services/user-information.service";
+import { ArmorCalculatorService } from "../../../services/armor-calculator.service";
 import { MatTableDataSource } from "@angular/material/table";
 import { ConfigurationService } from "../../../services/configuration.service";
 import { ArmorPerkOrSlot, ArmorStat, StatModifier } from "../../../data/enum/armor-stat";
@@ -151,7 +151,7 @@ export class ResultsComponent implements OnInit, OnDestroy {
   cancelledCalculation: boolean = false;
 
   constructor(
-    private inventory: UserInformationService,
+    private armorCalculator: ArmorCalculatorService,
     public configService: ConfigurationService,
     public status: StatusProviderService,
     private logger: NGXLogger
@@ -203,7 +203,7 @@ export class ResultsComponent implements OnInit, OnDestroy {
       this.cancelledCalculation = s.cancelledCalculation;
     });
 
-    this.inventory.calculationProgress.subscribe((progress) => {
+    this.armorCalculator.calculationProgress.subscribe((progress) => {
       this.computationProgress = progress;
     });
     //
@@ -245,24 +245,26 @@ export class ResultsComponent implements OnInit, OnDestroy {
         this.shownColumns = columns;
       });
 
-    this.inventory.armorResults.pipe(takeUntil(this.ngUnsubscribe)).subscribe(async (value) => {
-      if (value.results.length > 0 && this.initializing) {
-        this.initializing = false;
-      }
-      this._results = value.results;
-      this.itemCount = value.itemCount;
-      this.totalTime = value.totalTime;
-      this.totalResults = value.totalResults;
-      this.parsedResults = this._results.length;
+    this.armorCalculator.armorResults
+      .pipe(takeUntil(this.ngUnsubscribe))
+      .subscribe(async (value) => {
+        if (value.results.length > 0 && this.initializing) {
+          this.initializing = false;
+        }
+        this._results = value.results;
+        this.itemCount = value.itemCount;
+        this.totalTime = value.totalTime;
+        this.totalResults = value.totalResults;
+        this.parsedResults = this._results.length;
 
-      this.status.modifyStatus((s) => (s.updatingResultsTable = true));
-      await this.updateData();
-      this.status.modifyStatus((s) => (s.updatingResultsTable = false));
-    });
+        this.status.modifyStatus((s) => (s.updatingResultsTable = true));
+        await this.updateData();
+        this.status.modifyStatus((s) => (s.updatingResultsTable = false));
+      });
   }
 
   cancelCalculation() {
-    this.inventory.cancelCalculation();
+    this.armorCalculator.cancelCalculation();
   }
 
   async updateData() {

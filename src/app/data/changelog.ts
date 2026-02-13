@@ -34,6 +34,53 @@ export const CHANGELOG_DATA: {
   entries: ChangelogEntry[];
 }[] = [
   {
+    version: "2.9.10",
+    date: "February 12, 2026",
+    clearManifest: true,
+    entries: [
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Add a privacy notice, this is due to the session replay added, to help with user experience and debugging. :)",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Refactored the logic for validating the manifest and inventory to reduce calls and time validating with the BungieAPI.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Consolidated the armor initialization logic",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Refactored and consolidated the API token calls",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Moved calculator logic to its own service, to improve code structure and have better handling of when to recalculate",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Implemented a delay for loading the full changelog for iOS users, to help with crashes",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Improved logging for better debugging and error tracking",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Changed images to be lazy loaded, should help with freezes and other performance issues",
+        issues: [],
+      },
+    ],
+  },
+  {
     version: "2.9.9",
     date: "February 09, 2026",
     clearManifest: false,

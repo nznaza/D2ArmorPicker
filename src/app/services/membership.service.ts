@@ -32,7 +32,7 @@ export class MembershipService {
     localStorage.removeItem("auth-membershipInfo-date");
   }
 
-  async getMembershipDataForCurrentUser(): Promise<GroupUserInfoCard> {
+  async getMembershipDataForCurrentUser(): Promise<GroupUserInfoCard | undefined> {
     var membershipData: GroupUserInfoCard = JSON.parse(
       localStorage.getItem("auth-membershipInfo") || "null"
     );
@@ -49,72 +49,82 @@ export class MembershipService {
       "Fetching membership data for current user"
     );
     let response = await getMembershipDataForCurrentUser((d) => this.http.$http(d, true));
-    let memberships = response?.Response.destinyMemberships;
-    this.logger.info(
-      "MembershipService",
-      "getMembershipDataForCurrentUser",
-      `Memberships: ${JSON.stringify(memberships)}`
-    );
-    memberships = memberships.filter(
-      (m) =>
-        (m.crossSaveOverride == 0 &&
-          m.membershipType != BungieMembershipType.TigerStadia) /*stadia is dead, ignore it*/ ||
-        m.crossSaveOverride == m.membershipType
-    );
-    this.logger.info(
-      "MembershipService",
-      "getMembershipDataForCurrentUser",
-      `Filtered Memberships: ${JSON.stringify(memberships)}`
-    );
-
-    let result = null;
-    if (memberships?.length == 1) {
-      // This guardian only has one account linked, so we can proceed as normal
-      result = memberships?.[0];
-    } else {
-      // This guardian has multiple accounts linked.
-      // Fetch the last login time for each account, and use the one that was most recently used, default to primaryMembershipId
-      let lastLoggedInProfileIndex: any = memberships.findIndex(
-        (x) => x.membershipId == response?.Response.primaryMembershipId
-      );
-      let lastPlayed = 0;
-      for (let id in memberships) {
-        const membership = memberships?.[id];
-        const profile = await getProfile((d) => this.http.$http(d, false), {
-          components: [DestinyComponentType.Profiles],
-          membershipType: membership.membershipType,
-          destinyMembershipId: membership.membershipId,
-        });
-        if (!!profile && profile.Response?.profile.data?.dateLastPlayed) {
-          let date = Date.parse(profile.Response?.profile.data?.dateLastPlayed);
-          if (date > lastPlayed) {
-            lastPlayed = date;
-            lastLoggedInProfileIndex = id;
-          }
-        }
-      }
-      if (lastLoggedInProfileIndex < 0) {
-        this.logger.error(
-          "MembershipService",
-          "getMembershipDataForCurrentUser",
-          "PrimaryMembershipId was not found"
-        );
-        lastLoggedInProfileIndex = 0;
-        this.status.setAuthError();
-        //this.authService.logout();
-      }
-      result = memberships?.[lastLoggedInProfileIndex];
+    if (response) {
+      let memberships = response?.Response.destinyMemberships;
       this.logger.info(
         "MembershipService",
         "getMembershipDataForCurrentUser",
-        "Selected membership data for the last logged in membership."
+        `Memberships: ${JSON.stringify(memberships)}`
       );
-    }
+      memberships = memberships.filter(
+        (m) =>
+          (m.crossSaveOverride == 0 &&
+            m.membershipType != BungieMembershipType.TigerStadia) /*stadia is dead, ignore it*/ ||
+          m.crossSaveOverride == m.membershipType
+      );
+      this.logger.info(
+        "MembershipService",
+        "getMembershipDataForCurrentUser",
+        `Filtered Memberships: ${JSON.stringify(memberships)}`
+      );
 
-    localStorage.setItem("auth-membershipInfo", JSON.stringify(result));
-    localStorage.setItem("auth-membershipInfo-date", JSON.stringify(Date.now()));
-    identifyUserWithTracker(result);
-    return result;
+      let result = null;
+      if (memberships?.length == 1) {
+        // This guardian only has one account linked, so we can proceed as normal
+        result = memberships?.[0];
+      } else {
+        // This guardian has multiple accounts linked.
+        // Fetch the last login time for each account, and use the one that was most recently used, default to primaryMembershipId
+        let lastLoggedInProfileIndex: any = memberships.findIndex(
+          (x) => x.membershipId == response?.Response.primaryMembershipId
+        );
+        let lastPlayed = 0;
+        for (let id in memberships) {
+          const membership = memberships?.[id];
+          const profile = await getProfile((d) => this.http.$http(d, false), {
+            components: [DestinyComponentType.Profiles],
+            membershipType: membership.membershipType,
+            destinyMembershipId: membership.membershipId,
+          });
+          if (!!profile && profile.Response?.profile.data?.dateLastPlayed) {
+            let date = Date.parse(profile.Response?.profile.data?.dateLastPlayed);
+            if (date > lastPlayed) {
+              lastPlayed = date;
+              lastLoggedInProfileIndex = id;
+            }
+          }
+        }
+        if (lastLoggedInProfileIndex < 0) {
+          this.logger.error(
+            "MembershipService",
+            "getMembershipDataForCurrentUser",
+            "PrimaryMembershipId was not found"
+          );
+          lastLoggedInProfileIndex = 0;
+          this.status.setAuthError();
+          //this.authService.logout();
+        }
+        result = memberships?.[lastLoggedInProfileIndex];
+        this.logger.info(
+          "MembershipService",
+          "getMembershipDataForCurrentUser",
+          "Selected membership data for the last logged in membership."
+        );
+      }
+
+      localStorage.setItem("auth-membershipInfo", JSON.stringify(result));
+      localStorage.setItem("auth-membershipInfo-date", JSON.stringify(Date.now()));
+      identifyUserWithTracker(result);
+      return result;
+    } else {
+      this.logger.error(
+        "MembershipService",
+        "getMembershipDataForCurrentUser",
+        "Failed to fetch membership data for current user"
+      );
+      if (!this.status.getStatus().apiError) this.status.setApiError();
+      return undefined;
+    }
   }
 
   async getCharacters() {
