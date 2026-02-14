@@ -82,6 +82,18 @@ export class DatabaseService extends Database {
     localStorage.removeItem("d2ap-inventory-lastDate");
 
     await this.delete();
+    await window.indexedDB.databases().then((dbs) => {
+      dbs.forEach((idb) => {
+        if (idb.name) {
+          window.indexedDB.deleteDatabase(idb.name);
+          this.logger.debug(
+            "DatabaseService",
+            "resetDatabase",
+            `Deleted IndexedDB database: ${idb.name}`
+          );
+        }
+      });
+    });
     if (initialize) this.initialize();
   }
 
