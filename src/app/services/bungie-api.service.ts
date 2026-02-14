@@ -298,10 +298,10 @@ export class BungieApiService {
       return null;
     }
 
-    if (!force && localStorage.getItem("LastArmorUpdate"))
-      if (localStorage.getItem("last-armor-db-name") == this.db.inventoryArmor.db.name)
+    if (!force && localStorage.getItem("d2ap-inventory-lastDate"))
+      if (localStorage.getItem("d2ap-db-lastName") == this.db.inventoryArmor.db.name)
         if (
-          Date.now() - Number.parseInt(localStorage.getItem("LastArmorUpdate") || "0") <
+          Date.now() - Number.parseInt(localStorage.getItem("d2ap-inventory-lastDate") || "0") <
           1000 * 3600 * 0.5
         ) {
           // Do not update if inventory was updated less than 30 minutes ago, unless forced to update. This is to avoid hitting rate limits and unnecessary processing
@@ -363,7 +363,7 @@ export class BungieApiService {
 
     // Check if inventory has changed by comparing item hashes
     const currentItemHashesKey = Array.from(idSet).sort().join(",");
-    const cachedItemHashesKey = localStorage.getItem("cached-item-hashes") || "";
+    const cachedItemHashesKey = localStorage.getItem("user-armorItems") || "";
 
     if (!force && currentItemHashesKey === cachedItemHashesKey && currentItemHashesKey.length > 0) {
       this.logger.info(
@@ -372,8 +372,7 @@ export class BungieApiService {
         "Item hashes unchanged, and items are present, skipping armor processing"
       );
       // Still update the timestamp since we checked
-      localStorage.setItem("LastArmorUpdate", Date.now().toString());
-      localStorage.setItem("last-armor-db-name", this.db.inventoryArmor.db.name);
+      localStorage.setItem("d2ap-inventory-lastDate", Date.now().toString());
       this.status.clearApiError();
 
       // No changes in inventory
@@ -409,9 +408,8 @@ export class BungieApiService {
     await this.updateDatabaseItems(filteredItems);
 
     // Cache the current item hashes for future comparisons
-    localStorage.setItem("cached-item-hashes", currentItemHashesKey);
-    localStorage.setItem("LastArmorUpdate", Date.now().toString());
-    localStorage.setItem("last-armor-db-name", this.db.inventoryArmor.db.name);
+    localStorage.setItem("user-armorItems", currentItemHashesKey);
+    localStorage.setItem("d2ap-inventory-lastDate", Date.now().toString());
 
     this.status.clearApiError();
     return filteredItems;
@@ -439,7 +437,7 @@ export class BungieApiService {
       profile.Response.profileCurrencies.data?.items.filter((k) => k.itemHash == 3159615086) || [];
     if (glimmerEntry.length > 0) materials["3159615086"] = glimmerEntry[0].quantity;
     else materials["3159615086"] = 0;
-    localStorage.setItem("stored-materials", JSON.stringify(materials));
+    localStorage.setItem("user-materials", JSON.stringify(materials));
   }
 
   private updateArmor(
@@ -848,9 +846,9 @@ export class BungieApiService {
     this.logger.info(
       "BungieApiService",
       "updateAbilities",
-      `Storing ${allAbilities.length} ability hashes in localStorage`
+      `Storing ${allAbilities.length} ability hashes in database`
     );
-    localStorage.setItem("allAbilities", JSON.stringify(allAbilities));
+    await this.db.writeCharacterAbilities(allAbilities);
   }
 
   // Collect the data for exotic armor collectibles
@@ -954,6 +952,12 @@ export class BungieApiService {
         if (manifestCache.version == version) {
           this.logger.info("BungieApiService", "updateManifest", "Manifest is last version");
           isCacheValid = true;
+        } else {
+          this.logger.info(
+            "BungieApiService",
+            "updateManifest",
+            `Manifest version has changed. Cache version: ${manifestCache.version}, Current version: ${version}`
+          );
         }
       }
       if (isCacheValid) {

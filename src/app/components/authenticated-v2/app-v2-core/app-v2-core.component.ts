@@ -107,7 +107,9 @@ export class AppV2CoreComponent implements OnInit, AfterViewInit {
     await this.inv.refreshManifestAndInventory(b);
   }
 
-  logout() {
-    this.auth.logout();
+  async logout() {
+    await this.auth.logout();
+    this.logger.debug("AppV2CoreComponent", "logout", "Logout successful, navigating to login");
+    await this.router.navigate(["login"]);
   }
 }

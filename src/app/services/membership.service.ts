@@ -28,15 +28,16 @@ export class MembershipService {
   }
 
   private clearCachedData() {
-    localStorage.removeItem("auth-membershipInfo");
-    localStorage.removeItem("auth-membershipInfo-date");
+    this.logger.debug("MembershipService", "clearCachedData", "Clearing cached membership data");
+    localStorage.removeItem("user-membershipInfo");
+    localStorage.removeItem("user-membershipInfo-lastDate");
   }
 
   async getMembershipDataForCurrentUser(): Promise<GroupUserInfoCard | undefined> {
     var membershipData: GroupUserInfoCard = JSON.parse(
-      localStorage.getItem("auth-membershipInfo") || "null"
+      localStorage.getItem("user-membershipInfo") || "null"
     );
-    var membershipDataAge = JSON.parse(localStorage.getItem("auth-membershipInfo-date") || "0");
+    var membershipDataAge = JSON.parse(localStorage.getItem("user-membershipInfo-lastDate") || "0");
     if (membershipData && Date.now() - membershipDataAge < 1000 * 60 * 60 * 24) {
       identifyUserWithTracker(membershipData);
 
@@ -112,8 +113,8 @@ export class MembershipService {
         );
       }
 
-      localStorage.setItem("auth-membershipInfo", JSON.stringify(result));
-      localStorage.setItem("auth-membershipInfo-date", JSON.stringify(Date.now()));
+      localStorage.setItem("user-membershipInfo", JSON.stringify(result));
+      localStorage.setItem("user-membershipInfo-lastDate", JSON.stringify(Date.now()));
       identifyUserWithTracker(result);
       return result;
     } else {

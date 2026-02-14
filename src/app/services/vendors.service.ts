@@ -21,7 +21,7 @@ import { AuthService } from "./auth.service";
 import { intersection as _intersection } from "lodash";
 import { NGXLogger } from "ngx-logger";
 
-const VENDOR_NEXT_REFRESH_KEY = "vendor-next-refresh-time";
+const VENDOR_NEXT_REFRESH_KEY = "user-vendor-nextRefreshTime";
 
 interface VendorWithParent {
   vendorHash: number;
@@ -44,7 +44,7 @@ export class VendorsService {
 
   private clearCachedData() {
     localStorage.removeItem(VENDOR_NEXT_REFRESH_KEY);
-    this.db.inventoryArmor.where({ source: InventoryArmorSource.Vendor }).delete();
+    //this.db.inventoryArmor.where({ source: InventoryArmorSource.Vendor }).delete();
   }
 
   private async getVendorArmorItemsForCharacter(

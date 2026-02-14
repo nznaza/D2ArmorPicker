@@ -29,11 +29,11 @@ export class ChangelogService {
   constructor(public dialog: MatDialog) {}
 
   setChangelogSeenFlag() {
-    return localStorage.setItem("last-changelog-version", this.changelogData[0].version);
+    return localStorage.setItem("d2ap-changelogVersion-lastRead", this.changelogData[0].version);
   }
 
   get lastViewedChangelog() {
-    return localStorage.getItem("last-changelog-version");
+    return localStorage.getItem("d2ap-changelogVersion-lastRead");
   }
 
   get mustShowChangelog() {

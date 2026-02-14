@@ -290,9 +290,15 @@ export class UserInformationService {
   }
 
   public clearCachedCharacterData() {
+    this.logger.debug(
+      "UserInformationService",
+      "clearCachedCharacterData",
+      "Clearing cached character data"
+    );
+    localStorage.removeItem("user-characters");
+    localStorage.removeItem("user-characters-lastDate");
+    localStorage.removeItem("user-materials");
     this._characters.next([]);
-    localStorage.removeItem("cachedCharacters");
-    localStorage.removeItem("cachedCharactersTimestamp");
   }
 
   public isCharacterCacheValid(): boolean {
@@ -320,8 +326,8 @@ export class UserInformationService {
   }
 
   private getCharacterCache(): { updatedAt: number; characters: any[] } | null {
-    const charactersData = localStorage.getItem("cachedCharacters");
-    const timestamp = localStorage.getItem("cachedCharactersTimestamp");
+    const charactersData = localStorage.getItem("user-characters");
+    const timestamp = localStorage.getItem("user-characters-lastDate");
 
     if (!charactersData || !timestamp) {
       return null;
@@ -380,8 +386,8 @@ export class UserInformationService {
     });
 
     // Store both the data and timestamp
-    localStorage.setItem("cachedCharacters", JSON.stringify(fetchedCharacters));
-    localStorage.setItem("cachedCharactersTimestamp", Date.now().toString());
+    localStorage.setItem("user-characters", JSON.stringify(fetchedCharacters));
+    localStorage.setItem("user-characters-lastDate", Date.now().toString());
   }
 
   public async forceUpdateCharacterData(): Promise<void> {
@@ -410,8 +416,8 @@ export class UserInformationService {
     });
 
     // Store both the data and timestamp
-    localStorage.setItem("cachedCharacters", JSON.stringify(fetchedCharacters));
-    localStorage.setItem("cachedCharactersTimestamp", Date.now().toString());
+    localStorage.setItem("user-characters", JSON.stringify(fetchedCharacters));
+    localStorage.setItem("user-characters-lastDate", Date.now().toString());
   }
 
   async updateInventoryItems(force: boolean = false, errorLoop = 0): Promise<boolean> {

@@ -22,13 +22,17 @@ import { IManifestCollectible } from "./types/IManifestCollectible";
 import { IVendorInfo } from "./types/IVendorInfo";
 import { IVendorItemSubscreen } from "./types/IVendorItemSubscreen";
 import { DestinyEquipableItemSetDefinition } from "../services/bungie-api.service";
-import { DestinySandboxPerkDefinition } from "bungie-api-ts/destiny2";
+import {
+  DestinySandboxPerkDefinition,
+  DestinyInventoryItemDefinition,
+} from "bungie-api-ts/destiny2";
 
 export class Database extends Dexie {
   manifestArmor!: Dexie.Table<IManifestArmor, number>;
   inventoryArmor!: Dexie.Table<IInventoryArmor, number>;
   equipableItemSetDefinition!: Dexie.Table<DestinyEquipableItemSetDefinition, number>;
   sandboxPerkDefinition!: Dexie.Table<DestinySandboxPerkDefinition, number>;
+  sandboxAbilities!: Dexie.Table<DestinyInventoryItemDefinition, number>;
 
   // Maps the collectible hash to the inventory item hash
   manifestCollectibles!: Dexie.Table<IManifestCollectible>;
@@ -38,12 +42,13 @@ export class Database extends Dexie {
 
   constructor() {
     super("d2armorpicker-v2");
-    this.version(32).stores({
+    this.version(33).stores({
       manifestArmor: "id++, hash, isExotic",
       inventoryArmor:
         "id++, itemInstanceId, isExotic, hash, name, masterworked, clazz, slot, source, gearSetHash, perk, [clazz+gearSetHash]",
       sandboxPerkDefinition: "id++, hash",
       equipableItemSetDefinition: "id++, hash, setPerks, setItems",
+      sandboxAbilities: "id++, hash",
       manifestCollectibles: "id++, hash",
       vendorNames: "id++, vendorId",
       vendorItemSubscreen: "itemHash",

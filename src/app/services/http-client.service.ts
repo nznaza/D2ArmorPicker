@@ -47,60 +47,72 @@ export class HttpClientService {
   }
 
   get accessToken() {
-    return localStorage.getItem("accessToken");
+    return localStorage.getItem("auth-accessToken");
   }
 
   set accessToken(newCode: string | null) {
     if (!newCode) {
-      this.logger.info("HttpClientService", "accessToken", "Clearing access token");
-      localStorage.removeItem("accessToken");
+      this.logger.info("HttpClientService", "auth-accessToken", "Clearing access token");
+      localStorage.removeItem("auth-accessToken");
     } else {
-      this.logger.info("HttpClientService", "accessToken", "Setting new access token: [REDACTED]");
-      localStorage.setItem("accessToken", "" + newCode);
+      this.logger.info(
+        "HttpClientService",
+        "auth-accessToken",
+        "Setting new access token: [REDACTED]"
+      );
+      localStorage.setItem("auth-accessToken", "" + newCode);
     }
   }
 
   get refreshToken() {
-    return localStorage.getItem("refreshToken");
+    return localStorage.getItem("auth-refreshToken");
   }
 
   set refreshToken(newCode: string | null) {
     if (!newCode) {
-      this.logger.info("HttpClientService", "refreshToken", "Clearing refresh token");
-      localStorage.removeItem("refreshToken");
+      this.logger.info("HttpClientService", "auth-refreshToken", "Clearing refresh token");
+      localStorage.removeItem("auth-refreshToken");
     } else {
       this.logger.info(
         "HttpClientService",
-        "refreshToken",
+        "auth-refreshToken",
         "Setting new refresh token: [REDACTED]"
       );
-      localStorage.setItem("refreshToken", "" + newCode);
+      localStorage.setItem("auth-refreshToken", "" + newCode);
     }
   }
 
   get refreshTokenExpiringAt(): number {
-    let l = localStorage.getItem("refreshTokenExpiringAt") || "0";
+    let l = localStorage.getItem("auth-refreshToken-expireDate") || "0";
     return l ? Number.parseInt(l) : 0;
   }
 
   set refreshTokenExpiringAt(newCode: number | null) {
     if (!newCode) {
-      this.logger.info("HttpClientService", "refreshTokenExpiringAt", "Clearing refresh token");
-      localStorage.removeItem("refreshTokenExpiringAt");
+      this.logger.info(
+        "HttpClientService",
+        "auth-refreshToken-expireDate",
+        "Clearing refresh token"
+      );
+      localStorage.removeItem("auth-refreshToken-expireDate");
     } else {
-      this.logger.info("HttpClientService", "refreshTokenExpiringAt", "Setting new refresh token");
-      localStorage.setItem("refreshTokenExpiringAt", "" + newCode);
+      this.logger.info(
+        "HttpClientService",
+        "auth-refreshToken-expireDate",
+        "Setting new refresh token"
+      );
+      localStorage.setItem("auth-refreshToken-expireDate", "" + newCode);
     }
   }
 
-  get lastRefresh(): number {
-    let l = localStorage.getItem("lastRefresh") || "0";
+  get lastAuthRefresh(): number {
+    let l = localStorage.getItem("auth-refreshToken-lastRefreshDate") || "0";
     return l ? Number.parseInt(l) : 0;
   }
 
-  set lastRefresh(newCode: number | null) {
-    if (!newCode) localStorage.removeItem("lastRefresh");
-    else localStorage.setItem("lastRefresh", newCode.toString());
+  set lastAuthRefresh(newCode: number | null) {
+    if (!newCode) localStorage.removeItem("auth-refreshToken-lastRefreshDate");
+    else localStorage.setItem("auth-refreshToken-lastRefreshDate", newCode.toString());
   }
 
   isAuthenticated() {
@@ -112,7 +124,7 @@ export class HttpClientService {
     if (
       this.refreshToken &&
       Date.now() < this.refreshTokenExpiringAt &&
-      Date.now() > this.lastRefresh + timing
+      Date.now() > this.lastAuthRefresh + timing
     ) {
       return await this.generateTokens(true);
     }
@@ -152,7 +164,7 @@ export class HttpClientService {
         this.accessToken = value.access_token;
         this.refreshToken = value.refresh_token;
         this.refreshTokenExpiringAt = Date.now() + value.refresh_expires_in * 1000 - 10 * 1000;
-        this.lastRefresh = Date.now();
+        this.lastAuthRefresh = Date.now();
         this.ngZone.run(() => {
           this.status.modifyStatus((s) => (s.authError = false));
         });
@@ -168,7 +180,7 @@ export class HttpClientService {
   }
 
   private clearLoginInfo() {
-    this.lastRefresh = null;
+    this.lastAuthRefresh = null;
     this.refreshTokenExpiringAt = null;
     this.authCode = null;
     this.accessToken = null;

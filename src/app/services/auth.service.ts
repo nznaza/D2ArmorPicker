@@ -18,7 +18,6 @@
 import { Injectable } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { environment } from "../../environments/environment";
-import { Router } from "@angular/router";
 import { Observable, ReplaySubject } from "rxjs";
 
 @Injectable({
@@ -28,26 +27,18 @@ export class AuthService {
   private _logoutEvent: ReplaySubject<null>;
   public readonly logoutEvent: Observable<null>;
 
-  constructor(
-    private router: Router,
-    private logger: NGXLogger
-  ) {
+  constructor(private logger: NGXLogger) {
     this._logoutEvent = new ReplaySubject(1);
     this.logoutEvent = this._logoutEvent.asObservable();
   }
 
   async getCurrentMembershipData(): Promise<any> {
-    const item = JSON.parse(localStorage.getItem("auth-membershipInfo") || "null");
+    const item = JSON.parse(localStorage.getItem("user-membershipInfo") || "null");
     if (item == null) {
       const currentMembershipData = this.getCurrentMembershipData();
-      localStorage.setItem("auth-membershipInfo", JSON.stringify(currentMembershipData));
+      localStorage.setItem("user-membershipInfo", JSON.stringify(currentMembershipData));
       return currentMembershipData;
     } else return item;
-  }
-
-  clearManifestInfo() {
-    localStorage.removeItem("LastArmorUpdate");
-    localStorage.removeItem("LastManifestUpdate");
   }
 
   async logout() {
@@ -56,10 +47,15 @@ export class AuthService {
       return;
     }
     try {
-      this._logoutEvent.next(null);
-      this.clearManifestInfo();
+      localStorage.removeItem("auth-accessToken");
+      localStorage.removeItem("auth-refreshToken");
+      localStorage.removeItem("auth-refreshToken-expireDate");
+      localStorage.removeItem("auth-refreshToken-lastRefreshDate");
+      localStorage.removeItem("user-currentConfig");
+    } catch (e) {
+      this.logger.error("AuthService", "logout", "Error during logout", e);
     } finally {
-      await this.router.navigate(["login"]);
+      this._logoutEvent.next(null);
     }
   }
 }

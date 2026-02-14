@@ -127,7 +127,7 @@ try {
   openReplayTracker.use(trackerAssist(options)); // check the list of available options below
 
   let membershipInfo: GroupUserInfoCard | null = JSON.parse(
-    localStorage.getItem("auth-membershipInfo") || "null"
+    localStorage.getItem("user-membershipInfo") || "null"
   );
   if (membershipInfo) {
     console.log("Found cached membership info, using it to identify user in OpenReplay");
