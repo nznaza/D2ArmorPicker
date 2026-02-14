@@ -52,6 +52,7 @@ export class LoginComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.startAutoScroll();
     // remove extraneous data from localStorage
+    const openReplayUuid = localStorage.getItem("__openreplay_uuid");
     const clarityCharacterStats = localStorage.getItem("clarity-character-stats");
     const clarityCharacterStatsVersion = localStorage.getItem("clarity-character-stats-version");
     const d2apChangelogVersionLastRead = localStorage.getItem("d2ap-changelogVersion-lastRead");
@@ -59,6 +60,7 @@ export class LoginComponent implements OnInit, OnDestroy {
     const d2apManifestLastDate = localStorage.getItem("d2ap-manifest-lastDate");
     const d2apManifestLastVersion = localStorage.getItem("d2ap-manifest-lastVersion");
     localStorage.clear();
+    if (openReplayUuid) localStorage.setItem("__openreplay_uuid", openReplayUuid);
     if (clarityCharacterStats)
       localStorage.setItem("clarity-character-stats", clarityCharacterStats);
     if (clarityCharacterStatsVersion)
