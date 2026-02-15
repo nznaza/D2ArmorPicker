@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Injectable } from "@angular/core";
+import { Injectable, OnDestroy } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import {
   DestinyComponentType,
@@ -156,7 +156,7 @@ function collectInvestmentStats(
 @Injectable({
   providedIn: "root",
 })
-export class BungieApiService {
+export class BungieApiService implements OnDestroy {
   /**
    * Emits after a manifest update.
    */
@@ -177,7 +177,13 @@ export class BungieApiService {
     private config: ConfigurationService,
     private membership: MembershipService,
     private logger: NGXLogger
-  ) {}
+  ) {
+    this.logger.debug("BungieApiService", "constructor", "Initializing BungieApiService");
+  }
+
+  ngOnDestroy(): void {
+    this.logger.debug("BungieApiService", "ngOnDestroy", "Destroying BungieApiService");
+  }
 
   async transferItem(
     itemInstanceId: string,

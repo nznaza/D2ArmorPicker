@@ -15,12 +15,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Injectable } from "@angular/core";
+import { Injectable, OnDestroy } from "@angular/core";
 import { ClarityService } from "./clarity.service";
 import { ModifierType } from "../data/enum/modifierType";
 import type { CharacterStats, Override } from "../data/character_stats/schema";
 import { DestinyClass, DestinyInventoryItemDefinition } from "bungie-api-ts/destiny2";
 import { DatabaseService } from "./database.service";
+import { NGXLogger } from "ngx-logger";
 
 export enum CharacterStatType {
   Speed = 1,
@@ -51,17 +52,23 @@ export interface CooldownEntry {
 @Injectable({
   providedIn: "root",
 })
-export class CharacterStatsService {
+export class CharacterStatsService implements OnDestroy {
   private allStatEntries: Partial<Record<keyof CharacterStats, CooldownEntry[]>> = {};
   private overrides: Override[] = [];
 
   constructor(
     private clarity: ClarityService,
-    private db: DatabaseService
+    private db: DatabaseService,
+    private logger: NGXLogger
   ) {
+    this.logger.debug("CharacterStatsService", "constructor", "Initializing CharacterStatsService");
     this.clarity.characterStats.subscribe(async (data) => {
       if (data) await this.updateCharacterStats(data);
     });
+  }
+
+  ngOnDestroy(): void {
+    this.logger.debug("CharacterStatsService", "ngOnDestroy", "Destroying CharacterStatsService");
   }
 
   loadCharacterStats() {

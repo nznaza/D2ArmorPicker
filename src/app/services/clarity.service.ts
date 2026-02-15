@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Injectable } from "@angular/core";
+import { Injectable, OnDestroy } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { HttpClient } from "@angular/common/http";
 import { Observable, BehaviorSubject } from "rxjs";
@@ -44,7 +44,7 @@ export type UpdateData = {
 @Injectable({
   providedIn: "root",
 })
-export class ClarityService {
+export class ClarityService implements OnDestroy {
   private _characterStats: BehaviorSubject<CharacterStats | null> =
     new BehaviorSubject<CharacterStats | null>(null);
   public readonly characterStats: Observable<CharacterStats | null> =
@@ -55,8 +55,13 @@ export class ClarityService {
     private userInfo: UserInformationService,
     private logger: NGXLogger
   ) {
+    this.logger.debug("ClarityService", "constructor", "Initializing ClarityService");
     // trigger a clarity reload on manifest change
     this.userInfo.manifest.subscribe((_) => this.load());
+  }
+
+  ngOnDestroy(): void {
+    this.logger.debug("ClarityService", "ngOnDestroy", "Destroying ClarityService");
   }
 
   async load() {

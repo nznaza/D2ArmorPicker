@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Injectable } from "@angular/core";
+import { Injectable, OnDestroy } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { BehaviorSubject, Observable } from "rxjs";
 import { isEqual as _isEqual } from "lodash";
@@ -37,7 +37,7 @@ export interface Status {
 @Injectable({
   providedIn: "root",
 })
-export class StatusProviderService {
+export class StatusProviderService implements OnDestroy {
   private __status: Status = {
     cancelledCalculation: false,
     calculatingResults: false,
@@ -57,8 +57,13 @@ export class StatusProviderService {
   public readonly status: Observable<Status>;
 
   constructor(private logger: NGXLogger) {
+    this.logger.debug("StatusProviderService", "constructor", "Initializing StatusProviderService");
     this._status = new BehaviorSubject<Status>(this.__status);
     this.status = this._status.asObservable();
+  }
+
+  ngOnDestroy(): void {
+    this.logger.debug("StatusProviderService", "ngOnDestroy", "Destroying StatusProviderService");
   }
 
   getStatus() {

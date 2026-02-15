@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Injectable } from "@angular/core";
+import { Injectable, OnDestroy } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { DatabaseService } from "./database.service";
 import { ArmorSystem, IManifestArmor } from "../data/types/IManifestArmor";
@@ -46,7 +46,7 @@ export type ClassExoticInfo = {
 @Injectable({
   providedIn: "root",
 })
-export class UserInformationService {
+export class UserInformationService implements OnDestroy {
   private initialized: boolean = false;
 
   private _characters: ReplaySubject<
@@ -93,6 +93,10 @@ export class UserInformationService {
     }
 
     this.config.configuration.pipe(debounceTime(1000)).subscribe(async (c) => {
+      this.logger.debug(
+        "UserInformationService",
+        "Configuration changed, requesting manifest/inventory refresh if needed"
+      );
       this.requestRefreshManifestAndInventoryOnUserInteraction(c);
     });
 
@@ -485,5 +489,9 @@ export class UserInformationService {
 
   get isInitialized(): boolean {
     return this.initialized;
+  }
+
+  ngOnDestroy(): void {
+    this.logger.debug("UserInformationService", "ngOnDestroy", "Destroying UserInformationService");
   }
 }

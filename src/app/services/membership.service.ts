@@ -1,4 +1,4 @@
-import { Injectable } from "@angular/core";
+import { Injectable, OnDestroy } from "@angular/core";
 import {
   DestinyComponentType,
   getProfile,
@@ -17,14 +17,19 @@ import { identifyUserWithTracker } from "../app.module";
 @Injectable({
   providedIn: "root",
 })
-export class MembershipService {
+export class MembershipService implements OnDestroy {
   constructor(
     private http: HttpClientService,
     private status: StatusProviderService,
     private auth: AuthService,
     private logger: NGXLogger
   ) {
+    this.logger.debug("MembershipService", "constructor", "Initializing MembershipService");
     this.auth.logoutEvent.subscribe((k) => this.clearCachedData());
+  }
+
+  ngOnDestroy(): void {
+    this.logger.debug("MembershipService", "ngOnDestroy", "Destroying MembershipService");
   }
 
   private clearCachedData() {

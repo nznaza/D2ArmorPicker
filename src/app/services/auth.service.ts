@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Injectable } from "@angular/core";
+import { Injectable, OnDestroy } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { environment } from "../../environments/environment";
 import { Observable, ReplaySubject } from "rxjs";
@@ -23,13 +23,18 @@ import { Observable, ReplaySubject } from "rxjs";
 @Injectable({
   providedIn: "root",
 })
-export class AuthService {
+export class AuthService implements OnDestroy {
   private _logoutEvent: ReplaySubject<null>;
   public readonly logoutEvent: Observable<null>;
 
   constructor(private logger: NGXLogger) {
+    this.logger.debug("AuthService", "constructor", "Initializing AuthService");
     this._logoutEvent = new ReplaySubject(1);
     this.logoutEvent = this._logoutEvent.asObservable();
+  }
+
+  ngOnDestroy(): void {
+    this.logger.debug("AuthService", "ngOnDestroy", "Destroying AuthService");
   }
 
   async getCurrentMembershipData(): Promise<any> {

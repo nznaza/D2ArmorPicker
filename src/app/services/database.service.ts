@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Injectable } from "@angular/core";
+import { Injectable, OnDestroy } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { AuthService } from "./auth.service";
 import { D2APDatabase } from "../data/database";
@@ -26,13 +26,14 @@ import { DestinyInventoryItemDefinition } from "bungie-api-ts/destiny2";
 @Injectable({
   providedIn: "root",
 })
-export class DatabaseService extends D2APDatabase {
+export class DatabaseService extends D2APDatabase implements OnDestroy {
   constructor(
     private auth: AuthService,
     private changelog: ChangelogService,
     private logger: NGXLogger
   ) {
     super();
+    this.logger.debug("DatabaseService", "constructor", "Initializing DatabaseService");
 
     if (this.changelog.wipeManifest) {
       this.logger.log("Wiping manifest due to changelog request");
@@ -46,6 +47,10 @@ export class DatabaseService extends D2APDatabase {
     this.auth.logoutEvent.subscribe(async (k) => {
       await this.clearInventoryCache();
     });
+  }
+
+  ngOnDestroy(): void {
+    this.logger.debug("DatabaseService", "ngOnDestroy", "Destroying DatabaseService");
   }
 
   async clearInventoryCache() {

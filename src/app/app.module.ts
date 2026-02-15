@@ -77,6 +77,7 @@ import Tracker from "@openreplay/tracker";
 import trackerAssist from "@openreplay/tracker-assist";
 
 import { ResultsCardViewComponent } from "./components/authenticated-v2/results/results-card-view/results-card-view.component";
+import { ResultsTableViewComponent } from "./components/authenticated-v2/results/results-table-view/results-table-view.component";
 import { GearsetSelectionComponent } from "./components/authenticated-v2/settings/desired-mod-limit-selection/gearset-selection/gearset-selection.component";
 import { GearsetcTooltipDirective as GearsetTooltipDirective } from "./components/authenticated-v2/overlays/gearset-tooltip/gearset-tooltip.directive";
 import { GearsetTooltipComponent } from "./components/authenticated-v2/overlays/gearset-tooltip/gearset-tooltip.component";
@@ -247,6 +248,7 @@ const routes: Routes = [
     StatCooldownTooltipComponent,
     SlotLimitationTitleComponent,
     ResultsCardViewComponent,
+    ResultsTableViewComponent,
     GearsetSelectionComponent,
     ModslotVisualizationComponent,
     ModLimitSegmentedComponent,

@@ -72,7 +72,9 @@ export class AppV2CoreComponent implements OnInit, AfterViewInit {
     private characterStats: CharacterStatsService,
     public changelog: ChangelogService,
     private logger: NGXLogger
-  ) {}
+  ) {
+    this.logger.debug("AppV2CoreComponent", "constructor", "Component initialized");
+  }
 
   isHandset$: Observable<boolean> = this.breakpointObserver
     .observe([Breakpoints.Handset, Breakpoints.Small, Breakpoints.XSmall])
@@ -95,6 +97,7 @@ export class AppV2CoreComponent implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
+    this.logger.debug("AppV2CoreComponent", "ngAfterViewInit", "Component after view initialized");
     this.changelog.checkAndShowChangelog();
     this.characterStats.loadCharacterStats();
     this.armorCalculator.calculationProgress.subscribe((progress) => {

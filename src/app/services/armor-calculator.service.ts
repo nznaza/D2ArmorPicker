@@ -17,7 +17,7 @@
 
 import { Injectable, OnDestroy } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
-import { Router, NavigationEnd } from "@angular/router";
+import { Router } from "@angular/router";
 import { DatabaseService } from "./database.service";
 import { IManifestArmor } from "../data/types/IManifestArmor";
 import { BehaviorSubject, Observable, Subject } from "rxjs";
@@ -45,7 +45,7 @@ import { FORCE_USE_NO_EXOTIC, MAXIMUM_MASTERWORK_LEVEL } from "../data/constants
 import { ModOptimizationStrategy } from "../data/enum/mod-optimization-strategy";
 import { ArmorSystem } from "../data/types/IManifestArmor";
 import { combineLatest, Subscription } from "rxjs";
-import { debounceTime, distinctUntilChanged, catchError, startWith, filter } from "rxjs/operators";
+import { debounceTime, distinctUntilChanged, catchError, startWith } from "rxjs/operators";
 import { of } from "rxjs";
 
 type info = {
@@ -79,7 +79,6 @@ export class ArmorCalculatorService implements OnDestroy {
   private allArmorResults: ResultDefinition[] = [];
 
   private calculationSubscription?: Subscription;
-  private routerSubscription?: Subscription;
 
   constructor(
     private db: DatabaseService,
@@ -116,9 +115,14 @@ export class ArmorCalculatorService implements OnDestroy {
   }
 
   ngOnDestroy() {
+    this.logger.debug("ArmorCalculatorService", "ngOnDestroy", "Destroying ArmorCalculatorService");
     this.calculationSubscription?.unsubscribe();
-    this.routerSubscription?.unsubscribe();
     this.killWorkers();
+    this.logger.debug(
+      "ArmorCalculatorService",
+      "ngOnDestroy",
+      "Finished destroying ArmorCalculatorService"
+    );
   }
 
   private setupCalculationTriggers() {
@@ -154,19 +158,67 @@ export class ArmorCalculatorService implements OnDestroy {
         "Services available, setting up observables"
       );
 
-      // Set up initial subscription if on main page
-      this.setupAutoTriggerIfOnMainPage();
+      // this.router.events
+      //   .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
+      //   .subscribe((event) => {
+      //     this.logger.debug(
+      //       "ArmorCalculatorService",
+      //       "setupCalculationTriggers",
+      //       "Route changed to: " + event.url
+      //     );
+      //   });
 
-      // Listen to route changes to enable/disable auto-trigger
-      this.routerSubscription = this.router.events
-        .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
-        .subscribe((event) => {
-          this.logger.debug(
-            "ArmorCalculatorService",
-            "setupCalculationTriggers",
-            "Route changed to: " + event.url
-          );
-          this.setupAutoTriggerIfOnMainPage();
+      // Set up single subscription that persists throughout the service lifecycle
+      // Use startWith to ensure all observables have initial values for combineLatest
+      this.calculationSubscription = combineLatest([
+        this.userInfo.inventory.pipe(startWith(null)), // Start with null to ensure emission
+        this.config.configuration,
+      ])
+        .pipe(
+          debounceTime(100),
+          distinctUntilChanged(),
+          catchError((error) => {
+            this.logger.error(
+              "ArmorCalculatorService",
+              "setupCalculationTriggers",
+              "Error in observable stream: " + error
+            );
+            return of([null, null]); // Return empty values to continue the stream
+          })
+        )
+        .subscribe({
+          next: ([inventory, config]) => {
+            // Only perform calculations if we're on the main page
+            if (!this.isMainPage()) {
+              this.logger.debug(
+                "ArmorCalculatorService",
+                "setupCalculationTriggers",
+                "Not on main page, skipping calculation"
+              );
+              return;
+            }
+
+            if (!config) {
+              return;
+            }
+
+            const buildConfig = config as BuildConfiguration;
+            if (buildConfig.characterClass !== DestinyClass.Unknown) {
+              this.logger.info(
+                "ArmorCalculatorService",
+                "setupCalculationTriggers",
+                "Triggering calculation for class: " + buildConfig.characterClass
+              );
+              this.updateResults(buildConfig, buildConfig.characterClass);
+            }
+          },
+          error: (error) => {
+            this.logger.error(
+              "ArmorCalculatorService",
+              "setupCalculationTriggers",
+              "Subscription error: " + error
+            );
+          },
         });
 
       this.logger.debug(
@@ -179,78 +231,6 @@ export class ArmorCalculatorService implements OnDestroy {
         "ArmorCalculatorService",
         "setupCalculationTriggers",
         "Failed to setup triggers: " + error
-      );
-    }
-  }
-
-  private setupAutoTriggerIfOnMainPage() {
-    const isMainPage = this.isMainPage();
-    this.logger.debug(
-      "ArmorCalculatorService",
-      "setupAutoTriggerIfOnMainPage",
-      "Current page is main page: " + isMainPage
-    );
-
-    // Clean up existing subscription
-    if (this.calculationSubscription) {
-      this.calculationSubscription.unsubscribe();
-      this.calculationSubscription = undefined;
-    }
-
-    // Only set up auto-trigger if on main page
-    if (isMainPage) {
-      this.logger.debug(
-        "ArmorCalculatorService",
-        "setupAutoTriggerIfOnMainPage",
-        "Setting up auto-trigger for main page"
-      );
-
-      // Use startWith to ensure all observables have initial values for combineLatest
-      this.calculationSubscription = combineLatest([
-        this.userInfo.inventory.pipe(startWith(null)), // Start with null to ensure emission
-        this.config.configuration,
-      ])
-        .pipe(
-          debounceTime(100),
-          distinctUntilChanged(),
-          catchError((error) => {
-            this.logger.error(
-              "ArmorCalculatorService",
-              "setupAutoTriggerIfOnMainPage",
-              "Error in observable stream: " + error
-            );
-            return of([null, null]); // Return empty values to continue the stream
-          })
-        )
-        .subscribe({
-          next: ([inventory, config]) => {
-            if (!config) {
-              return;
-            }
-
-            const buildConfig = config as BuildConfiguration;
-            if (buildConfig.characterClass !== DestinyClass.Unknown) {
-              this.logger.info(
-                "ArmorCalculatorService",
-                "setupAutoTriggerIfOnMainPage",
-                "Triggering calculation for class: " + buildConfig.characterClass
-              );
-              this.updateResults(buildConfig, buildConfig.characterClass);
-            }
-          },
-          error: (error) => {
-            this.logger.error(
-              "ArmorCalculatorService",
-              "setupAutoTriggerIfOnMainPage",
-              "Subscription error: " + error
-            );
-          },
-        });
-    } else {
-      this.logger.debug(
-        "ArmorCalculatorService",
-        "setupAutoTriggerIfOnMainPage",
-        "Not on main page, auto-trigger disabled"
       );
     }
   }

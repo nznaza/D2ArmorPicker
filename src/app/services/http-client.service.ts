@@ -1,4 +1,4 @@
-import { Injectable, NgZone } from "@angular/core";
+import { Injectable, NgZone, OnDestroy } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { HttpClientConfig } from "bungie-api-ts/destiny2";
 import { AuthService } from "./auth.service";
@@ -19,14 +19,20 @@ interface OAuthTokenResponse {
 @Injectable({
   providedIn: "root",
 })
-export class HttpClientService {
+export class HttpClientService implements OnDestroy {
   constructor(
     private authService: AuthService,
     private http: HttpClient,
     private status: StatusProviderService,
     private logger: NGXLogger,
     private ngZone: NgZone
-  ) {}
+  ) {
+    this.logger.debug("HttpClientService", "constructor", "Initializing HttpClientService");
+  }
+
+  ngOnDestroy(): void {
+    this.logger.debug("HttpClientService", "ngOnDestroy", "Destroying HttpClientService");
+  }
 
   get refreshTokenExpired() {
     return this.refreshTokenExpiringAt < Date.now();

@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Injectable } from "@angular/core";
+import { Injectable, OnDestroy } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { BuildConfiguration } from "../data/buildConfiguration";
 import { BehaviorSubject, Observable } from "rxjs";
@@ -47,7 +47,7 @@ const lzDecompOptions = {
 @Injectable({
   providedIn: "root",
 })
-export class ConfigurationService {
+export class ConfigurationService implements OnDestroy {
   private __configuration: BuildConfiguration;
   private __LastConfiguration: BuildConfiguration;
 
@@ -62,6 +62,7 @@ export class ConfigurationService {
   public readonly storedConfigurations: Observable<StoredConfiguration[]>;
 
   constructor(private logger: NGXLogger) {
+    this.logger.debug("ConfigurationService", "constructor", "Initializing ConfigurationService");
     this.__configuration = this.loadCurrentConfiguration();
     this.__LastConfiguration = this.loadCurrentConfiguration();
 
@@ -70,6 +71,10 @@ export class ConfigurationService {
 
     this._storedConfigurations = new BehaviorSubject(this.listSavedConfigurations());
     this.storedConfigurations = this._storedConfigurations.asObservable();
+  }
+
+  ngOnDestroy(): void {
+    this.logger.debug("ConfigurationService", "ngOnDestroy", "Destroying ConfigurationService");
   }
 
   modifyConfiguration(cb: (configuration: BuildConfiguration) => void) {

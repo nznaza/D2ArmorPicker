@@ -1,4 +1,4 @@
-import { Injectable } from "@angular/core";
+import { Injectable, OnDestroy } from "@angular/core";
 import {
   getVendors,
   getVendor,
@@ -31,7 +31,7 @@ interface VendorWithParent {
 @Injectable({
   providedIn: "root",
 })
-export class VendorsService {
+export class VendorsService implements OnDestroy {
   constructor(
     private membership: MembershipService,
     private http: HttpClientService,
@@ -39,7 +39,12 @@ export class VendorsService {
     private auth: AuthService,
     private logger: NGXLogger
   ) {
+    this.logger.debug("VendorsService", "constructor", "Initializing VendorsService");
     this.auth.logoutEvent.subscribe((k) => this.clearCachedData());
+  }
+
+  ngOnDestroy(): void {
+    this.logger.debug("VendorsService", "ngOnDestroy", "Destroying VendorsService");
   }
 
   private clearCachedData() {
