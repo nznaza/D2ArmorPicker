@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AfterViewInit, Component } from "@angular/core";
+import { AfterViewInit, Component, OnInit } from "@angular/core";
 import { environment } from "../environments/environment";
 import { UserInformationService } from "src/app/services/user-information.service";
 import { NGXLogger } from "ngx-logger";
@@ -26,7 +26,7 @@ import { AuthService } from "./services/auth.service";
   templateUrl: "./app.component.html",
   styleUrls: ["./app.component.scss"],
 })
-export class AppComponent implements AfterViewInit {
+export class AppComponent implements AfterViewInit, OnInit {
   title = "D2ArmorPicker";
   is_beta = environment.beta;
   is_canary = environment.canary;
@@ -36,6 +36,22 @@ export class AppComponent implements AfterViewInit {
     private logger: NGXLogger,
     public authService: AuthService
   ) {}
+
+  ngOnInit() {
+    this.logger.debug("AppComponent", "ngOnInit", "Application initialized");
+    window.addEventListener("unhandledrejection", (event) => {
+      this.logger.error("AppV2CoreComponent", "Unhandled Promise Rejection", JSON.stringify(event));
+    });
+    window.onerror = (errorMsg, url, lineNumber) => {
+      this.logger.error(
+        "AppV2CoreComponent",
+        "Unhandled Error",
+        JSON.stringify({ errorMsg, url, lineNumber })
+      );
+      return false;
+    };
+  }
+
   ngAfterViewInit(): void {
     // Check if UserInformationService is initialized after 10 seconds
     // if not, forcefully trigger an initial refreshAll

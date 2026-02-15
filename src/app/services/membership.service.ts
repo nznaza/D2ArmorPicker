@@ -34,6 +34,15 @@ export class MembershipService {
   }
 
   async getMembershipDataForCurrentUser(): Promise<GroupUserInfoCard | undefined> {
+    // check if user is authenticated before making the API call, if not, return undefined to avoid unnecessary API calls and errors
+    if (!this.http.isAuthenticated()) {
+      this.logger.warn(
+        "MembershipService",
+        "getMembershipDataForCurrentUser",
+        "User is not authenticated"
+      );
+      return undefined;
+    }
     var membershipData: GroupUserInfoCard = JSON.parse(
       localStorage.getItem("user-membershipInfo") || "null"
     );
@@ -43,7 +52,6 @@ export class MembershipService {
 
       return membershipData;
     }
-
     this.logger.info(
       "MembershipService",
       "getMembershipDataForCurrentUser",

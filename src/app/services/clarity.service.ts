@@ -68,7 +68,12 @@ export class ClarityService {
   }
 
   private async fetchUpdateData() {
-    return this.http.get<UpdateData>(UPDATES_URL).toPromise();
+    try {
+      return await this.http.get<UpdateData>(UPDATES_URL).toPromise();
+    } catch (error) {
+      this.logger.warn("ClarityService", "fetchUpdateData", "Failed to fetch update data", error);
+      return null;
+    }
   }
 
   // Load data from cache or fetch live data if necessary
@@ -90,17 +95,34 @@ export class ClarityService {
           liveVersion.schemaVersion
         );
       } else if (liveVersion && liveVersion.lastUpdate !== undefined) {
-        await this.fetchLiveCharacterStats().then((data) => {
+        try {
+          const data = await this.fetchLiveCharacterStats();
           localStorage.setItem(LOCAL_STORAGE_STATS_KEY, JSON.stringify(data));
           localStorage.setItem(LOCAL_STORAGE_STATS_VERSION_KEY, liveVersion.lastUpdate.toString());
-
           this._characterStats.next(data);
-        });
+        } catch (error) {
+          this.logger.warn(
+            "ClarityService",
+            "loadCharacterStats",
+            "Failed to load live character stats",
+            error
+          );
+        }
       }
     }
   }
 
   private async fetchLiveCharacterStats() {
-    return this.http.get<CharacterStats>(CHARACTER_STATS_URL).toPromise();
+    try {
+      return await this.http.get<CharacterStats>(CHARACTER_STATS_URL).toPromise();
+    } catch (error) {
+      this.logger.warn(
+        "ClarityService",
+        "fetchLiveCharacterStats",
+        "Failed to fetch live character stats",
+        error
+      );
+      throw error;
+    }
   }
 }

@@ -18,7 +18,7 @@
 import { Injectable } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { AuthService } from "./auth.service";
-import { Database } from "../data/database";
+import { D2APDatabase } from "../data/database";
 import { IManifestArmor } from "../data/types/IManifestArmor";
 import { ChangelogService } from "./changelog.service";
 import { DestinyInventoryItemDefinition } from "bungie-api-ts/destiny2";
@@ -26,7 +26,7 @@ import { DestinyInventoryItemDefinition } from "bungie-api-ts/destiny2";
 @Injectable({
   providedIn: "root",
 })
-export class DatabaseService extends Database {
+export class DatabaseService extends D2APDatabase {
   constructor(
     private auth: AuthService,
     private changelog: ChangelogService,
@@ -63,7 +63,13 @@ export class DatabaseService extends Database {
 
   async writeManifestArmor(items: IManifestArmor[], version: string) {
     await this.manifestArmor.clear();
-    await this.manifestArmor.bulkPut(items);
+    await this.manifestArmor.bulkPut(items).catch((e) => {
+      this.logger.error(
+        "DatabaseService",
+        "writeManifestArmor",
+        "Error writing manifest armor to database: " + e
+      );
+    });
     localStorage.setItem("d2ap-manifest-lastDate", Date.now().toString());
     localStorage.setItem("d2ap-db-lastName", this.manifestArmor.db.name);
     localStorage.setItem("d2ap-manifest-lastVersion", version);
@@ -82,18 +88,28 @@ export class DatabaseService extends Database {
     localStorage.removeItem("d2ap-inventory-lastDate");
 
     await this.delete();
-    await window.indexedDB.databases().then((dbs) => {
-      dbs.forEach((idb) => {
-        if (idb.name) {
-          window.indexedDB.deleteDatabase(idb.name);
-          this.logger.debug(
-            "DatabaseService",
-            "resetDatabase",
-            `Deleted IndexedDB database: ${idb.name}`
-          );
-        }
+    await window.indexedDB
+      .databases()
+      .then((dbs) => {
+        dbs.forEach((idb) => {
+          if (idb.name) {
+            window.indexedDB.deleteDatabase(idb.name);
+            this.logger.debug(
+              "DatabaseService",
+              "resetDatabase",
+              `Deleted IndexedDB database: ${idb.name}`
+            );
+          }
+        });
+      })
+      .catch((error) => {
+        this.logger.error(
+          "DatabaseService",
+          "resetDatabase",
+          "Failed to get database list or delete databases",
+          error
+        );
       });
-    });
     if (initialize) this.initialize();
   }
 

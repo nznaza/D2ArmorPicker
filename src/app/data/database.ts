@@ -27,7 +27,18 @@ import {
   DestinyInventoryItemDefinition,
 } from "bungie-api-ts/destiny2";
 
-export class Database extends Dexie {
+const schema = {
+  manifestArmor: "id++, hash, isExotic",
+  inventoryArmor:
+    "id++, itemInstanceId, isExotic, hash, name, masterworked, clazz, slot, source, gearSetHash, perk, [clazz+gearSetHash]",
+  sandboxPerkDefinition: "id++, hash",
+  equipableItemSetDefinition: "id++, hash, setPerks, setItems",
+  sandboxAbilities: "id++, hash",
+  manifestCollectibles: "id++, hash",
+  vendorNames: "id++, vendorId",
+  vendorItemSubscreen: "itemHash",
+};
+export class D2APDatabase extends Dexie {
   manifestArmor!: Dexie.Table<IManifestArmor, number>;
   inventoryArmor!: Dexie.Table<IInventoryArmor, number>;
   equipableItemSetDefinition!: Dexie.Table<DestinyEquipableItemSetDefinition, number>;
@@ -42,16 +53,6 @@ export class Database extends Dexie {
 
   constructor() {
     super("d2armorpicker-v2");
-    this.version(33).stores({
-      manifestArmor: "id++, hash, isExotic",
-      inventoryArmor:
-        "id++, itemInstanceId, isExotic, hash, name, masterworked, clazz, slot, source, gearSetHash, perk, [clazz+gearSetHash]",
-      sandboxPerkDefinition: "id++, hash",
-      equipableItemSetDefinition: "id++, hash, setPerks, setItems",
-      sandboxAbilities: "id++, hash",
-      manifestCollectibles: "id++, hash",
-      vendorNames: "id++, vendorId",
-      vendorItemSubscreen: "itemHash",
-    });
+    this.version(33).stores(schema);
   }
 }

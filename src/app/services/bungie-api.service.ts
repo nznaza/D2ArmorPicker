@@ -293,6 +293,11 @@ export class BungieApiService {
   }
 
   async updateInventory(force = false): Promise<IInventoryArmor[] | null> {
+    // Check if the user is authenticated before getting the membership data, if not, return null to avoid unnecessary API calls and errors
+    if (!this.http.isAuthenticated()) {
+      this.logger.warn("BungieApiService", "updateInventory", "User is not authenticated");
+      return null;
+    }
     if (environment.offlineMode) {
       this.logger.info("BungieApiService", "updateInventory", "offline mode, skipping");
       return null;
@@ -312,6 +317,7 @@ export class BungieApiService {
           );
           return null;
         }
+
     let destinyMembership = await this.membership.getMembershipDataForCurrentUser();
     if (!destinyMembership) {
       if (!this.status.getStatus().apiError) this.status.setAuthError();

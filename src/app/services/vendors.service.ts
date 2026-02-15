@@ -260,11 +260,21 @@ export class VendorsService {
       );
 
       const allItems = vendorArmorItems.flatMap(({ items }) => items);
-      const nextRefreshDate = Math.max(
-        Math.min(...vendorArmorItems.map(({ nextRefreshDate }) => nextRefreshDate)),
-        Date.now() + 1000 * 60 * 10
+      const vendorItemsNextRefreshDate = Math.min(
+        ...vendorArmorItems.map(({ nextRefreshDate }) => nextRefreshDate)
       );
-      this.writeVendorCache(allItems, new Date(nextRefreshDate));
+      if (vendorItemsNextRefreshDate <= 0 || vendorItemsNextRefreshDate === Infinity) {
+        this.logger.warn("VendorsService", "updateVendorArmorItemsCache", "No vendor items found");
+        return false;
+      }
+      const nextRefreshDate = Math.max(vendorItemsNextRefreshDate, Date.now() + 1000 * 60 * 10);
+      await this.writeVendorCache(allItems, new Date(nextRefreshDate)).catch((e) => {
+        this.logger.error(
+          "VendorsService",
+          "updateVendorArmorItemsCache",
+          `Failed to write vendor cache: ${e}`
+        );
+      });
       return true;
     } catch (e) {
       this.logger.error(
@@ -275,7 +285,13 @@ export class VendorsService {
       // refresh sooner if we failed to update the cache
       const nextRefreshDate = new Date();
       nextRefreshDate.setMinutes(nextRefreshDate.getMinutes() + 5);
-      this.writeVendorCache([], new Date(nextRefreshDate));
+      await this.writeVendorCache([], new Date(nextRefreshDate)).catch((e) => {
+        this.logger.error(
+          "VendorsService",
+          "updateVendorArmorItemsCache",
+          `Failed to write vendor cache after error: ${e}`
+        );
+      });
       return false;
     }
   }

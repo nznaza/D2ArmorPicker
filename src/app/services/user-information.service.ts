@@ -118,7 +118,7 @@ export class UserInformationService {
 
   private async requestRefreshManifestAndInventoryOnUserInteraction(c?: BuildConfiguration) {
     if (!this.httpClient.isAuthenticated()) {
-      this.logger.warn(
+      this.logger.info(
         "UserInformationService",
         "User is not authenticated, skipping router event handling"
       );
@@ -194,6 +194,16 @@ export class UserInformationService {
     if (this.status.getStatus().updatingVendors) return;
 
     if (!this.vendors.isVendorCacheValid()) {
+      // Check if the user is authenticated before attempting to update vendor cache, if not, skip the update to avoid unnecessary API calls and errors
+      if (!this.httpClient.isAuthenticated()) {
+        this.logger.debug(
+          "UserInformationService",
+          "updateVendorsAsync",
+          "User is not authenticated, skipping vendor cache update"
+        );
+        return;
+      }
+
       this.status.modifyStatus((s) => (s.updatingVendors = true));
       this.vendors
         .updateVendorArmorItemsCache()
@@ -202,6 +212,13 @@ export class UserInformationService {
           if (success && this._config.includeVendorRolls) {
             this.triggerInventoryUpdate(success);
           }
+        })
+        .catch((e) => {
+          this.logger.error(
+            "UserInformationService",
+            "updateVendorsAsync",
+            "Error updating vendor cache: " + e
+          );
         })
         .finally(() => {
           this.status.modifyStatus((s) => (s.updatingVendors = false));
@@ -421,6 +438,16 @@ export class UserInformationService {
   }
 
   async updateInventoryItems(force: boolean = false, errorLoop = 0): Promise<boolean> {
+    // Don't update inventory data if user is not authenticated
+    if (!this.httpClient.isAuthenticated()) {
+      this.logger.debug(
+        "UserInformationService",
+        "updateInventoryItems",
+        "User not authenticated, skipping inventory update"
+      );
+      return false;
+    }
+
     this.status.modifyStatus((s) => (s.updatingInventory = true));
 
     try {

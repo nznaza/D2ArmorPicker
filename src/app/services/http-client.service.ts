@@ -220,6 +220,11 @@ export class HttpClientService {
     // Check and refresh tokens if needed when bearer token is required
     if (bearerToken) {
       if (this.refreshTokenExpired || !(await this.autoRegenerateTokens())) {
+        // before logging out, check if the user is actually authenticated, if not, just clear the auth state without logging out, to avoid infinite loops of failed requests triggering logouts
+        if (!this.isAuthenticated()) {
+          this.logger.warn("HttpClientService", "$http", "User is not authenticated");
+          return null;
+        }
         this.logger.warn(
           "HttpClientService",
           "$http",

@@ -104,12 +104,31 @@ export class AppV2CoreComponent implements OnInit, AfterViewInit {
 
   async refreshAll(b: boolean) {
     this.logger.debug("AppV2CoreComponent", "refreshAll", "Trigger refreshAll due to button press");
-    await this.inv.refreshManifestAndInventory(b);
+    try {
+      await this.inv.refreshManifestAndInventory(b);
+    } catch (error) {
+      this.logger.error(
+        "AppV2CoreComponent",
+        "refreshAll",
+        "Failed to refresh manifest and inventory",
+        error
+      );
+    }
   }
 
   async logout() {
-    await this.auth.logout();
-    this.logger.debug("AppV2CoreComponent", "logout", "Logout successful, navigating to login");
-    await this.router.navigate(["login"]);
+    try {
+      await this.auth.logout();
+      this.logger.debug("AppV2CoreComponent", "logout", "Logout successful, navigating to login");
+      await this.router.navigate(["login"]);
+    } catch (error) {
+      this.logger.error("AppV2CoreComponent", "logout", "Failed during logout process", error);
+      // Still try to navigate even if logout fails
+      try {
+        await this.router.navigate(["login"]);
+      } catch (navError) {
+        this.logger.error("AppV2CoreComponent", "logout", "Failed to navigate to login", navError);
+      }
+    }
   }
 }
