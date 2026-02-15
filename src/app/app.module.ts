@@ -15,13 +15,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { NgModule } from "@angular/core";
+import { APP_INITIALIZER, ErrorHandler, NgModule } from "@angular/core";
 import { BrowserModule } from "@angular/platform-browser";
+import * as Sentry from "@sentry/angular";
 import { AppComponent } from "./app.component";
 import { LoginComponent } from "./components/login/login.component";
 import { BrowserAnimationsModule } from "@angular/platform-browser/animations";
 import { HttpClientModule } from "@angular/common/http";
-import { RouterModule, Routes } from "@angular/router";
+import { Router, RouterModule, Routes } from "@angular/router";
 import { HandleBungieLoginComponent } from "./components/handle-bungie-login/handle-bungie-login.component";
 import { AuthenticatedGuard } from "./guards/authenticated.guard";
 import { NotAuthenticatedGuard } from "./guards/not-authenticated.guard";
@@ -105,6 +106,20 @@ export function identifyUserWithTracker(membershipData: GroupUserInfoCard | null
       "applicableMembershipTypes",
       JSON.stringify(membershipData.applicableMembershipTypes)
     );
+
+    // Identify user with Sentry
+    Sentry.setUser({
+      id: identifier,
+      username: membershipData.displayName,
+      email: membershipData.bungieGlobalDisplayName,
+      extra: {
+        membershipId: membershipData.membershipId,
+        membershipType: membershipData.membershipType,
+        bungieGlobalDisplayNameCode: membershipData.bungieGlobalDisplayNameCode ?? -1,
+        applicableMembershipTypes: membershipData.applicableMembershipTypes,
+        iconPath: membershipData.iconPath,
+      },
+    });
     // H.identify(identifier, {
     //   highlightDisplayName: `${membershipData.displayName}(I${membershipData.membershipId}T${membershipData.membershipType})`,
     //   avatar: `https://bungie.net${membershipData.iconPath}`,
@@ -270,7 +285,29 @@ const routes: Routes = [
       serverLogLevel: NgxLoggerLevel.ERROR,
     }),
   ],
-  providers: [],
+  providers: [
+    {
+      provide: ErrorHandler,
+      useValue: Sentry.createErrorHandler({
+        showDialog: false,
+      }),
+    },
+
+    {
+      provide: ErrorHandler,
+      useValue: Sentry.createErrorHandler(),
+    },
+    {
+      provide: Sentry.TraceService,
+      deps: [Router],
+    },
+    {
+      provide: APP_INITIALIZER,
+      useFactory: () => () => {},
+      deps: [Sentry.TraceService],
+      multi: true,
+    },
+  ],
   bootstrap: [AppComponent],
 })
 export class AppModule {}

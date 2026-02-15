@@ -60,6 +60,8 @@ const requiredEnvKeys = [
   // Feature flags are optional; they default to disabled when not set
 ];
 
+const optionalEnvKeys = ["D2AP_SENTRY_DSN"];
+
 const hasAllRequiredEnv = requiredEnvKeys.every((k) => {
   const val = process.env[k] ?? "";
   return val.length > 0;
@@ -101,6 +103,7 @@ const data = {
   offlineMode: false,
   // highlight_project_id: process.env["D2AP_HIGHLIGHT_MONITORING_ID"],
   open_replay_project_key: process.env["D2AP_OPEN_REPLAY_PROJECT_KEY"],
+  sentryDsn: process.env["D2AP_SENTRY_DSN"],
   featureFlags: {
     enableModslotLimitation: process.env["D2AP_FEATURE_ENABLE_MODSLOT_LIMITATION"] == "1",
     enableZeroWaste: process.env["D2AP_FEATURE_ENABLE_ZERO_WASTE"] == "1",
