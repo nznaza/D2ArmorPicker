@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Injectable } from "@angular/core";
+import { Injectable, OnDestroy } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
 import { BuildConfiguration } from "../data/buildConfiguration";
 import { BehaviorSubject, Observable } from "rxjs";
@@ -47,7 +47,7 @@ const lzDecompOptions = {
 @Injectable({
   providedIn: "root",
 })
-export class ConfigurationService {
+export class ConfigurationService implements OnDestroy {
   private __configuration: BuildConfiguration;
   private __LastConfiguration: BuildConfiguration;
 
@@ -62,6 +62,7 @@ export class ConfigurationService {
   public readonly storedConfigurations: Observable<StoredConfiguration[]>;
 
   constructor(private logger: NGXLogger) {
+    this.logger.debug("ConfigurationService", "constructor", "Initializing ConfigurationService");
     this.__configuration = this.loadCurrentConfiguration();
     this.__LastConfiguration = this.loadCurrentConfiguration();
 
@@ -70,6 +71,10 @@ export class ConfigurationService {
 
     this._storedConfigurations = new BehaviorSubject(this.listSavedConfigurations());
     this.storedConfigurations = this._storedConfigurations.asObservable();
+  }
+
+  ngOnDestroy(): void {
+    this.logger.debug("ConfigurationService", "ngOnDestroy", "Destroying ConfigurationService");
   }
 
   modifyConfiguration(cb: (configuration: BuildConfiguration) => void) {
@@ -183,7 +188,7 @@ export class ConfigurationService {
   }
 
   saveCurrentConfiguration(configuration: BuildConfiguration) {
-    this.logger.debug("Writing configuration", { configuration: configuration });
+    this.logger.debug("Writing configuration", JSON.stringify({ configuration: configuration }));
     // deep copy it
     this.__configuration = Object.assign(
       BuildConfiguration.buildEmptyConfiguration(),
@@ -198,7 +203,7 @@ export class ConfigurationService {
     );
 
     const compressed = lzutf8.compress(JSON.stringify(this.__configuration), lzCompOptions);
-    localStorage.setItem("currentConfig", compressed);
+    localStorage.setItem("user-currentConfig", compressed);
     this._configuration.next(Object.assign({}, this.__configuration));
   }
 
@@ -206,7 +211,7 @@ export class ConfigurationService {
     try {
       let config;
       try {
-        config = localStorage.getItem("currentConfig") || "{}";
+        config = localStorage.getItem("user-currentConfig") || "{}";
         if (config.substr(0, 1) != "{") config = lzutf8.decompress(config, lzDecompOptions);
       } catch (e) {
         config = {};
@@ -231,7 +236,7 @@ export class ConfigurationService {
   }
 
   getCurrentConfigBase64Compressed(): string {
-    let config = localStorage.getItem("currentConfig") || "{}";
+    let config = localStorage.getItem("user-currentConfig") || "{}";
     if (config.substr(0, 1) == "{") config = lzutf8.compress(config, { outputEncoding: "Base64" });
     return config;
   }

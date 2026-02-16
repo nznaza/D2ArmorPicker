@@ -17,7 +17,7 @@
 
 const writeFile = require("fs").writeFile;
 
-// RELEASE can be one of: 'PROD', 'BETA', 'CANARY'. Defaults to 'DEV' if missing/invalid
+// RELEASE can be one of: 'PROD', 'BETA', 'CANARY'. Defaults to 'CANARY' if missing/invalid
 const releaseRaw = (process.env["RELEASE"] || "").toUpperCase();
 const release = ["PROD", "BETA", "CANARY", "DEV"].includes(releaseRaw) ? releaseRaw : "DEV";
 
@@ -26,7 +26,7 @@ const is_beta = release === "BETA";
 const is_canary = release === "CANARY";
 const is_dev = release === "DEV";
 
-const version = "2.9.6";
+const version = "2.9.10";
 
 // Configure Angular `environment.ts` file path
 const targetPath = "./src/environments/environment.ts";
@@ -35,7 +35,9 @@ const copyPath = is_production
   ? "./src/environments/environment.prod.ts"
   : is_beta
     ? "./src/environments/environment.beta.ts"
-    : "./src/environments/environment.canary.ts";
+    : is_canary
+      ? "./src/environments/environment.canary.ts"
+      : "./src/environments/environment.dev.ts";
 // Load node modules
 
 const dotenvfile = is_production
@@ -51,12 +53,14 @@ const requiredEnvKeys = [
   "D2AP_BUNGIE_API_KEY",
   "D2AP_BUNGIE_CLIENT_ID",
   "D2AP_BUNGIE_CLIENT_SECRET",
-  "D2AP_HIGHLIGHT_MONITORING_ID",
+  "D2AP_OPEN_REPLAY_PROJECT_KEY",
   "D2AP_FEATURE_ENABLE_MODSLOT_LIMITATION",
   "D2AP_FEATURE_ENABLE_ZERO_WASTE",
   "D2AP_FEATURE_ENABLE_GUARDIAN_GAMES_FEATURES",
   // Feature flags are optional; they default to disabled when not set
 ];
+
+const optionalEnvKeys = ["D2AP_SENTRY_DSN"];
 
 const hasAllRequiredEnv = requiredEnvKeys.every((k) => {
   const val = process.env[k] ?? "";
@@ -97,7 +101,9 @@ const data = {
   client_secret: process.env["D2AP_BUNGIE_CLIENT_SECRET"],
   nodeEnv: process.env["NODE_ENV"],
   offlineMode: false,
-  highlight_project_id: process.env["D2AP_HIGHLIGHT_MONITORING_ID"],
+  // highlight_project_id: process.env["D2AP_HIGHLIGHT_MONITORING_ID"],
+  open_replay_project_key: process.env["D2AP_OPEN_REPLAY_PROJECT_KEY"],
+  sentryDsn: process.env["D2AP_SENTRY_DSN"],
   featureFlags: {
     enableModslotLimitation: process.env["D2AP_FEATURE_ENABLE_MODSLOT_LIMITATION"] == "1",
     enableZeroWaste: process.env["D2AP_FEATURE_ENABLE_ZERO_WASTE"] == "1",

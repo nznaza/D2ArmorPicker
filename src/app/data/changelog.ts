@@ -34,6 +34,105 @@ export const CHANGELOG_DATA: {
   entries: ChangelogEntry[];
 }[] = [
   {
+    version: "2.9.10",
+    date: "February 15, 2026",
+    clearManifest: true,
+    entries: [
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Add a privacy notice, this is due to the session replay added, to help with user experience and debugging. :)",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Add toggle for T5 tuning calculations.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Changed session replay solution.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Refactored the logic for validating the manifest and inventory to reduce calls and time validating with the BungieAPI.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Consolidated the armor initialization logic",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Refactored and consolidated the API token calls",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Moved calculator logic to its own service, to improve code structure and have better handling of when to recalculate",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Implemented a delay for loading the full changelog for iOS users, to help with crashes",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Improved logging for better debugging and error tracking",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Changed images to be lazy loaded, should help with freezes and other performance issues",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Changed logic for Manifest and Armor Initialization to avoid race conditions.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Changed logic to validate Manifest cache, to reduce calls and time validating with the BungieAPI.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Only retrigger armor calculation when vendor data is updated if the vendor data is going to be used",
+        issues: [],
+      },
+    ],
+  },
+  {
+    version: "2.9.7",
+    date: "August 27, 2025",
+    clearManifest: false,
+    entries: [
+      {
+        type: ChangelogEntryType.ADD,
+        text: "T5 Tuning has been implemented. This was a lot of work. A display of the used mods will follow in a later update.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Added advanced setting 'High Speed Mode' that will skip calculations in certain places. May result in missing results, though.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Clustering is updated and re-enabled.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Adapted the algorithm so that it allows negative stat values.",
+        issues: [],
+      },
+    ],
+  },
+  {
     version: "2.9.6",
     date: "July 31, 2025",
     clearManifest: true,

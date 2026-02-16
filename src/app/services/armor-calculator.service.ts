@@ -15,20 +15,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Injectable } from "@angular/core";
+import { Injectable, OnDestroy } from "@angular/core";
 import { NGXLogger } from "ngx-logger";
+import { Router } from "@angular/router";
 import { DatabaseService } from "./database.service";
-import { ArmorSystem, IManifestArmor } from "../data/types/IManifestArmor";
-import { ConfigurationService } from "./configuration.service";
-import { debounceTime } from "rxjs/operators";
-import { BehaviorSubject, Observable, ReplaySubject, Subject } from "rxjs";
+import { IManifestArmor } from "../data/types/IManifestArmor";
+import { BehaviorSubject, Observable, Subject } from "rxjs";
 import { BuildConfiguration } from "../data/buildConfiguration";
 import { STAT_MOD_VALUES, StatModifier } from "../data/enum/armor-stat";
 import { StatusProviderService } from "./status-provider.service";
-import { BungieApiService } from "./bungie-api.service";
-import { AuthService } from "./auth.service";
+import { ConfigurationService } from "./configuration.service";
+import { UserInformationService } from "./user-information.service";
 import { ArmorSlot } from "../data/enum/armor-slot";
-import { NavigationEnd, Router } from "@angular/router";
 import {
   ResultDefinition,
   ResultItem,
@@ -44,10 +42,11 @@ import { IPermutatorArmorSet } from "../data/types/IPermutatorArmorSet";
 import { getSkillTier, getWaste } from "./results-builder.worker";
 import { IPermutatorArmor } from "../data/types/IPermutatorArmor";
 import { FORCE_USE_NO_EXOTIC, MAXIMUM_MASTERWORK_LEVEL } from "../data/constants";
-import { VendorsService } from "./vendors.service";
 import { ModOptimizationStrategy } from "../data/enum/mod-optimization-strategy";
-import { isEqual as _isEqual } from "lodash";
-import { getDifferences } from "../data/commonFunctions";
+import { ArmorSystem } from "../data/types/IManifestArmor";
+import { combineLatest, Subscription } from "rxjs";
+import { debounceTime, distinctUntilChanged, catchError, startWith } from "rxjs/operators";
+import { of } from "rxjs";
 
 type info = {
   results: ResultDefinition[];
@@ -57,46 +56,19 @@ type info = {
   totalTime: number;
 };
 
-export type ClassExoticInfo = {
-  inInventory: boolean;
-  inCollection: boolean;
-  inVendor: boolean;
-  items: IManifestArmor[];
-  instances: IInventoryArmor[];
-};
-
 @Injectable({
   providedIn: "root",
 })
-export class InventoryService {
-  /**
-   * An Int32Array that holds all permutations for the currently selected class, before filters are applied.
-   * It consists of N items of length 11:
-   * helmetHash, gauntletHash, chestHash, legHash, mobility, resilience, recovery, discipline, intellect, strength, exoticHash
-   * @private
-   */
-  private allArmorResults: ResultDefinition[] = [];
-  private currentClass: DestinyClass = DestinyClass.Unknown;
-  private initialized: boolean = false;
-
-  private _manifest: ReplaySubject<null>;
-  public readonly manifest: Observable<null>;
-  private _inventory: ReplaySubject<null>;
-  public readonly inventory: Observable<null>;
-
+export class ArmorCalculatorService implements OnDestroy {
   private _armorResults: BehaviorSubject<info>;
   public readonly armorResults: Observable<info>;
-
   private _reachableTiers: BehaviorSubject<number[]>;
   public readonly reachableTiers: Observable<number[]>;
-
   private _calculationProgress: Subject<number> = new Subject<number>();
   public readonly calculationProgress: Observable<number> =
     this._calculationProgress.asObservable();
 
-  private _config: BuildConfiguration = BuildConfiguration.buildEmptyConfiguration();
   private workers: Worker[];
-
   private results: IPermutatorArmorSet[] = [];
   private totalPermutationCount = 0;
   private resultMaximumTiers: number[][] = [];
@@ -104,21 +76,23 @@ export class InventoryService {
   private inventoryArmorItems: IInventoryArmor[] = [];
   private permutatorArmorItems: IPermutatorArmor[] = [];
   private endResults: ResultDefinition[] = [];
+  private allArmorResults: ResultDefinition[] = [];
+
+  private calculationSubscription?: Subscription;
 
   constructor(
     private db: DatabaseService,
-    private config: ConfigurationService,
     private status: StatusProviderService,
-    private api: BungieApiService,
-    private auth: AuthService,
-    private router: Router,
-    private vendors: VendorsService,
-    private logger: NGXLogger
+    private userInfo: UserInformationService,
+    private config: ConfigurationService,
+    private logger: NGXLogger,
+    private router: Router
   ) {
-    this._inventory = new ReplaySubject(1);
-    this.inventory = this._inventory.asObservable();
-    this._manifest = new ReplaySubject(1);
-    this.manifest = this._manifest.asObservable();
+    this.logger.debug(
+      "ArmorCalculatorService",
+      "constructor",
+      "Initializing ArmorCalculatorService"
+    );
 
     this._armorResults = new BehaviorSubject({
       results: this.allArmorResults,
@@ -129,77 +103,142 @@ export class InventoryService {
     this.reachableTiers = this._reachableTiers.asObservable();
 
     this.workers = [];
-    let dataAlreadyFetched = false;
 
-    // TODO: This gives a race condition on some parts.
-    router.events.pipe(debounceTime(5)).subscribe(async (val) => {
-      if (this.auth.refreshTokenExpired || !(await this.auth.autoRegenerateTokens())) {
-        this.logger.warn(
-          "InventoryService",
-          "router.events",
-          "Refresh token expired, we should probably log the user out"
-        );
-        this.status.setAuthError();
-      }
-      if (!auth.isAuthenticated()) {
-        this.logger.warn(
-          "InventoryService",
-          "router.events",
-          "User is not authenticated, skipping router event handling"
-        );
-        return;
-      }
+    // Setup calculation triggers - use longer delay to ensure services are ready
+    setTimeout(() => this.setupCalculationTriggers(), 100);
 
-      if (val instanceof NavigationEnd) {
-        if (this._config == null) {
-          this._config = structuredClone(this.config.readonlyConfigurationSnapshot);
-        }
+    this.logger.debug(
+      "ArmorCalculatorService",
+      "constructor",
+      "Finished initializing ArmorCalculatorService"
+    );
+  }
 
-        this.killWorkers();
-        this.clearResults();
-        this.logger.debug(
-          "InventoryService",
-          "router.events",
-          "Trigger refreshAll due to router.events"
-        );
-        this.initialized = true;
-        await this.refreshAll(!dataAlreadyFetched);
-        dataAlreadyFetched = true;
-      }
-    });
+  ngOnDestroy() {
+    this.logger.debug("ArmorCalculatorService", "ngOnDestroy", "Destroying ArmorCalculatorService");
+    this.calculationSubscription?.unsubscribe();
+    this.killWorkers();
+    this.logger.debug(
+      "ArmorCalculatorService",
+      "ngOnDestroy",
+      "Finished destroying ArmorCalculatorService"
+    );
+  }
 
-    this.config.configuration.pipe(debounceTime(500)).subscribe(async (c) => {
-      if (this.auth.refreshTokenExpired || !(await this.auth.autoRegenerateTokens())) {
-        this.logger.warn(
-          "InventoryService",
-          "config.configuration",
-          "Refresh token expired, we should probably log the user out"
-        );
-        this.status.setAuthError();
-        //await this.auth.logout();
-        //return;
-      }
-      if (!auth.isAuthenticated()) {
-        this.logger.warn(
-          "InventoryService",
-          "config.configuration",
-          "User is not authenticated, skipping config change handling"
+  private setupCalculationTriggers() {
+    this.logger.debug(
+      "ArmorCalculatorService",
+      "setupCalculationTriggers",
+      "Setting up calculation triggers"
+    );
+
+    try {
+      // Verify services are available
+      if (!this.userInfo) {
+        this.logger.error(
+          "ArmorCalculatorService",
+          "setupCalculationTriggers",
+          "UserInformationService not available"
         );
         return;
       }
 
-      if (_isEqual(c, this._config)) return;
+      if (!this.config) {
+        this.logger.error(
+          "ArmorCalculatorService",
+          "setupCalculationTriggers",
+          "ConfigurationService not available"
+        );
+        return;
+      }
+
       this.logger.debug(
-        "InventoryService",
-        "config.configuration",
-        "Build configuration changed: " + JSON.stringify(getDifferences(this._config, c))
+        "ArmorCalculatorService",
+        "setupCalculationTriggers",
+        "Services available, setting up observables"
       );
 
-      this._config = structuredClone(c);
-      this.initialized = true;
-      await this.refreshAll(!dataAlreadyFetched);
-      dataAlreadyFetched = true;
-    });
+      // this.router.events
+      //   .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
+      //   .subscribe((event) => {
+      //     this.logger.debug(
+      //       "ArmorCalculatorService",
+      //       "setupCalculationTriggers",
+      //       "Route changed to: " + event.url
+      //     );
+      //   });
+
+      // Set up single subscription that persists throughout the service lifecycle
+      // Use startWith to ensure all observables have initial values for combineLatest
+      this.calculationSubscription = combineLatest([
+        this.userInfo.inventory.pipe(startWith(null)), // Start with null to ensure emission
+        this.config.configuration,
+      ])
+        .pipe(
+          debounceTime(100),
+          distinctUntilChanged(),
+          catchError((error) => {
+            this.logger.error(
+              "ArmorCalculatorService",
+              "setupCalculationTriggers",
+              "Error in observable stream: " + error
+            );
+            return of([null, null]); // Return empty values to continue the stream
+          })
+        )
+        .subscribe({
+          next: ([inventory, config]) => {
+            // Only perform calculations if we're on the main page
+            if (!this.isMainPage()) {
+              this.logger.debug(
+                "ArmorCalculatorService",
+                "setupCalculationTriggers",
+                "Not on main page, skipping calculation"
+              );
+              return;
+            }
+
+            if (!config) {
+              return;
+            }
+
+            const buildConfig = config as BuildConfiguration;
+            if (buildConfig.characterClass !== DestinyClass.Unknown) {
+              this.logger.info(
+                "ArmorCalculatorService",
+                "setupCalculationTriggers",
+                "Triggering calculation for class: " + buildConfig.characterClass
+              );
+              this.updateResults(buildConfig, buildConfig.characterClass);
+            }
+          },
+          error: (error) => {
+            this.logger.error(
+              "ArmorCalculatorService",
+              "setupCalculationTriggers",
+              "Subscription error: " + error
+            );
+          },
+        });
+
+      this.logger.debug(
+        "ArmorCalculatorService",
+        "setupCalculationTriggers",
+        "Calculation triggers set up successfully"
+      );
+    } catch (error) {
+      this.logger.error(
+        "ArmorCalculatorService",
+        "setupCalculationTriggers",
+        "Failed to setup triggers: " + error
+      );
+    }
+  }
+
+  private isMainPage(): boolean {
+    const currentUrl = this.router.url;
+    // Main page is either empty path or just '/'
+    return currentUrl === "/" || currentUrl === "" || currentUrl.split("?")[0] === "/";
   }
 
   private clearResults() {
@@ -213,77 +252,8 @@ export class InventoryService {
     });
   }
 
-  shouldCalculateResults(): boolean {
-    return this.router.url == "/";
-  }
-
-  private refreshing: boolean = false;
-
-  async refreshAll(forceArmor: boolean = false, forceManifest = false) {
-    if (this.refreshing) {
-      this.logger.warn(
-        "InventoryService",
-        "refreshAll",
-        "Refresh already in progress, skipping new refresh request"
-      );
-      return;
-    }
-    this.logger.debug("InventoryService", "refreshAll", "Refreshing inventory and manifest");
-    try {
-      this.refreshing = true;
-      if (this.auth.refreshTokenExpired && !(await this.auth.autoRegenerateTokens())) {
-        this.refreshing = false;
-        this.status.setAuthError(); // Better way to logout the user?
-        if (!this.status.getStatus().apiError) await this.auth.logout();
-        return;
-      }
-      let armorUpdated = false;
-      try {
-        let manifestUpdated = await this.updateManifest(forceManifest);
-        armorUpdated = await this.updateInventoryItems(manifestUpdated || forceArmor);
-        this.updateVendorsAsync();
-      } catch (e) {
-        this.logger.error("InventoryService", "refreshAll", "Error: " + e);
-      }
-
-      await this.triggerArmorUpdateAndUpdateResults(armorUpdated);
-    } finally {
-      this.refreshing = false;
-    }
-  }
-
-  private async triggerArmorUpdateAndUpdateResults(
-    triggerInventoryUpdate: boolean = false,
-    triggerResultsUpdate: boolean = true
-  ) {
-    // trigger armor update behaviour
-    if (triggerInventoryUpdate) this._inventory.next(null);
-
-    // Do not update results in Help and Cluster pages
-    if (this.shouldCalculateResults()) {
-      await this.updateResults();
-    }
-  }
-
-  private updateVendorsAsync() {
-    if (this.status.getStatus().updatingVendors) return;
-
-    if (!this.vendors.isVendorCacheValid()) {
-      this.status.modifyStatus((s) => (s.updatingVendors = true));
-      this.vendors
-        .updateVendorArmorItemsCache()
-        .then((success) => {
-          if (!success) return;
-          this.triggerArmorUpdateAndUpdateResults(success, this._config.includeVendorRolls);
-        })
-        .finally(() => {
-          this.status.modifyStatus((s) => (s.updatingVendors = false));
-        });
-    }
-  }
-
   private killWorkers() {
-    this.logger.debug("InventoryService", "killWorkers", "Terminating all workers");
+    this.logger.debug("ArmorCalculatorService", "killWorkers", "Terminating all workers");
     this.workers.forEach((w) => {
       w.terminate();
     });
@@ -315,7 +285,7 @@ export class InventoryService {
   }
 
   cancelCalculation() {
-    this.logger.info("InventoryService", "cancelCalculation", "Cancelling calculation");
+    this.logger.info("ArmorCalculatorService", "cancelCalculation", "Cancelling calculation");
     this.killWorkers();
     this.status.modifyStatus((s) => (s.calculatingResults = false));
     this.status.modifyStatus((s) => (s.cancelledCalculation = true));
@@ -324,13 +294,85 @@ export class InventoryService {
     this.clearResults();
   }
 
-  async updateResults(nthreads: number = 3) {
-    let config = this._config;
-    this.logger.debug(
-      "InventoryService",
-      "updateResults",
-      "Using config for Workers: " + JSON.stringify({ configuration: config })
+  estimateRequiredThreads(config: BuildConfiguration): number {
+    const helmets = this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotHelmet);
+    const gauntlets = this.permutatorArmorItems.filter(
+      (d) => d.slot == ArmorSlot.ArmorSlotGauntlet
     );
+    const chests = this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotChest);
+    const legs = this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotLegs);
+    const estimatedCalculations = this.estimateCombinationsToBeChecked(
+      helmets,
+      gauntlets,
+      chests,
+      legs
+    );
+
+    const largestArmorBucket = Math.max(
+      helmets.length,
+      gauntlets.length,
+      chests.length,
+      legs.length
+    );
+
+    let calculationMultiplier = 1.0;
+    // very expensive calculations reduce the amount per thread
+    if (
+      config.tryLimitWastedStats &&
+      config.modOptimizationStrategy != ModOptimizationStrategy.None
+    ) {
+      calculationMultiplier = 0.7;
+    }
+
+    let minimumCalculationPerThread = calculationMultiplier * 5e4;
+    let maximumCalculationPerThread = calculationMultiplier * 2.5e5;
+
+    const nthreads = Math.max(
+      3, // Enforce a minimum of 3 threads
+      Math.min(
+        Math.max(1, Math.ceil(estimatedCalculations / minimumCalculationPerThread)),
+        Math.ceil(estimatedCalculations / maximumCalculationPerThread),
+        Math.floor((navigator.hardwareConcurrency || 2) * 0.75), // limit it to the amount of cores, and only use 75%
+        20, // limit it to a maximum of 20 threads
+        largestArmorBucket // limit it to the largest armor bucket, as we will split the work by this value
+      )
+    );
+
+    return nthreads;
+  }
+
+  // Manual trigger method for testing
+  manualTriggerCalculation() {
+    this.logger.info(
+      "ArmorCalculatorService",
+      "manualTriggerCalculation",
+      "Manually triggering calculation"
+    );
+    const config = this.config.readonlyConfigurationSnapshot;
+    if (config && config.characterClass !== DestinyClass.Unknown) {
+      this.updateResults(config, config.characterClass);
+    } else {
+      this.logger.warn(
+        "ArmorCalculatorService",
+        "manualTriggerCalculation",
+        "No valid config available for manual trigger"
+      );
+    }
+  }
+
+  async updateResults(
+    config: BuildConfiguration,
+    currentClass: DestinyClass,
+    nthreads: number = 3
+  ) {
+    if (config.characterClass == DestinyClass.Unknown) {
+      this.logger.info(
+        "ArmorCalculatorService",
+        "updateResults",
+        "Character class is unknown, probably not loaded yet, skipping updateResults"
+      );
+      return;
+    }
     this.clearResults();
     this.killWorkers();
 
@@ -426,7 +468,7 @@ export class InventoryService {
         )
         // sunset armor
         .filter((item) => !config.ignoreSunsetArmor || !item.isSunset);
-      // this.logger.debug("InventoryService", "updateResults", items.map(d => "id:'"+d.itemInstanceId+"'").join(" or "))
+      // this.logger.debug("ArmorCalculatorService", "updateResults", items.map(d => "id:'"+d.itemInstanceId+"'").join(" or "))
 
       // Remove collection items if they are in inventory
       this.inventoryArmorItems = this.inventoryArmorItems.filter((item) => {
@@ -462,6 +504,7 @@ export class InventoryService {
           exoticPerkHash: armor.exoticPerkHash,
 
           gearSetHash: armor.gearSetHash ?? null,
+          tuningStat: armor.tuningStat,
 
           icon: armor.icon,
           watermarkIcon: armor.watermarkIcon,
@@ -472,8 +515,24 @@ export class InventoryService {
         };
       });
 
-      nthreads = this.estimateRequiredThreads();
-      this.logger.info("InventoryService", "updateResults", "Estimated threads: " + nthreads);
+      if (
+        this.permutatorArmorItems.length == 0 ||
+        this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotHelmet).length == 0 ||
+        this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotGauntlet).length ==
+          0 ||
+        this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotChest).length == 0 ||
+        this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotLegs).length == 0
+      ) {
+        this.logger.warn(
+          "ArmorCalculatorService",
+          "updateResults",
+          "Incomplete armor items available for permutation, skipping calculation"
+        );
+        this.status.modifyStatus((s) => (s.calculatingResults = false));
+        return;
+      }
+      nthreads = this.estimateRequiredThreads(config);
+      this.logger.info("ArmorCalculatorService", "updateResults", "Estimated threads: " + nthreads);
 
       // Values to calculate ETA
       const threadCalculationAmountArr = [...Array(nthreads).keys()].map(() => 0);
@@ -542,6 +601,8 @@ export class InventoryService {
               ) as IInventoryArmor[];
               let exotic = items.find((x) => x.isExotic);
               let v: ResultDefinition = {
+                loaded: false, // TODO check if loaded is even needed
+                tuningStats: armorSet.tuning,
                 exotic:
                   exotic == null
                     ? undefined
@@ -564,6 +625,7 @@ export class InventoryService {
                 waste: getWaste(armorSet.statsWithMods),
                 items: items.map(
                   (instance): ResultItem => ({
+                    tuningStat: instance.tuningStat,
                     energyLevel: instance.energyLevel,
                     hash: instance.hash,
                     itemInstanceId: instance.itemInstanceId,
@@ -593,7 +655,7 @@ export class InventoryService {
                   (y) => y.source === InventoryArmorSource.Collections
                 ),
                 usesVendorRoll: items.some((y) => y.source === InventoryArmorSource.Vendor),
-              } as ResultDefinition;
+              };
               this.endResults.push(v);
             }
 
@@ -614,7 +676,7 @@ export class InventoryService {
             });
             const updateResultsEnd = performance.now();
             this.logger.info(
-              "InventoryService",
+              "ArmorCalculatorService",
               "updateResults",
               `updateResults with WebWorker took ${updateResultsEnd - updateResultsStart} ms`
             );
@@ -627,8 +689,8 @@ export class InventoryService {
 
         this.workers[n].postMessage({
           type: "builderRequest",
-          currentClass: this.currentClass,
-          config: this._config,
+          currentClass: currentClass,
+          config: config,
           threadSplit: {
             count: nthreads,
             current: n,
@@ -639,156 +701,5 @@ export class InventoryService {
       }
     } finally {
     }
-  }
-
-  estimateRequiredThreads(): number {
-    const helmets = this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotHelmet);
-    const gauntlets = this.permutatorArmorItems.filter(
-      (d) => d.slot == ArmorSlot.ArmorSlotGauntlet
-    );
-    const chests = this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotChest);
-    const legs = this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotLegs);
-    const estimatedCalculations = this.estimateCombinationsToBeChecked(
-      helmets,
-      gauntlets,
-      chests,
-      legs
-    );
-
-    const largestArmorBucket = Math.max(
-      helmets.length,
-      gauntlets.length,
-      chests.length,
-      legs.length
-    );
-
-    let calculationMultiplier = 1.0;
-    // very expensive calculations reduce the amount per thread
-    if (
-      this._config.tryLimitWastedStats &&
-      this._config.modOptimizationStrategy != ModOptimizationStrategy.None
-    ) {
-      calculationMultiplier = 0.7;
-    }
-
-    let minimumCalculationPerThread = calculationMultiplier * 5e4;
-    let maximumCalculationPerThread = calculationMultiplier * 2.5e5;
-
-    const nthreads = Math.max(
-      3, // Enforce a minimum of 3 threads
-      Math.min(
-        Math.max(1, Math.ceil(estimatedCalculations / minimumCalculationPerThread)),
-        Math.ceil(estimatedCalculations / maximumCalculationPerThread),
-        Math.floor((navigator.hardwareConcurrency || 2) * 0.75), // limit it to the amount of cores, and only use 75%
-        20, // limit it to a maximum of 20 threads
-        largestArmorBucket // limit it to the largest armor bucket, as we will split the work by this value
-      )
-    );
-
-    return nthreads;
-  }
-
-  async getItemCountForClass(clazz: DestinyClass, slot?: ArmorSlot) {
-    let pieces = await this.db.inventoryArmor.where("clazz").equals(clazz).toArray();
-    if (!!slot) pieces = pieces.filter((i) => i.slot == slot);
-    //if (!this._config.includeVendorRolls) pieces = pieces.filter((i) => i.source != InventoryArmorSource.Vendor);
-    //if (!this._config.includeCollectionRolls) pieces = pieces.filter((i) => i.source != InventoryArmorSource.Collections);
-    pieces = pieces.filter((i) => i.source == InventoryArmorSource.Inventory);
-    return pieces.length;
-  }
-
-  async getExoticsForClass(clazz: DestinyClass, slot?: ArmorSlot): Promise<ClassExoticInfo[]> {
-    let inventory = await this.db.inventoryArmor.where("isExotic").equals(1).toArray();
-    inventory = inventory.filter(
-      (d) =>
-        d.clazz == clazz &&
-        (d.armorSystem == ArmorSystem.Armor2 || d.armorSystem == ArmorSystem.Armor3) &&
-        (!slot || d.slot == slot)
-    );
-
-    let exotics = await this.db.manifestArmor.where("isExotic").equals(1).toArray();
-    exotics = exotics.filter(
-      (d) =>
-        d.clazz == clazz &&
-        (d.armorSystem == ArmorSystem.Armor2 || d.armorSystem == ArmorSystem.Armor3) &&
-        (!slot || d.slot == slot)
-    );
-
-    return exotics
-      .map((ex) => {
-        const instances = inventory.filter((i) => i.hash == ex.hash);
-        return {
-          items: [ex],
-          instances: instances,
-          inCollection:
-            instances.find((i) => i.source === InventoryArmorSource.Collections) !== undefined,
-          inInventory:
-            instances.find((i) => i.source === InventoryArmorSource.Inventory) !== undefined,
-          inVendor: instances.find((i) => i.source === InventoryArmorSource.Vendor) !== undefined,
-        };
-      })
-      .reduce((acc: ClassExoticInfo[], curr: ClassExoticInfo) => {
-        const existing = acc.find((e) => e.items[0].name === curr.items[0].name);
-        if (existing) {
-          existing.items.push(curr.items[0]);
-          existing.instances.push(...curr.instances);
-          existing.inCollection = existing.inCollection || curr.inCollection;
-          existing.inInventory = existing.inInventory || curr.inInventory;
-          existing.inVendor = existing.inVendor || curr.inVendor;
-        } else {
-          acc.push({ ...curr, items: [curr.items[0]] });
-        }
-        return acc;
-      }, [] as ClassExoticInfo[])
-      .sort((x, y) => x.items[0].name.localeCompare(y.items[0].name));
-  }
-
-  async updateManifest(force: boolean = false): Promise<boolean> {
-    if (this.status.getStatus().updatingManifest) {
-      this.logger.error(
-        "InventoryService",
-        "updateManifest",
-        "Already updating the manifest - abort"
-      );
-      return false;
-    }
-    this.status.modifyStatus((s) => (s.updatingManifest = true));
-    let r = await this.api.updateManifest(force).finally(() => {
-      this.status.modifyStatus((s) => (s.updatingManifest = false));
-    });
-    if (!!r) this._manifest.next(null);
-    return !!r;
-  }
-
-  async updateInventoryItems(force: boolean = false, errorLoop = 0): Promise<boolean> {
-    this.status.modifyStatus((s) => (s.updatingInventory = true));
-
-    try {
-      let r = await this.api.updateArmorItems(force).finally(() => {
-        this.status.modifyStatus((s) => (s.updatingInventory = false));
-      });
-      return !!r;
-    } catch (e) {
-      // After three tries, call it a day.
-      if (errorLoop > 3) {
-        alert(
-          "You encountered a strange error with the inventory update. Please log out and log in again. If that does not fix it, please message Mijago."
-        );
-        return false;
-      }
-
-      this.status.modifyStatus((s) => (s.updatingInventory = false));
-      this.logger.error("InventoryService", "updateInventoryItems", "Error: " + e);
-
-      await this.status.setApiError();
-
-      //await this.updateManifest(true);
-      //return await this.updateInventoryItems(true, errorLoop++);
-      return false;
-    }
-  }
-
-  get isInitialized(): boolean {
-    return this.initialized;
   }
 }
