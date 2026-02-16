@@ -45,6 +45,21 @@ export const CHANGELOG_DATA: {
       },
       {
         type: ChangelogEntryType.ADD,
+        text: "T5 Tuning has been implemented. This was a lot of work. A display of the used mods will follow in a later update.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Added advanced setting 'High Speed Mode' that will skip calculations in certain places. May result in missing results, though.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Clustering is updated and re-enabled.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.ADD,
         text: "Add toggle for T5 tuning calculations.",
         issues: [],
       },
@@ -101,28 +116,6 @@ export const CHANGELOG_DATA: {
       {
         type: ChangelogEntryType.MODIFIED,
         text: "Only retrigger armor calculation when vendor data is updated if the vendor data is going to be used",
-        issues: [],
-      },
-    ],
-  },
-  {
-    version: "2.9.7",
-    date: "August 27, 2025",
-    clearManifest: false,
-    entries: [
-      {
-        type: ChangelogEntryType.ADD,
-        text: "T5 Tuning has been implemented. This was a lot of work. A display of the used mods will follow in a later update.",
-        issues: [],
-      },
-      {
-        type: ChangelogEntryType.ADD,
-        text: "Added advanced setting 'High Speed Mode' that will skip calculations in certain places. May result in missing results, though.",
-        issues: [],
-      },
-      {
-        type: ChangelogEntryType.MODIFIED,
-        text: "Clustering is updated and re-enabled.",
         issues: [],
       },
       {
