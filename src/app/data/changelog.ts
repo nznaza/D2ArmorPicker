@@ -35,12 +35,22 @@ export const CHANGELOG_DATA: {
 }[] = [
   {
     version: "2.9.10",
-    date: "February 12, 2026",
+    date: "February 15, 2026",
     clearManifest: true,
     entries: [
       {
         type: ChangelogEntryType.ADD,
         text: "Add a privacy notice, this is due to the session replay added, to help with user experience and debugging. :)",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Add toggle for T5 tuning calculations.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Changed session replay solution.",
         issues: [],
       },
       {
@@ -78,13 +88,6 @@ export const CHANGELOG_DATA: {
         text: "Changed images to be lazy loaded, should help with freezes and other performance issues",
         issues: [],
       },
-    ],
-  },
-  {
-    version: "2.9.9",
-    date: "February 09, 2026",
-    clearManifest: false,
-    entries: [
       {
         type: ChangelogEntryType.MODIFIED,
         text: "Changed logic for Manifest and Armor Initialization to avoid race conditions.",
@@ -98,23 +101,6 @@ export const CHANGELOG_DATA: {
       {
         type: ChangelogEntryType.MODIFIED,
         text: "Only retrigger armor calculation when vendor data is updated if the vendor data is going to be used",
-        issues: [],
-      },
-      {
-        type: ChangelogEntryType.MODIFIED,
-        text: "Changed session replay solution.",
-        issues: [],
-      },
-    ],
-  },
-  {
-    version: "2.9.8",
-    date: "January 25, 2026",
-    clearManifest: false,
-    entries: [
-      {
-        type: ChangelogEntryType.ADD,
-        text: "Add toggle for T5 tuning calculations.",
         issues: [],
       },
     ],
