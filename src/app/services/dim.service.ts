@@ -18,7 +18,7 @@
  *  bhollis (adaption of the DIM links)
  */
 
-import { Injectable } from "@angular/core";
+import { Injectable, OnDestroy } from "@angular/core";
 import { ConfigurationService } from "./configuration.service";
 import {
   ArmorStat,
@@ -37,14 +37,24 @@ import {
   LoadoutParameters,
 } from "@destinyitemmanager/dim-api-types";
 import { DestinyClass } from "bungie-api-ts/destiny2";
+import { NGXLogger } from "ngx-logger";
 
 @Injectable({
   providedIn: "root",
 })
-export class DimService {
+export class DimService implements OnDestroy {
   private armorStatIds = ARMORSTAT_ORDER;
 
-  constructor(private configService: ConfigurationService) {}
+  constructor(
+    private configService: ConfigurationService,
+    private logger: NGXLogger
+  ) {
+    this.logger.debug("DimService", "constructor", "Initializing DimService");
+  }
+
+  ngOnDestroy(): void {
+    this.logger.debug("DimService", "ngOnDestroy", "Destroying DimService");
+  }
 
   /**
    * Generate a DIM search query for the given result

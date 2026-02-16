@@ -145,6 +145,16 @@ export class AdvancedSettingsComponent implements OnInit, OnDestroy {
         ],
         "Performance Optimization": [
           {
+            name: "Use Tier 5 tuning for armor pieces.",
+            type: "boolean",
+            onToggle: (v: boolean) =>
+              this.config.modifyConfiguration((c) => (c.calculateTierFiveTuning = v)),
+            value: c.calculateTierFiveTuning,
+            disabled: false,
+            impactsResultCount: true,
+            help: "Calculate the Tier 5 tuning for armor pieces. This may lead to longer calculation times.",
+          },
+          {
             name: "Use security features to prevent app crashes (resets on reload).",
             type: "boolean",
             onToggle: (v: boolean) =>

@@ -17,8 +17,9 @@
 
 import { Component } from "@angular/core";
 import { DatabaseService } from "../../../../services/database.service";
-import { InventoryService } from "../../../../services/inventory.service";
+import { UserInformationService } from "src/app/services/user-information.service";
 import { AuthService } from "../../../../services/auth.service";
+import { Router } from "@angular/router";
 
 @Component({
   selector: "app-account-config-page",
@@ -27,8 +28,9 @@ import { AuthService } from "../../../../services/auth.service";
 })
 export class AccountConfigPageComponent {
   constructor(
+    private router: Router,
     private db: DatabaseService,
-    public inv: InventoryService,
+    public inv: UserInformationService,
     private loginService: AuthService
   ) {}
 
@@ -56,12 +58,13 @@ export class AccountConfigPageComponent {
 
   async resetDatabase() {
     await this.db.resetDatabase();
-    await this.inv.refreshAll(true, true);
+    await this.inv.refreshManifestAndInventory(true, true);
   }
 
   async resetEverything() {
     localStorage.clear();
     await this.db.resetDatabase();
     await this.loginService.logout();
+    this.router.navigate(["/login"]);
   }
 }

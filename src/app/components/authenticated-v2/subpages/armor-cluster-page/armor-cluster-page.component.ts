@@ -19,7 +19,7 @@ import { AfterViewInit, Component } from "@angular/core";
 import { IInventoryArmor, InventoryArmorSource } from "../../../../data/types/IInventoryArmor";
 import { DatabaseService } from "../../../../services/database.service";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { InventoryService } from "../../../../services/inventory.service";
+import { UserInformationService } from "src/app/services/user-information.service";
 import { debounceTime } from "rxjs/operators";
 import { ArmorSlot } from "../../../../data/enum/armor-slot";
 import { ArmorSystem } from "src/app/data/types/IManifestArmor";
@@ -46,7 +46,7 @@ export class ArmorClusterPageComponent implements AfterViewInit {
   constructor(
     private db: DatabaseService,
     private _snackBar: MatSnackBar,
-    private inventory: InventoryService
+    private inventory: UserInformationService
   ) {}
 
   // No longer needed: clusterCount is updated via ngModel on the slider thumb
