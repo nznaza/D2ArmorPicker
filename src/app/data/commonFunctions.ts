@@ -31,3 +31,31 @@ export function getDifferences<T extends object>(
 
   return { changes: differences };
 }
+
+export function getHumanReadableDifferences<T extends object>(object1: T, object2: T): string {
+  const diff = getDifferences(object1, object2);
+  const changes = diff.changes;
+
+  if (Object.keys(changes).length === 0) {
+    return "No changes";
+  }
+
+  const changeStrings = Object.entries(changes)
+    .map(([key, change]) => {
+      const c = change as { from: string; to: string } | undefined;
+      if (c) {
+        // Remove quotes from JSON stringified values for cleaner display
+        const from = c.from.replace(/^"(.*)"$/, "$1");
+        const to = c.to.replace(/^"(.*)"$/, "$1");
+        return `${key}: ${from} -> ${to}`;
+      }
+      return "";
+    })
+    .filter((str) => str.length > 0);
+
+  if (changeStrings.length === 1) {
+    return changeStrings[0];
+  }
+
+  return changeStrings.join("\n");
+}

@@ -54,7 +54,7 @@ type t5Improvement = {
 function isT5WithTuning(i: IPermutatorArmor): boolean {
   return (
     i.armorSystem == ArmorSystem.Armor3 &&
-    i.tier == 5 &&
+    i.tier >= 5 &&
     i.archetypeStats &&
     i.tuningStat !== undefined
   );
@@ -89,9 +89,11 @@ function sortClassItemsForGaps(
     if (a.perk == ArmorPerkOrSlot.SlotArtifice) scoreA += 10;
     if (b.perk == ArmorPerkOrSlot.SlotArtifice) scoreB += 10;
 
-    // Tuning potential bonus
-    if (isT5WithTuning(a)) scoreA += 8;
-    if (isT5WithTuning(b)) scoreB += 8;
+    if (config.calculateTierFiveTuning) {
+      // Tuning potential bonus
+      if (isT5WithTuning(a)) scoreA += 8;
+      if (isT5WithTuning(b)) scoreB += 8;
+    }
 
     // Masterwork potential bonus
     const aMasterworkBonus =
@@ -310,6 +312,7 @@ addEventListener("message", async ({ data }) => {
   }
 
   const startTime = Date.now();
+  console.log(`Thread ${threadSplit.current} started with ${items.length} items to process.`);
   console.time(`Total run thread#${threadSplit.current}`);
   // toggle feature flags
   config.onlyShowResultsWithNoWastedStats =
@@ -826,27 +829,29 @@ export function handlePermutation(
     }
   }
 
-  // precompute base T5 improvements and per-stat tuning maxima
   const baseT5Improvements: t5Improvement[] = [];
-  for (const it of items) {
-    if (isT5WithTuning(it)) baseT5Improvements.push(mapItemToTuning(it));
-  }
-
   const preTuningMax: number[] = [0, 0, 0, 0, 0, 0];
-  for (const t5 of baseT5Improvements) {
-    const mask = [false, false, false, false, false, false];
-    for (const s of t5.archetypeStats) if (s >= 0 && s < 6) mask[s] = true;
-    const balanced: number[] = [0, 0, 0, 0, 0, 0];
-    for (let i = 0; i < 6; i++) balanced[i] = mask[i] ? 0 : 1;
-    for (let n = 0; n < 6; n++) {
-      if (n === t5.tuningStat) continue;
-      const p: number[] = [0, 0, 0, 0, 0, 0];
-      p[t5.tuningStat] = 5;
-      p[n] = -5;
-      for (let i = 0; i < 6; i++) preTuningMax[i] += Math.max(balanced[i], p[i]);
+
+  if (config.calculateTierFiveTuning) {
+    // precompute base T5 improvements and per-stat tuning maxima
+    for (const it of items) {
+      if (isT5WithTuning(it)) baseT5Improvements.push(mapItemToTuning(it));
+    }
+
+    for (const t5 of baseT5Improvements) {
+      const mask = [false, false, false, false, false, false];
+      for (const s of t5.archetypeStats) if (s >= 0 && s < 6) mask[s] = true;
+      const balanced: number[] = [0, 0, 0, 0, 0, 0];
+      for (let i = 0; i < 6; i++) balanced[i] = mask[i] ? 0 : 1;
+      for (let n = 0; n < 6; n++) {
+        if (n === t5.tuningStat) continue;
+        const p: number[] = [0, 0, 0, 0, 0, 0];
+        p[t5.tuningStat] = 5;
+        p[n] = -5;
+        for (let i = 0; i < 6; i++) preTuningMax[i] += Math.max(balanced[i], p[i]);
+      }
     }
   }
-
   // sort class items once
   const sortedClassItems = sortClassItemsForGaps(classItems, config, distances, stats);
 
@@ -912,11 +917,15 @@ export function handlePermutation(
     const tmpArtificeCount =
       availableArtificeCount + (classItem.perk == ArmorPerkOrSlot.SlotArtifice ? 1 : 0);
 
-    // candidate T5 from class item if any
-    const classItemT5 = isT5WithTuning(classItem) ? mapItemToTuning(classItem) : undefined;
+    let classItemT5: t5Improvement | undefined = undefined;
+    let tuningMax: number[] = preTuningMax.slice();
+    if (config.calculateTierFiveTuning) {
+      // candidate T5 from class item if any
+      classItemT5 = isT5WithTuning(classItem) ? mapItemToTuning(classItem) : undefined;
 
-    // tuning maxima without full generate
-    const tuningMax = calcTuningMaxWithExtra(classItemT5);
+      // tuning maxima without full generate
+      tuningMax = calcTuningMaxWithExtra(classItemT5);
+    }
 
     // newDistances
     for (let n: ArmorStat = 0; n < 6; n++)
@@ -967,6 +976,8 @@ export function handlePermutation(
       else continue classItemLoop;
     }
 
+    let availableTunings: Tuning[] = [[0, 0, 0, 0, 0, 0]];
+
     // per-stat quick feasibility check
     let passesPerStat = true;
     for (let stat = 0; stat < 6; stat++) {
@@ -983,11 +994,12 @@ export function handlePermutation(
       if (config.earlyAbortClassItems && checkedClassItems >= 3) break classItemLoop;
       else continue classItemLoop;
     }
-
-    // lazy: only generate full tunings when cheaper checks pass
-    const tmpPossibleT5Improvements: t5Improvement[] = baseT5Improvements.slice();
-    if (classItemT5) tmpPossibleT5Improvements.push(classItemT5);
-    const availableTunings: Tuning[] = generate_tunings(tmpPossibleT5Improvements);
+    if (config.calculateTierFiveTuning) {
+      // lazy: only generate full tunings when cheaper checks pass
+      const tmpPossibleT5Improvements: t5Improvement[] = baseT5Improvements.slice();
+      if (classItemT5) tmpPossibleT5Improvements.push(classItemT5);
+      availableTunings = generate_tunings(tmpPossibleT5Improvements);
+    }
 
     // heavy work: mod precalc
     let result: StatModifierPrecalc | null;

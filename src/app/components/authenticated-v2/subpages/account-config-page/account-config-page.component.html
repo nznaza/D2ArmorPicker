@@ -41,18 +41,14 @@
 
     <mat-card-content>
       If the team asks you to send some specific data, you can find it here:<br />
-      <a
-        (click)="downloadArmorInformation()"
-        class="btn-download"
-        color="primary"
-        mat-raised-button>
+      <a (click)="downloadArmorInformation()" class="btn-download" color="primary" mat-flat-button>
         Download armor information (d2ap_armor.json)
       </a>
       <a
         (click)="downloadManifestInformation()"
         class="btn-download"
         color="primary"
-        mat-raised-button>
+        mat-flat-button>
         Download manifest information (d2ap_manifest.json)
       </a>
       <br />
@@ -67,6 +63,28 @@
       <a (click)="resetEverything()" class="btn-download" color="warn" mat-raised-button>
         Reset the whole application
       </a>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card appearance="outlined">
+    <mat-card-header>
+      <mat-card-title> Privacy & Legal </mat-card-title>
+      <mat-card-subtitle> Information about data handling and privacy. </mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      Learn about how we handle your data and what information we collect:<br />
+      <a
+        class="btn-download"
+        color="primary"
+        mat-raised-button
+        routerLink="/privacy-policy"
+        target="_blank">
+        View Privacy Policy
+      </a>
+      <br /><br />
+      This application uses the Bungie.net API. Bungie's privacy policy also applies to data
+      accessed through their API.
     </mat-card-content>
   </mat-card>
 

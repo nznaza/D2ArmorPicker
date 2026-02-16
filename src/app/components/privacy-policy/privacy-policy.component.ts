@@ -15,16 +15,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AfterViewInit, Component } from "@angular/core";
-import { ChangelogService } from "../../../../services/changelog.service";
+import { Component } from "@angular/core";
 
 @Component({
-  selector: "app-changelog-dialog-controller",
-  templateUrl: "./changelog-dialog-controller.component.html",
+  selector: "app-privacy-policy",
+  templateUrl: "./privacy-policy.component.html",
+  styleUrls: ["./privacy-policy.component.scss"],
 })
-export class ChangelogDialogControllerComponent implements AfterViewInit {
-  constructor(public changelog: ChangelogService) {}
-  ngAfterViewInit(): void {
-    if (this.changelog.mustShowChangelog) this.changelog.openChangelogDialog();
-  }
+export class PrivacyPolicyComponent {
+  constructor() {}
 }

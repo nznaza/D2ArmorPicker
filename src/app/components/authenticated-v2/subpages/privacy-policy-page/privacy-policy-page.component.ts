@@ -15,12 +15,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#container {
-  width: fit-content;
-  margin-right: 3px;
-  white-space: nowrap;
-  margin: auto;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+import { Component } from "@angular/core";
+
+@Component({
+  selector: "app-privacy-policy-page",
+  templateUrl: "./privacy-policy-page.component.html",
+  styleUrls: ["./privacy-policy-page.component.scss"],
+})
+export class PrivacyPolicyPageComponent {
+  constructor() {}
 }
