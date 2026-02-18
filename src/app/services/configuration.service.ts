@@ -48,6 +48,9 @@ const lzDecompOptions = {
   providedIn: "root",
 })
 export class ConfigurationService implements OnDestroy {
+  get currentConfiguration() {
+    return this.__configuration;
+  }
   private __configuration: BuildConfiguration;
   private __LastConfiguration: BuildConfiguration;
 
@@ -217,13 +220,13 @@ export class ConfigurationService implements OnDestroy {
         config = {};
       }
 
-      var dummy: StoredConfiguration = {
+      var storedConfiguration: StoredConfiguration = {
         name: "dummy",
         version: "1",
         configuration: JSON.parse(config),
       };
-      this.checkAndFixOldSavedConfigurations(dummy);
-      return dummy.configuration;
+      this.checkAndFixOldSavedConfigurations(storedConfiguration);
+      return storedConfiguration.configuration;
     } catch (e) {
       this.logger.error(
         "ConfigurationService",

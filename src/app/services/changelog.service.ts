@@ -42,6 +42,17 @@ export class ChangelogService implements OnDestroy {
     return localStorage.setItem("d2ap-changelogVersion-lastRead", this.changelogData[0].version);
   }
 
+  setlastWipeManifestVersion() {
+    return localStorage.setItem(
+      "d2ap-changelogVersion-lastWipeManifest",
+      this.changelogData[0].version
+    );
+  }
+
+  get lastWipeManifestVersion() {
+    return localStorage.getItem("d2ap-changelogVersion-lastWipeManifest");
+  }
+
   get lastViewedChangelog() {
     return localStorage.getItem("d2ap-changelogVersion-lastRead");
   }
@@ -50,10 +61,10 @@ export class ChangelogService implements OnDestroy {
     return this.changelogData[0].version !== this.lastViewedChangelog;
   }
 
-  get wipeManifest() {
+  get shouldWipeManifest() {
     return (
-      this.changelogData[0].version !== this.lastViewedChangelog &&
-      (this.changelogData[0].clearManifest ?? false)
+      (this.changelogData[0].clearManifest ?? false) &&
+      this.changelogData[0].version !== this.lastWipeManifestVersion
     );
   }
 

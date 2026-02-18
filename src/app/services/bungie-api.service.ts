@@ -377,7 +377,7 @@ export class BungieApiService implements OnDestroy {
     const currentItemHashesKey = Array.from(idSet).sort().join(",");
     const cachedItemHashesKey = localStorage.getItem("user-armorItems") || "";
 
-    if (!force && currentItemHashesKey === cachedItemHashesKey && currentItemHashesKey.length > 0) {
+    if (!force && currentItemHashesKey == cachedItemHashesKey && currentItemHashesKey.length > 0) {
       this.logger.info(
         "BungieApiService",
         "updateInventory",
@@ -394,6 +394,12 @@ export class BungieApiService implements OnDestroy {
         "No changes in inventory detected, skipping processing"
       );
       return null;
+    } else {
+      this.logger.info(
+        "BungieApiService",
+        "updateInventory",
+        "Changes detected in inventory, processing armor items"
+      );
     }
 
     // Do not search directly in the DB, as it is VERY slow.
@@ -895,7 +901,7 @@ export class BungieApiService implements OnDestroy {
 
   isManifestCacheValid(manifestCache: { updatedAt: number; version: string }) {
     if (environment.offlineMode) {
-      this.logger.info(
+      this.logger.debug(
         "BungieApiService",
         "isManifestCacheValid",
         "marking manifest cache as valid due to offline mode"
@@ -903,7 +909,7 @@ export class BungieApiService implements OnDestroy {
       return true;
     }
     if (Date.now() - manifestCache.updatedAt < 1000 * 3600 * 24) {
-      this.logger.info(
+      this.logger.debug(
         "BungieApiService",
         "isManifestCacheValid",
         "marking manifest cache as valid, Manifest is less than a day old"
@@ -915,7 +921,7 @@ export class BungieApiService implements OnDestroy {
 
   isCharacterCacheValid(characterCache: { updatedAt: number; characters: any[] }) {
     if (environment.offlineMode) {
-      this.logger.info(
+      this.logger.debug(
         "BungieApiService",
         "isCharacterCacheValid",
         "marking character cache as valid due to offline mode"
@@ -925,7 +931,7 @@ export class BungieApiService implements OnDestroy {
 
     // Check if we have cached characters data
     if (!characterCache || !characterCache.characters || characterCache.characters.length === 0) {
-      this.logger.info(
+      this.logger.debug(
         "BungieApiService",
         "isCharacterCacheValid",
         "no character data in cache, marking as invalid"
@@ -935,7 +941,7 @@ export class BungieApiService implements OnDestroy {
 
     // Character data is considered valid for 24 hours (same as manifest cache)
     if (Date.now() - characterCache.updatedAt < 1000 * 3600 * 24) {
-      this.logger.info(
+      this.logger.debug(
         "BungieApiService",
         "isCharacterCacheValid",
         "marking character cache as valid, Character data is less than a day old"

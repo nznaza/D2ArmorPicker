@@ -115,10 +115,6 @@ export class ResultsTableViewComponent implements OnInit, AfterViewInit, OnChang
     if (this.sort) {
       this.tableDataSource.sort = this.sort;
     }
-    // Update table data if results are already available
-    if (this.results && this.results.length > 0) {
-      this.updateTableData();
-    }
   }
 
   ngOnChanges(changes: SimpleChanges): void {

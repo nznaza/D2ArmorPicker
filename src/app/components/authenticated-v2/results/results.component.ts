@@ -25,7 +25,7 @@ import { DestinyClass } from "bungie-api-ts/destiny2";
 import { ArmorSlot } from "../../../data/enum/armor-slot";
 import { BuildConfiguration } from "../../../data/buildConfiguration";
 import { Subject } from "rxjs";
-import { takeUntil } from "rxjs/operators";
+import { takeUntil, skip } from "rxjs/operators";
 import { InventoryArmorSource } from "src/app/data/types/IInventoryArmor";
 import { MAXIMUM_STAT_MOD_AMOUNT } from "src/app/data/constants";
 import { Tuning } from "src/app/data/types/IPermutatorArmorSet";
@@ -173,7 +173,7 @@ export class ResultsComponent implements OnInit, OnDestroy {
       });
 
     this.armorCalculator.armorResults
-      .pipe(takeUntil(this.ngUnsubscribe))
+      .pipe(takeUntil(this.ngUnsubscribe), skip(1))
       .subscribe(async (value) => {
         if (value.results.length > 0 && this.initializing) {
           this.initializing = false;
@@ -183,27 +183,11 @@ export class ResultsComponent implements OnInit, OnDestroy {
         this.totalTime = value.totalTime;
         this.totalResults = value.totalResults;
         this.parsedResults = this._results.length;
-
-        this.status.modifyStatus((s) => (s.updatingResultsTable = true));
-        await this.updateData();
-        this.status.modifyStatus((s) => (s.updatingResultsTable = false));
       });
   }
 
   cancelCalculation() {
     this.armorCalculator.cancelCalculation();
-  }
-
-  async updateData() {
-    this.logger.info(
-      "ResultsComponent",
-      "updateData",
-      "Table total results: " + this._results.length
-    );
-    const start = performance.now();
-
-    const end = performance.now();
-    this.logger.info("ResultsComponent", "updateData", `Update Data took ${end - start} ms`);
   }
 
   private ngUnsubscribe = new Subject();

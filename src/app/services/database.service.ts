@@ -35,12 +35,13 @@ export class DatabaseService extends D2APDatabase implements OnDestroy {
     super();
     this.logger.debug("DatabaseService", "constructor", "Initializing DatabaseService");
 
-    if (this.changelog.wipeManifest) {
+    if (this.changelog.shouldWipeManifest) {
       this.logger.info(
         "DatabaseService",
         "constructor",
         "Wiping manifest due to changelog request"
       );
+      this.changelog.setlastWipeManifestVersion();
       this.clearManifestInfo();
     }
 

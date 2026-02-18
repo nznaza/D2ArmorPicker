@@ -161,17 +161,6 @@ export class DesiredExoticSelectionComponent implements OnInit, OnDestroy {
         value: perkHash as ArmorPerkOrSlot,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
-
-    this.logger.debug(
-      "DesiredExoticSelectionComponent",
-      "updateAvailableExoticClassItemPerks",
-      "Available first perks: " + JSON.stringify(this.availableFirstPerks)
-    );
-    this.logger.debug(
-      "DesiredExoticSelectionComponent",
-      "updateAvailableExoticClassItemPerks",
-      "Available second perks: " + JSON.stringify(this.availableSecondPerks)
-    );
   }
 
   hasSelectedExoticClassItem(): boolean {
