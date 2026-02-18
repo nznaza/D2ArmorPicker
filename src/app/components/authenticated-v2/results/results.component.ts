@@ -16,7 +16,7 @@
  */
 
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { NGXLogger } from "ngx-logger";
+import { LoggingProxyService } from "../../../services/logging-proxy.service";
 import { ArmorCalculatorService } from "../../../services/armor-calculator.service";
 import { ConfigurationService } from "../../../services/configuration.service";
 import { ArmorPerkOrSlot, ArmorStat, StatModifier } from "../../../data/enum/armor-stat";
@@ -125,7 +125,7 @@ export class ResultsComponent implements OnInit, OnDestroy {
     private armorCalculator: ArmorCalculatorService,
     public configService: ConfigurationService,
     public status: StatusProviderService,
-    private logger: NGXLogger
+    private logger: LoggingProxyService
   ) {
     this.logger.debug("ResultsComponent", "constructor", "Component initialized");
     // Load saved view mode from localStorage

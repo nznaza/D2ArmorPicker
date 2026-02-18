@@ -18,7 +18,7 @@
 import { AfterViewInit, Component, OnInit } from "@angular/core";
 import { environment } from "../environments/environment";
 import { UserInformationService } from "src/app/services/user-information.service";
-import { NGXLogger } from "ngx-logger";
+import { LoggingProxyService } from "./services/logging-proxy.service";
 import { AuthService } from "./services/auth.service";
 
 @Component({
@@ -33,7 +33,7 @@ export class AppComponent implements AfterViewInit, OnInit {
 
   constructor(
     private userInformationService: UserInformationService,
-    private logger: NGXLogger,
+    private logger: LoggingProxyService,
     public authService: AuthService
   ) {}
 

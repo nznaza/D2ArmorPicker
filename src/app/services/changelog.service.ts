@@ -19,7 +19,7 @@ import { Injectable, OnDestroy } from "@angular/core";
 import { CHANGELOG_DATA } from "../data/changelog";
 import { ChangelogDialogComponent } from "../components/authenticated-v2/components/changelog-dialog/changelog-dialog.component";
 import { MatDialog } from "@angular/material/dialog";
-import { NGXLogger } from "ngx-logger";
+import { LoggingProxyService } from "./logging-proxy.service";
 
 @Injectable({
   providedIn: "root",
@@ -29,7 +29,7 @@ export class ChangelogService implements OnDestroy {
 
   constructor(
     public dialog: MatDialog,
-    private logger: NGXLogger
+    private logger: LoggingProxyService
   ) {
     this.logger.debug("ChangelogService", "constructor", "Initializing ChangelogService");
   }

@@ -16,7 +16,7 @@
  */
 
 import { Component, OnInit, AfterViewInit, ChangeDetectionStrategy } from "@angular/core";
-import { NGXLogger } from "ngx-logger";
+import { LoggingProxyService } from "../../../services/logging-proxy.service";
 import { StatusProviderService } from "../../../services/status-provider.service";
 import { Observable } from "rxjs";
 import { BreakpointObserver, Breakpoints } from "@angular/cdk/layout";
@@ -71,7 +71,7 @@ export class AppV2CoreComponent implements OnInit, AfterViewInit {
     private router: Router,
     private characterStats: CharacterStatsService,
     public changelog: ChangelogService,
-    private logger: NGXLogger
+    private logger: LoggingProxyService
   ) {
     this.logger.debug("AppV2CoreComponent", "constructor", "Component initialized");
   }
@@ -98,7 +98,7 @@ export class AppV2CoreComponent implements OnInit, AfterViewInit {
 
   ngAfterViewInit(): void {
     this.logger.debug("AppV2CoreComponent", "ngAfterViewInit", "Component after view initialized");
-    this.changelog.checkAndShowChangelog();
+    //this.changelog.checkAndShowChangelog();
     this.characterStats.loadCharacterStats();
     this.armorCalculator.calculationProgress.subscribe((progress) => {
       this.computationProgress = progress;

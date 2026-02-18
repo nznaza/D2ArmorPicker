@@ -16,7 +16,7 @@
  */
 
 import { Injectable, OnDestroy } from "@angular/core";
-import { NGXLogger } from "ngx-logger";
+import { LoggingProxyService } from "./logging-proxy.service";
 import {
   DestinyComponentType,
   DestinyInventoryItemDefinition,
@@ -176,7 +176,7 @@ export class BungieApiService implements OnDestroy {
     private db: DatabaseService,
     private config: ConfigurationService,
     private membership: MembershipService,
-    private logger: NGXLogger
+    private logger: LoggingProxyService
   ) {
     this.logger.debug("BungieApiService", "constructor", "Initializing BungieApiService");
   }

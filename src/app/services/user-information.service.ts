@@ -16,7 +16,7 @@
  */
 
 import { Injectable, OnDestroy } from "@angular/core";
-import { NGXLogger } from "ngx-logger";
+import { LoggingProxyService } from "./logging-proxy.service";
 import { DatabaseService } from "./database.service";
 import { ArmorSystem, IManifestArmor } from "../data/types/IManifestArmor";
 import { ConfigurationService } from "./configuration.service";
@@ -73,7 +73,7 @@ export class UserInformationService implements OnDestroy {
     private httpClient: HttpClientService,
     private vendors: VendorsService,
     private membership: MembershipService,
-    private logger: NGXLogger
+    private logger: LoggingProxyService
   ) {
     logger.debug("UserInformationService", "constructor", "Initializing UserInformationService");
     this._characters = new ReplaySubject(1);

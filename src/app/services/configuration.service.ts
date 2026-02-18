@@ -16,7 +16,7 @@
  */
 
 import { Injectable, OnDestroy } from "@angular/core";
-import { NGXLogger } from "ngx-logger";
+import { LoggingProxyService } from "./logging-proxy.service";
 import { BuildConfiguration } from "../data/buildConfiguration";
 import { BehaviorSubject, Observable } from "rxjs";
 import { ModOrAbility } from "../data/enum/modOrAbility";
@@ -61,7 +61,7 @@ export class ConfigurationService implements OnDestroy {
   private _storedConfigurations: BehaviorSubject<StoredConfiguration[]>;
   public readonly storedConfigurations: Observable<StoredConfiguration[]>;
 
-  constructor(private logger: NGXLogger) {
+  constructor(private logger: LoggingProxyService) {
     this.logger.debug("ConfigurationService", "constructor", "Initializing ConfigurationService");
     this.__configuration = this.loadCurrentConfiguration();
     this.__LastConfiguration = this.loadCurrentConfiguration();

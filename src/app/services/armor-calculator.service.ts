@@ -16,7 +16,7 @@
  */
 
 import { Injectable, OnDestroy } from "@angular/core";
-import { NGXLogger } from "ngx-logger";
+import { LoggingProxyService } from "./logging-proxy.service";
 import { Router } from "@angular/router";
 import { DatabaseService } from "./database.service";
 import { IManifestArmor } from "../data/types/IManifestArmor";
@@ -85,7 +85,7 @@ export class ArmorCalculatorService implements OnDestroy {
     private status: StatusProviderService,
     private userInfo: UserInformationService,
     private config: ConfigurationService,
-    private logger: NGXLogger,
+    private logger: LoggingProxyService,
     private router: Router
   ) {
     this.logger.debug(

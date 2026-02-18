@@ -33,7 +33,7 @@ import { MatSort } from "@angular/material/sort";
 import { animate, state, style, transition, trigger } from "@angular/animations";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
-import { NGXLogger } from "ngx-logger";
+import { LoggingProxyService } from "../../../../services/logging-proxy.service";
 import { ConfigurationService } from "../../../../services/configuration.service";
 import { ResultDefinition } from "../results.component";
 import { ArmorStat } from "../../../../data/enum/armor-stat";
@@ -86,7 +86,7 @@ export class ResultsTableViewComponent implements OnInit, AfterViewInit, OnChang
 
   constructor(
     public configService: ConfigurationService,
-    private logger: NGXLogger,
+    private logger: LoggingProxyService,
     private cdr: ChangeDetectorRef
   ) {
     this.logger.debug("ResultsTableViewComponent", "constructor", "Component constructed");
