@@ -1124,6 +1124,14 @@ export class BungieApiService implements OnDestroy {
       }
     }
 
+    const equipableItemSetsResult = db.exec("SELECT json FROM DestinyEquipableItemSetDefinition");
+    if (equipableItemSetsResult.length > 0) {
+      for (const row of equipableItemSetsResult[0].values) {
+        const equipableItemSet = JSON.parse(row[0] as string);
+        equipableItemSetsArray.push(equipableItemSet);
+      }
+    }
+
     // Query for relevant items using SQL filtering
     const result = db.exec(`
       SELECT json FROM DestinyInventoryItemDefinition 
