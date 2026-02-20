@@ -113,6 +113,7 @@ export class DesiredExoticSelectionComponent implements OnInit, OnDestroy {
     const armors = await this.inventory.getExoticsForClass(this.currentClass);
 
     this.exotics = [
+      [], // Generic, will be filled in html loop, "item" for all exotics, or where exotic doesn't matter
       armors.filter((a) => a.items[0].slot == ArmorSlot.ArmorSlotHelmet),
       armors.filter((a) => a.items[0].slot == ArmorSlot.ArmorSlotGauntlet),
       armors.filter((a) => a.items[0].slot == ArmorSlot.ArmorSlotChest),
