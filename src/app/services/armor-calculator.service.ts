@@ -16,7 +16,7 @@
  */
 
 import { Injectable, OnDestroy } from "@angular/core";
-import { NGXLogger } from "ngx-logger";
+import { LoggingProxyService } from "./logging-proxy.service";
 import { Router } from "@angular/router";
 import { DatabaseService } from "./database.service";
 import { IManifestArmor } from "../data/types/IManifestArmor";
@@ -85,7 +85,7 @@ export class ArmorCalculatorService implements OnDestroy {
     private status: StatusProviderService,
     private userInfo: UserInformationService,
     private config: ConfigurationService,
-    private logger: NGXLogger,
+    private logger: LoggingProxyService,
     private router: Router
   ) {
     this.logger.debug(
@@ -202,6 +202,15 @@ export class ArmorCalculatorService implements OnDestroy {
               return;
             }
 
+            if (this.userInfo.isFetchingManifest || this.userInfo.isRefreshing) {
+              this.logger.debug(
+                "ArmorCalculatorService",
+                "setupCalculationTriggers",
+                "UserInformationService is still fetching manifest or refreshing, skipping calculation"
+              );
+              return;
+            }
+
             const buildConfig = config as BuildConfiguration;
             if (buildConfig.characterClass !== DestinyClass.Unknown) {
               this.logger.info(
@@ -242,22 +251,26 @@ export class ArmorCalculatorService implements OnDestroy {
   }
 
   private clearResults() {
-    this.allArmorResults = [];
-    this._armorResults.next({
-      results: this.allArmorResults,
-      totalResults: 0,
-      totalTime: 0,
-      itemCount: 0,
-      maximumPossibleTiers: [0, 0, 0, 0, 0, 0],
-    });
+    if (this.allArmorResults.length > 0) {
+      this.allArmorResults = [];
+      this._armorResults.next({
+        results: this.allArmorResults,
+        totalResults: 0,
+        totalTime: 0,
+        itemCount: 0,
+        maximumPossibleTiers: [0, 0, 0, 0, 0, 0],
+      });
+    }
   }
 
   private killWorkers() {
-    this.logger.debug("ArmorCalculatorService", "killWorkers", "Terminating all workers");
-    this.workers.forEach((w) => {
-      w.terminate();
-    });
-    this.workers = [];
+    if (this.workers.length > 0) {
+      this.logger.debug("ArmorCalculatorService", "killWorkers", "Terminating all workers");
+      this.workers.forEach((w) => {
+        w.terminate();
+      });
+      this.workers = [];
+    }
   }
 
   private estimateCombinationsToBeChecked(

@@ -37,7 +37,7 @@ import {
   LoadoutParameters,
 } from "@destinyitemmanager/dim-api-types";
 import { DestinyClass } from "bungie-api-ts/destiny2";
-import { NGXLogger } from "ngx-logger";
+import { LoggingProxyService } from "./logging-proxy.service";
 
 @Injectable({
   providedIn: "root",
@@ -47,7 +47,7 @@ export class DimService implements OnDestroy {
 
   constructor(
     private configService: ConfigurationService,
-    private logger: NGXLogger
+    private logger: LoggingProxyService
   ) {
     this.logger.debug("DimService", "constructor", "Initializing DimService");
   }

@@ -26,6 +26,10 @@
   white-space: normal;
   width: fit-content;
   margin-left: 3px;
+
+  @media (min-width: 1360px) {
+    max-width: 49vw;
+  }
 }
 
 .report-problem-icon {

@@ -16,7 +16,7 @@
  */
 
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { NGXLogger } from "ngx-logger";
+import { LoggingProxyService } from "../../../../services/logging-proxy.service";
 import { ClassExoticInfo, UserInformationService } from "src/app/services/user-information.service";
 import { ConfigurationService } from "../../../../services/configuration.service";
 import { BungieApiService } from "../../../../services/bungie-api.service";
@@ -71,7 +71,7 @@ export class DesiredExoticSelectionComponent implements OnInit, OnDestroy {
     public inventory: UserInformationService,
     public config: ConfigurationService,
     private bungieApi: BungieApiService,
-    private logger: NGXLogger
+    private logger: LoggingProxyService
   ) {}
 
   ngOnInit(): void {
@@ -113,6 +113,7 @@ export class DesiredExoticSelectionComponent implements OnInit, OnDestroy {
     const armors = await this.inventory.getExoticsForClass(this.currentClass);
 
     this.exotics = [
+      [], // Generic, will be filled in html loop, "item" for all exotics, or where exotic doesn't matter
       armors.filter((a) => a.items[0].slot == ArmorSlot.ArmorSlotHelmet),
       armors.filter((a) => a.items[0].slot == ArmorSlot.ArmorSlotGauntlet),
       armors.filter((a) => a.items[0].slot == ArmorSlot.ArmorSlotChest),
@@ -161,17 +162,6 @@ export class DesiredExoticSelectionComponent implements OnInit, OnDestroy {
         value: perkHash as ArmorPerkOrSlot,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
-
-    this.logger.debug(
-      "DesiredExoticSelectionComponent",
-      "updateAvailableExoticClassItemPerks",
-      "Available first perks: " + JSON.stringify(this.availableFirstPerks)
-    );
-    this.logger.debug(
-      "DesiredExoticSelectionComponent",
-      "updateAvailableExoticClassItemPerks",
-      "Available second perks: " + JSON.stringify(this.availableSecondPerks)
-    );
   }
 
   hasSelectedExoticClassItem(): boolean {
