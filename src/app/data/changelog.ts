@@ -76,6 +76,31 @@ export const CHANGELOG_DATA: {
         issues: [],
       },
       {
+        type: ChangelogEntryType.ADD,
+        text: "Added advanced setting 'High Speed Mode' that will skip calculations in certain places. May result in missing results, though.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Clustering is updated and re-enabled.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Add toggle for T5 tuning calculations.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Changed session replay solution.",
+        issues: [],
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Refactored the logic for validating the manifest and inventory to reduce calls and time validating with the BungieAPI.",
+        issues: [],
+      },
+      {
         type: ChangelogEntryType.MODIFIED,
         text: "Consolidated the armor initialization logic",
         issues: [],
@@ -95,16 +120,13 @@ export const CHANGELOG_DATA: {
         text: "Implemented a delay for loading the full changelog for iOS users, to help with crashes",
         issues: [],
       },
-      {
-        type: ChangelogEntryType.MODIFIED,
-        text: "Improved logging for better debugging and error tracking",
-        issues: [],
-      },
-      {
-        type: ChangelogEntryType.MODIFIED,
-        text: "Changed images to be lazy loaded, should help with freezes and other performance issues",
-        issues: [],
-      },
+    ],
+  },
+  {
+    version: "2.9.7",
+    date: "August 27, 2025",
+    clearManifest: false,
+    entries: [
       {
         type: ChangelogEntryType.MODIFIED,
         text: "Changed logic for Manifest and Armor Initialization to avoid race conditions.",
@@ -118,28 +140,6 @@ export const CHANGELOG_DATA: {
       {
         type: ChangelogEntryType.MODIFIED,
         text: "Only retrigger armor calculation when vendor data is updated if the vendor data is going to be used",
-        issues: [],
-      },
-    ],
-  },
-  {
-    version: "2.9.7",
-    date: "August 27, 2025",
-    clearManifest: false,
-    entries: [
-      {
-        type: ChangelogEntryType.ADD,
-        text: "T5 Tuning has been implemented. This was a lot of work. A display of the used mods will follow in a later update.",
-        issues: [],
-      },
-      {
-        type: ChangelogEntryType.ADD,
-        text: "Added advanced setting 'High Speed Mode' that will skip calculations in certain places. May result in missing results, though.",
-        issues: [],
-      },
-      {
-        type: ChangelogEntryType.MODIFIED,
-        text: "Clustering is updated and re-enabled.",
         issues: [],
       },
       {
