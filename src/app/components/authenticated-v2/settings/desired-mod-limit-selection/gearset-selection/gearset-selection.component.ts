@@ -19,7 +19,7 @@ import { Component, OnInit, OnDestroy } from "@angular/core";
 import { LoggingProxyService } from "../../../../../services/logging-proxy.service";
 import { DestinySandboxPerkDefinition } from "bungie-api-ts/destiny2";
 import { Subject } from "rxjs";
-import { distinctUntilChanged, takeUntil } from "rxjs/operators";
+import { takeUntil } from "rxjs/operators";
 import { FORCE_USE_NO_EXOTIC } from "src/app/data/constants";
 import { ConfigurationService } from "src/app/services/configuration.service";
 import { DatabaseService } from "src/app/services/database.service";
@@ -58,17 +58,10 @@ export class GearsetSelectionComponent implements OnInit, OnDestroy {
       await this.refreshGearsetAvailability();
     });
 
-    this.config.configuration
-      .pipe(
-        takeUntil(this.ngUnsubscribe),
-        distinctUntilChanged((a, b) => {
-          return a.characterClass === b.characterClass;
-        })
-      )
-      .subscribe(async () => {
-        await this.refreshGearSets();
-        await this.refreshGearsetAvailability();
-      });
+    this.config.configuration.pipe(takeUntil(this.ngUnsubscribe)).subscribe(async (c) => {
+      await this.refreshGearSets();
+      await this.refreshGearsetAvailability();
+    });
   }
 
   async refreshGearsetAvailability(): Promise<void> {
