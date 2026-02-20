@@ -43,6 +43,11 @@ export const CHANGELOG_DATA: {
         text: "Changed the logic for manifest download to use sqlite (if WASM fails, fallback to old JSON method), reduces calls to the API, and memory usage, fixing crashes and performance issues, primarily for iOS users.",
         issues: [],
       },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Better view for tablet users? Please give feedback on this, screen sizes varies a lot, share your device model/characteristics.",
+        issues: [],
+      },
     ],
   },
   {
