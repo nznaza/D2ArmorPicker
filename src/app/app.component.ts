@@ -31,6 +31,7 @@ export class AppComponent implements AfterViewInit, OnInit {
   title = "D2ArmorPicker";
   is_beta = environment.beta;
   is_canary = environment.canary;
+  showLogs = environment.showLogs;
   recentLogs$: Observable<LogEntry[]>;
 
   constructor(

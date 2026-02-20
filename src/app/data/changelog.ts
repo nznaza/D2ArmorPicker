@@ -34,6 +34,18 @@ export const CHANGELOG_DATA: {
   entries: ChangelogEntry[];
 }[] = [
   {
+    version: "2.9.11",
+    date: "February 19, 2026",
+    clearManifest: true,
+    entries: [
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Changed the logic for manifest download to use sqlite (if WASM fails, fallback to old JSON method), reduces calls to the API, and memory usage, fixing crashes and performance issues, primarily for iOS users.",
+        issues: [],
+      },
+    ],
+  },
+  {
     version: "2.9.10",
     date: "February 12, 2026",
     clearManifest: true,

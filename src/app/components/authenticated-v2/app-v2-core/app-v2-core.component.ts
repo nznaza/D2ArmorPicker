@@ -98,7 +98,7 @@ export class AppV2CoreComponent implements OnInit, AfterViewInit {
 
   ngAfterViewInit(): void {
     this.logger.debug("AppV2CoreComponent", "ngAfterViewInit", "Component after view initialized");
-    //this.changelog.checkAndShowChangelog();
+    this.changelog.checkAndShowChangelog();
     this.characterStats.loadCharacterStats();
     this.armorCalculator.calculationProgress.subscribe((progress) => {
       this.computationProgress = progress;
