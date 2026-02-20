@@ -895,29 +895,21 @@ export class BungieApiService implements OnDestroy {
 
     // Initialize SQL.js with explicit WASM loading
     try {
-      const sqlJsModule = await import("sql.js");
-      const SQL = (sqlJsModule as any).default || sqlJsModule;
+      const initSqlJs = await import("sql.js");
 
-      // Initialize SQL.js with WASM
-      const sqlJs = await SQL({
-        locateFile: (file: string) => {
-          // Try multiple CDN locations for the WASM file
-          const cdnUrls = [
-            `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`,
-            `https://unpkg.com/sql.js@1.8.0/dist/${file}`,
-            `https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/${file}`,
-          ];
-          return cdnUrls[0]; // Use the first CDN as primary
-        },
+      // Try loading WASM file explicitly
+      const wasmResponse = await fetch("assets/sql-wasm.wasm");
+      const wasmBuffer = await wasmResponse.arrayBuffer();
+
+      const SQL = await initSqlJs.default({
+        wasmBinary: wasmBuffer,
       });
-
-      // Create database from the extracted data
-      const db = new sqlJs.Database(uint8Array);
+      const db = new SQL.Database(uint8Array);
 
       this.logger.info(
         "BungieApiService",
         "downloadAndProcessSQLiteManifest",
-        "SQLite database loaded successfully"
+        "SQLite database initialized successfully"
       );
 
       return db;
