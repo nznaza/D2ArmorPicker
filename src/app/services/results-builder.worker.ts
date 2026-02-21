@@ -539,7 +539,7 @@ addEventListener("message", async ({ data }) => {
   let lastProgressReportTime = 0;
   // define the delay; it can be 75ms if the estimated calculations are low
   // if the estimated calculations >= 1e6, then we will use 125ms
-  let progressBarDelay = estimatedCalculations >= 1e6 ? 125 : 75;
+  let progressBarDelay = estimatedCalculations >= 1e6 ? 500 : 125;
 
   for (let [helmet, gauntlet, chest, leg] of generateArmorCombinations(
     helmets,
@@ -620,8 +620,11 @@ addEventListener("message", async ({ data }) => {
       postMessage({ runtime, results, done: false, checkedCalculations, estimatedCalculations });
       results = [];
       resultsLength = 0;
-    } else if (lastProgressReportTime + progressBarDelay < Date.now()) {
-      lastProgressReportTime = Date.now();
+    } else if (
+      resultsLength > 100 &&
+      lastProgressReportTime + progressBarDelay < performance.now()
+    ) {
+      lastProgressReportTime = performance.now();
       postMessage({
         checkedCalculations,
         estimatedCalculations,
@@ -885,7 +888,7 @@ export function handlePermutation(
   let finalResult: IPermutatorArmorSet | never[] = [];
   let checkedClassItems = 0;
 
-  classItemLoop: for (const classItem of sortedClassItems) {
+  for (const classItem of sortedClassItems) {
     checkedClassItems++;
 
     // compute adjustedStats
@@ -970,8 +973,8 @@ export function handlePermutation(
       newDistanceSum >
       10 * 5 + 3 * availableArtificeCount + 5 * (baseT5Improvements.length + (classItemT5 ? 1 : 0))
     ) {
-      if (config.earlyAbortClassItems && checkedClassItems >= 3) break classItemLoop;
-      else continue classItemLoop;
+      if (config.earlyAbortClassItems && checkedClassItems >= 3) break;
+      else continue;
     }
 
     let availableTunings: Tuning[] = [[0, 0, 0, 0, 0, 0]];
@@ -989,8 +992,8 @@ export function handlePermutation(
       }
     }
     if (!passesPerStat) {
-      if (config.earlyAbortClassItems && checkedClassItems >= 3) break classItemLoop;
-      else continue classItemLoop;
+      if (config.earlyAbortClassItems && checkedClassItems >= 3) break;
+      else continue;
     }
     if (config.calculateTierFiveTuning) {
       // lazy: only generate full tunings when cheaper checks pass
@@ -1232,12 +1235,15 @@ function get_mods_recursive(
 
     // Now there are only tunings with negative values left.
     // 2.1 If there is any stat where (currentStat - tuningValue) >= target value, then return
-    outer: for (let tuning of availableTunings) {
+    const validTuning = availableTunings.find((tuning) => {
       for (let i = 0; i < 6; i++) {
         if (tuning[i] >= 0) continue;
-        if (currentStats[i] + tuning[i] < targetStats[i]) continue outer;
+        if (currentStats[i] + tuning[i] < targetStats[i]) return false;
       }
-      return [tuning];
+      return true;
+    });
+    if (validTuning) {
+      return [validTuning];
     }
 
     // 2.2 if we still have a few mods left, we can simply call the recursion again, but with the new "temp" stats

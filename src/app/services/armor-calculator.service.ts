@@ -42,6 +42,7 @@ import { IPermutatorArmorSet } from "../data/types/IPermutatorArmorSet";
 import { getSkillTier, getWaste } from "./results-builder.worker";
 import { IPermutatorArmor } from "../data/types/IPermutatorArmor";
 import { FORCE_USE_NO_EXOTIC, MAXIMUM_MASTERWORK_LEVEL } from "../data/constants";
+import { calculateCPUConcurrency } from "../data/commonFunctions";
 import { ModOptimizationStrategy } from "../data/enum/mod-optimization-strategy";
 import { ArmorSystem } from "../data/types/IManifestArmor";
 import { combineLatest, Subscription } from "rxjs";
@@ -372,15 +373,11 @@ export class ArmorCalculatorService implements OnDestroy {
     let minimumCalculationPerThread = calculationMultiplier * 5e4;
     let maximumCalculationPerThread = calculationMultiplier * 2.5e5;
 
-    const nthreads = Math.max(
-      3, // Enforce a minimum of 3 threads
-      Math.min(
-        Math.max(1, Math.ceil(estimatedCalculations / minimumCalculationPerThread)),
-        Math.ceil(estimatedCalculations / maximumCalculationPerThread),
-        Math.floor((navigator.hardwareConcurrency || 2) * 0.75), // limit it to the amount of cores, and only use 75%
-        20, // limit it to a maximum of 20 threads
-        largestArmorBucket // limit it to the largest armor bucket, as we will split the work by this value
-      )
+    const nthreads = Math.min(
+      Math.max(1, Math.ceil(estimatedCalculations / minimumCalculationPerThread)),
+      Math.ceil(estimatedCalculations / maximumCalculationPerThread),
+      calculateCPUConcurrency(), // estimated physical cores minus 1, minimum of 3 for desktop
+      largestArmorBucket // limit it to the largest armor bucket, as we will split the work by this value
     );
 
     return nthreads;
