@@ -615,20 +615,18 @@ addEventListener("message", async ({ data }) => {
         listedResults >= 1e6 / threadSplit.count;
     }
 
-    if (totalResults % 5000 == 0 && lastProgressReportTime + progressBarDelay < Date.now()) {
+    if (resultsLength >= 5000) {
+      // @ts-ignore
+      postMessage({ runtime, results, done: false, checkedCalculations, estimatedCalculations });
+      results = [];
+      resultsLength = 0;
+    } else if (lastProgressReportTime + progressBarDelay < Date.now()) {
       lastProgressReportTime = Date.now();
       postMessage({
         checkedCalculations,
         estimatedCalculations,
         reachableTiers: runtime.maximumPossibleTiers,
       });
-    }
-
-    if (resultsLength >= 5000) {
-      // @ts-ignore
-      postMessage({ runtime, results, done: false, checkedCalculations, estimatedCalculations });
-      results = [];
-      resultsLength = 0;
     }
   }
   console.timeEnd(`Total run thread#${threadSplit.current}`);

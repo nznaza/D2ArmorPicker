@@ -34,6 +34,25 @@ export const CHANGELOG_DATA: {
   entries: ChangelogEntry[];
 }[] = [
   {
+    version: "2.9.12",
+    date: "February, 2026",
+    clearManifest: false,
+    entries: [
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Updated worker spawn logic of armor calculator, to be more readable and for potential future optimizations.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Added more logging to the armor calculator worker, to help with debugging if it crashes.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Fixed progress bar for armor calculation, it should now reflect the actual progress of the calculation process.",
+      },
+    ],
+  },
+  {
     version: "2.9.11",
     date: "February 19, 2026",
     clearManifest: true,
