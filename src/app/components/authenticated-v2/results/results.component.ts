@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Component, OnDestroy, OnInit } from "@angular/core";
+import { Component, OnDestroy, OnInit, NgZone } from "@angular/core";
 import { LoggingProxyService } from "../../../services/logging-proxy.service";
 import { ArmorCalculatorService } from "../../../services/armor-calculator.service";
 import { ConfigurationService } from "../../../services/configuration.service";
@@ -125,7 +125,8 @@ export class ResultsComponent implements OnInit, OnDestroy {
     private armorCalculator: ArmorCalculatorService,
     public configService: ConfigurationService,
     public status: StatusProviderService,
-    private logger: LoggingProxyService
+    private logger: LoggingProxyService,
+    private ngZone: NgZone
   ) {
     this.logger.debug("ResultsComponent", "constructor", "Component initialized");
     // Load saved view mode from localStorage
@@ -145,9 +146,13 @@ export class ResultsComponent implements OnInit, OnDestroy {
       this.cancelledCalculation = s.cancelledCalculation;
     });
 
-    this.armorCalculator.calculationProgress.subscribe((progress) => {
-      this.computationProgress = progress;
-    });
+    this.armorCalculator.calculationProgress
+      .pipe(takeUntil(this.ngUnsubscribe))
+      .subscribe((progress) => {
+        this.ngZone.run(() => {
+          this.computationProgress = progress;
+        });
+      });
     //
     this.configService.configuration
       .pipe(takeUntil(this.ngUnsubscribe))
