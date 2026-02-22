@@ -278,8 +278,13 @@ export class ArmorCalculatorService implements OnDestroy {
 
   private isMainPage(): boolean {
     const currentUrl = this.router.url;
-    // Main page is either empty path or just '/'
-    return currentUrl === "/" || currentUrl === "" || currentUrl.split("?")[0] === "/";
+    // Main page is either empty path or just '/', check for parametrized (?) routes and (#) fragments
+    return (
+      currentUrl === "/" ||
+      currentUrl === "" ||
+      currentUrl.split("?")[0] === "/" ||
+      currentUrl.split("#")[0] === "/"
+    );
   }
 
   private clearResults() {
