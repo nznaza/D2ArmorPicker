@@ -113,6 +113,7 @@ export class ResultsComponent implements OnInit, OnDestroy {
   totalTime: number = 0;
   itemCount: number = 0;
   totalResults: number = 0;
+  totalPossibleCombinations: number = 0;
   parsedResults: number = 0;
   viewMode: "table" | "cards" = "table";
   _config_legacyArmor: any;
@@ -151,6 +152,14 @@ export class ResultsComponent implements OnInit, OnDestroy {
       .subscribe((progress) => {
         this.ngZone.run(() => {
           this.computationProgress = progress;
+        });
+      });
+
+    this.armorCalculator.totalPossibleCombinations
+      .pipe(takeUntil(this.ngUnsubscribe))
+      .subscribe((value) => {
+        this.ngZone.run(() => {
+          this.totalPossibleCombinations = value;
         });
       });
     //

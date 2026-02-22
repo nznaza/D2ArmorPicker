@@ -375,7 +375,7 @@ describe("Results Worker", () => {
     config.minimumStatTiers[ArmorStat.StatSuper].value = 0;
     config.minimumStatTiers[ArmorStat.StatMelee].value = 0;
 
-    const constantBonus = [-10, 0, 10, 0, 0, -10];
+    const enabledModBonuses = [-10, 0, 10, 0, 0, -10];
     let presult = handlePermutation(
       runtime,
       config,
@@ -383,7 +383,7 @@ describe("Results Worker", () => {
       mockItems[1] as IPermutatorArmor,
       mockItems[2] as IPermutatorArmor,
       mockItems[3] as IPermutatorArmor,
-      constantBonus, // constant bonus
+      enabledModBonuses, // enabled mod bonuses
       [5, 5, 5, 5, 5], // availableModCost
       false, // doNotOutput
       true, // hasArtificeClassItem
@@ -421,7 +421,7 @@ describe("Results Worker", () => {
         result.artifice.filter((mod: number) => Math.floor(mod / 3) - 1 == n && mod % 3 == 0)
           .length;
       expect(result.stats[n]).toEqual(
-        result.statsNoMods[n] + 5 * minor + 10 * major + 3 * artif + constantBonus[n]
+        result.statsNoMods[n] + 5 * minor + 10 * major + 3 * artif + enabledModBonuses[n]
       );
     }
   });
@@ -523,7 +523,7 @@ describe("Results Worker", () => {
       config.tryLimitWastedStats = true;
       //config.onlyShowResultsWithNoWastedStats = true
 
-      const constantBonus1 = [0, 0, 0, 0, 0, 0];
+      const enabledModBonuses1 = [0, 0, 0, 0, 0, 0];
       let availableModCost = [
         // random 0-5
         Math.floor(Math.random() * 6),
@@ -540,7 +540,7 @@ describe("Results Worker", () => {
         mockItems[1] as IPermutatorArmor,
         mockItems[2] as IPermutatorArmor,
         mockItems[3] as IPermutatorArmor,
-        constantBonus1,
+        enabledModBonuses1,
         availableModCost,
         false,
         true, // hasArtificeClassItem
@@ -563,7 +563,7 @@ describe("Results Worker", () => {
           mockItems[1] as IPermutatorArmor,
           mockItems[2] as IPermutatorArmor,
           mockItems[3] as IPermutatorArmor,
-          constantBonus1,
+          enabledModBonuses1,
           availableModCost,
           false,
           true, // hasArtificeClassItem
@@ -673,8 +673,8 @@ describe("Results Worker", () => {
     ];
     console.log("statSum", statSum);
 
-    //const constantBonus = [-10, -10, -10, -10, -10, -10];
-    const constantBonus = [0, 0, 0, 0, 0, 0];
+    //const enabledModBonuses = [-10, -10, -10, -10, -10, -10];
+    const enabledModBonuses = [0, 0, 0, 0, 0, 0];
     let presult = handlePermutation(
       runtime,
       config,
@@ -682,7 +682,7 @@ describe("Results Worker", () => {
       mockItems[1] as IPermutatorArmor,
       mockItems[2] as IPermutatorArmor,
       mockItems[3] as IPermutatorArmor,
-      constantBonus, // constant bonus
+      enabledModBonuses, // enabled mod bonuses
       [5, 5, 5, 5, 5], // availableModCost
       false, // doNotOutput
       true, // hasArtificeClassItem
@@ -721,7 +721,7 @@ describe("Results Worker", () => {
         result.artifice.filter((mod: number) => Math.floor(mod / 3) - 1 == n && mod % 3 == 0)
           .length;
       expect(result.stats[n]).toEqual(
-        result.statsNoMods[n] + 5 * minor + 10 * major + 3 * artif + constantBonus[n]
+        result.statsNoMods[n] + 5 * minor + 10 * major + 3 * artif + enabledModBonuses[n]
       );
     }
   });

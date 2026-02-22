@@ -91,6 +91,9 @@ export class ArmorCalculatorService implements OnDestroy {
   private _calculationProgress: Subject<number> = new Subject<number>();
   public readonly calculationProgress: Observable<number> =
     this._calculationProgress.asObservable();
+  private _totalPossibleCombinations: BehaviorSubject<number> = new BehaviorSubject<number>(0);
+  public readonly totalPossibleCombinations: Observable<number> =
+    this._totalPossibleCombinations.asObservable();
 
   private calculationSubscription?: Subscription;
 
@@ -111,6 +114,7 @@ export class ArmorCalculatorService implements OnDestroy {
   // Static progress and worker state
   private static doneWorkerCount = 0;
   private static lastProgressUpdateTime = 0;
+  private static emittedPossibleCombinations = false;
 
   constructor(
     private db: DatabaseService,
@@ -341,6 +345,7 @@ export class ArmorCalculatorService implements OnDestroy {
     this.status.modifyStatus((s) => (s.cancelledCalculation = true));
 
     this._calculationProgress.next(0);
+    this._totalPossibleCombinations.next(0);
     this.clearResults();
   }
 
@@ -402,6 +407,17 @@ export class ArmorCalculatorService implements OnDestroy {
 
     const sumDone = ArmorCalculatorService.threadCalculationDoneArr.reduce((a, b) => a + b, 0);
     const sumTotal = ArmorCalculatorService.threadCalculationAmountArr.reduce((a, b) => a + b, 0);
+
+    // Emit total possible combinations once all workers have reported their estimates
+    if (
+      !ArmorCalculatorService.emittedPossibleCombinations &&
+      ArmorCalculatorService.threadCalculationAmountArr
+        .slice(0, totalThreads)
+        .every((val) => val > 0)
+    ) {
+      ArmorCalculatorService.emittedPossibleCombinations = true;
+      this._totalPossibleCombinations.next(sumTotal);
+    }
     const minReachableTiers = ArmorCalculatorService.threadCalculationReachableTiers
       .reduce((minArr, currArr) => {
         // Using MAX would be more accurate, but using min is more visually appealing as it leads to larger jumps
@@ -688,6 +704,7 @@ export class ArmorCalculatorService implements OnDestroy {
       return;
     }
     this.clearResults();
+    this._totalPossibleCombinations.next(0);
     this.killWorkers();
 
     try {
@@ -741,6 +758,7 @@ export class ArmorCalculatorService implements OnDestroy {
       this.logger.info("ArmorCalculatorService", "updateResults", "Estimated threads: " + nthreads);
 
       // Initialize static thread tracking arrays
+      ArmorCalculatorService.emittedPossibleCombinations = false;
       ArmorCalculatorService.threadCalculationAmountArr = [...Array(nthreads).keys()].map(() => 0);
       ArmorCalculatorService.threadCalculationDoneArr = [...Array(nthreads).keys()].map(() => 0);
       ArmorCalculatorService.threadCalculationReachableTiers = [...Array(nthreads).keys()].map(() =>
