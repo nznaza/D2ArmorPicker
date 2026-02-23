@@ -73,7 +73,7 @@ let requiredPerkSlotCounts: Map<number, number>;
 let targetVals: number[];
 let targetFixed: boolean[];
 let possibleIncreaseByMod: number;
-let doNotOutput: boolean = false;
+let resultLimitReached: boolean = false;
 
 type t5Improvement = {
   tuningStat: ArmorStat;
@@ -609,9 +609,9 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
 
   // define the delay; it can be 75ms if the estimated calculations are low
   // if the estimated calculations >= 1e6, then we will use 125ms
-  let progressBarDelay = estimatedCalculations >= 1e6 ? 500 : 125;
+  let progressBarDelay = estimatedCalculations >= 1e6 ? 125 : 75;
 
-  doNotOutput = false;
+  resultLimitReached = false;
 
   for (let [helmet, gauntlet, chest, leg, classItem] of generateArmorCombinations(
     helmets,
@@ -634,7 +634,7 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
       results.push(result);
       resultsLength++;
       listedResults++;
-      doNotOutput =
+      resultLimitReached =
         (config.limitParsedResults && listedResults >= 3e4 / threadSplit.count) ||
         listedResults >= 1e6 / threadSplit.count;
     }
@@ -644,10 +644,7 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
       postMessage({ runtime, results, done: false, checkedCalculations, estimatedCalculations });
       results = [];
       resultsLength = 0;
-    } else if (
-      resultsLength > 100 &&
-      lastProgressReportTime + progressBarDelay < performance.now()
-    ) {
+    } else if (lastProgressReportTime + progressBarDelay < performance.now()) {
       lastProgressReportTime = performance.now();
       postMessage({
         checkedCalculations,
@@ -769,7 +766,7 @@ export function handlePermutation(
   leg: IPermutatorArmor,
   classItem: IPermutatorArmor
 ): IPermutatorArmorSet | null {
-  // Inline stat summation + mod bonuses in one allocation
+  // Inline stat summation (without mod bonuses)
   const b0 = enabledModBonuses[0],
     b1 = enabledModBonuses[1],
     b2 = enabledModBonuses[2],
@@ -777,29 +774,32 @@ export function handlePermutation(
     b4 = enabledModBonuses[4],
     b5 = enabledModBonuses[5];
 
-  const stats: number[] = [
-    helmet.mobility + gauntlet.mobility + chest.mobility + leg.mobility + classItem.mobility + b0,
+  const statsWithoutMods: number[] = [
+    helmet.mobility + gauntlet.mobility + chest.mobility + leg.mobility + classItem.mobility,
     helmet.resilience +
       gauntlet.resilience +
       chest.resilience +
       leg.resilience +
       classItem.resilience +
-      (!chest.isExotic && addConstent1Health ? 1 : 0) +
-      b1,
-    helmet.recovery + gauntlet.recovery + chest.recovery + leg.recovery + classItem.recovery + b2,
+      (!chest.isExotic && addConstent1Health ? 1 : 0),
+    helmet.recovery + gauntlet.recovery + chest.recovery + leg.recovery + classItem.recovery,
     helmet.discipline +
       gauntlet.discipline +
       chest.discipline +
       leg.discipline +
-      classItem.discipline +
-      b3,
-    helmet.intellect +
-      gauntlet.intellect +
-      chest.intellect +
-      leg.intellect +
-      classItem.intellect +
-      b4,
-    helmet.strength + gauntlet.strength + chest.strength + leg.strength + classItem.strength + b5,
+      classItem.discipline,
+    helmet.intellect + gauntlet.intellect + chest.intellect + leg.intellect + classItem.intellect,
+    helmet.strength + gauntlet.strength + chest.strength + leg.strength + classItem.strength,
+  ];
+
+  // Add mod bonuses to get the working stats array
+  const stats: number[] = [
+    statsWithoutMods[0] + b0,
+    statsWithoutMods[1] + b1,
+    statsWithoutMods[2] + b2,
+    statsWithoutMods[3] + b3,
+    statsWithoutMods[4] + b4,
+    statsWithoutMods[5] + b5,
   ];
 
   let artificeCount = 0;
@@ -935,17 +935,7 @@ export function handlePermutation(
 
   performTierAvailabilityTesting(stats, distances, artificeCount, availableTunings);
 
-  // Deferred statsWithoutMods: only allocated when the permutation passes all checks
-  const statsWithoutMods: number[] = [
-    stats[0] - b0,
-    stats[1] - b1,
-    stats[2] - b2,
-    stats[3] - b3,
-    stats[4] - b4,
-    stats[5] - b5,
-  ];
-
-  if (doNotOutput) return null;
+  if (resultLimitReached) return null;
 
   const usedArtifice = result.mods.filter((d: StatModifier) => 0 == d % 3);
   const usedMods = result.mods.filter((d: StatModifier) => 0 != d % 3);
