@@ -112,7 +112,8 @@ export class ResultsComponent implements OnInit, OnDestroy {
   selectedClass: DestinyClass = DestinyClass.Unknown;
   totalTime: number = 0;
   itemCount: number = 0;
-  totalResults: number = 0;
+  savedResults: number = 0;
+  totalPermutations: number = 0;
   totalPossibleCombinations: number = 0;
   parsedResults: number = 0;
   viewMode: "table" | "cards" = "table";
@@ -195,7 +196,8 @@ export class ResultsComponent implements OnInit, OnDestroy {
         this._results = value.results;
         this.itemCount = value.itemCount;
         this.totalTime = value.totalTime;
-        this.totalResults = value.totalResults;
+        this.savedResults = value.savedResults;
+        this.totalPermutations = value.totalPermutations;
         this.parsedResults = this._results.length;
       });
   }

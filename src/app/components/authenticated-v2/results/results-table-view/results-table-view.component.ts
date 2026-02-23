@@ -78,9 +78,12 @@ export class ResultsTableViewComponent implements OnInit, AfterViewInit, OnChang
 
   // Performance optimizations
   private totalStatsCache = new Map<string, number>();
-  private readonly MAX_INITIAL_RESULTS = 200; // Limit initial results
   private displayedResults: ResultDefinition[] = [];
   showAllResults = false;
+
+  // View / initialization state
+  private viewInitialized = false;
+  private pendingResultsUpdate = false;
 
   private ngUnsubscribe = new Subject<void>();
 
@@ -115,6 +118,14 @@ export class ResultsTableViewComponent implements OnInit, AfterViewInit, OnChang
     if (this.sort) {
       this.tableDataSource.sort = this.sort;
     }
+
+    this.viewInitialized = true;
+
+    // If results arrived before the view was initialized, update the table now
+    if (this.pendingResultsUpdate && this.results) {
+      this.pendingResultsUpdate = false;
+      this.updateTableData();
+    }
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -122,8 +133,14 @@ export class ResultsTableViewComponent implements OnInit, AfterViewInit, OnChang
       // Reset expanded element when results change
       this.expandedElement = null;
       this.expandedElementId = null;
-      this.updateTableData();
-      this.cdr.markForCheck();
+
+      // Defer table data initialization until the view (and paginator) are ready
+      if (this.viewInitialized) {
+        this.updateTableData();
+        this.cdr.markForCheck();
+      } else {
+        this.pendingResultsUpdate = true;
+      }
     }
   }
 
@@ -191,9 +208,7 @@ export class ResultsTableViewComponent implements OnInit, AfterViewInit, OnChang
     this.expandedElementId = null;
 
     // Limit initial results for performance
-    this.displayedResults = this.showAllResults
-      ? this.results
-      : this.results.slice(0, this.MAX_INITIAL_RESULTS);
+    this.displayedResults = this.results;
 
     this.tableDataSource.data = this.displayedResults;
 
@@ -250,10 +265,6 @@ export class ResultsTableViewComponent implements OnInit, AfterViewInit, OnChang
     }
 
     this.cdr.markForCheck();
-  }
-
-  get hasMoreResults(): boolean {
-    return !this.showAllResults && this.results.length > this.MAX_INITIAL_RESULTS;
   }
 
   // TrackBy function to improve performance by helping Angular track changes

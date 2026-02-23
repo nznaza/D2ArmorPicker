@@ -37,12 +37,7 @@ import {
 import { environment } from "../../environments/environment";
 
 import { IPermutatorArmor } from "../data/types/IPermutatorArmor";
-import {
-  IPermutatorArmorSet,
-  Tuning,
-  createArmorSet,
-  isIPermutatorArmorSet,
-} from "../data/types/IPermutatorArmorSet";
+import { IPermutatorArmorSet, Tuning, createArmorSet } from "../data/types/IPermutatorArmorSet";
 import { ArmorSystem } from "../data/types/IManifestArmor";
 
 import { precalculatedTuningModCombinations } from "../data/generated/precalculatedModCombinationsWithTunings";
@@ -52,6 +47,9 @@ let runtime: {
 } = {
   maximumPossibleTiers: [0, 0, 0, 0, 0, 0],
 };
+
+// Cancellation flag, controlled via messages from the main thread
+let cancelRequested = false;
 
 // Module-level configuration to avoid passing around
 let assumeEveryLegendaryIsArtifice: boolean;
@@ -363,6 +361,9 @@ function estimateCombinationsToBeChecked(
 
 // region Main Worker Event Handler
 async function handleArmorBuilderRequest(data: any): Promise<void> {
+  // Reset cancellation flag at the beginning of each run
+  cancelRequested = false;
+
   const threadSplit = data.threadSplit as { count: number; current: number };
   const config = data.config as BuildConfiguration;
   const anyStatFixed = Object.values(config.minimumStatTiers).some(
@@ -579,7 +580,13 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
   let resultsLength = 0;
 
   let listedResults = 0;
-  let totalResults = 0;
+  let resultsSent = 0;
+  let computedResults = 0;
+
+  let bestResult: IPermutatorArmorSet | null = null;
+  let bestResultSent = false;
+  let bestSkillTier = -1;
+  let bestWaste = Infinity;
 
   // Determine exotic combination mode from selectedExotics:
   // - FORCE_USE_ANY_EXOTIC or specific exotic hash(es): yield only 1-exotic combinations
@@ -622,28 +629,74 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
     yieldExoticCombinations,
     yieldAllLegendary
   )) {
+    if (cancelRequested) {
+      console.log(
+        `Thread #${threadSplit.current} received cancel request, stopping calculation early.`
+      );
+      break;
+    }
+
+    if (resultLimitReached && runtime.maximumPossibleTiers.every((tier) => tier >= 200)) {
+      console.log(
+        `Thread #${threadSplit.current} reached result limit and maximum possible tiers are all 200, stopping calculation early.`
+      );
+      break;
+    }
+
     checkedCalculations++;
     if (!checkSlots(helmet, gauntlet, chest, leg, classItem)) continue;
 
+    // Only calculate more permutations if the results limit has not been reached yet and
     const result = handlePermutation(helmet, gauntlet, chest, leg, classItem);
     // Only add 50k to the list if the setting is activated.
     // We will still calculate the rest so that we get accurate results for the runtime values
-    if (isIPermutatorArmorSet(result)) {
-      totalResults++;
+    if (!!result) {
+      computedResults++;
+      // Track the best result
+      const resultSkillTier = getSkillTier(result.statsWithMods);
+      const resultWaste = getWaste(result.statsWithMods);
+      if (
+        bestResult === null ||
+        resultSkillTier > bestSkillTier ||
+        (resultSkillTier === bestSkillTier && resultWaste < bestWaste)
+      ) {
+        bestResult = result;
+        bestSkillTier = resultSkillTier;
+        bestWaste = resultWaste;
+        bestResultSent = false; // Reset since we have a new best
+      }
 
-      results.push(result);
-      resultsLength++;
-      listedResults++;
-      resultLimitReached =
-        (config.limitParsedResults && listedResults >= 3e4 / threadSplit.count) ||
-        listedResults >= 1e6 / threadSplit.count;
+      if (!resultLimitReached) {
+        resultsSent++;
+        results.push(result);
+        resultsLength++;
+        listedResults++;
+
+        // Check if we just added the best result
+        if (result === bestResult) {
+          bestResultSent = true;
+        }
+
+        resultLimitReached = config.limitParsedResults && listedResults >= 3e4 / threadSplit.count;
+        if (resultLimitReached) {
+          console.log(
+            `Thread #${threadSplit.current} reached result limit of ${listedResults} results`
+          );
+        }
+      }
     }
 
     if (resultsLength >= 5000) {
+      // Check if the best result is in this batch
+      if (bestResult && results.includes(bestResult)) {
+        bestResultSent = true;
+      }
+
       // @ts-ignore
       postMessage({ runtime, results, done: false, checkedCalculations, estimatedCalculations });
       results = [];
       resultsLength = 0;
+      await new Promise((resolve) => setTimeout(resolve, 0));
     } else if (lastProgressReportTime + progressBarDelay < performance.now()) {
       lastProgressReportTime = performance.now();
       postMessage({
@@ -651,9 +704,24 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
         estimatedCalculations,
         reachableTiers: runtime.maximumPossibleTiers,
       });
+      await new Promise((resolve) => setTimeout(resolve, 0));
     }
   }
-  console.timeEnd(`Total run thread#${threadSplit.current}`);
+  console.timeEnd(`Total run thread #${threadSplit.current}`);
+
+  // Check if the best result is in the final batch
+  if (bestResult && results.includes(bestResult)) {
+    bestResultSent = true;
+  }
+
+  // If we have a best result that wasn't sent yet, add it to the final batch
+  if (bestResult && !bestResultSent) {
+    resultsSent++;
+    results.push(bestResult);
+    console.log(
+      `Thread #${threadSplit.current} adding best result (T${bestSkillTier}, W${bestWaste}) to final batch`
+    );
+  }
 
   // @ts-ignore
   postMessage({
@@ -663,7 +731,8 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
     checkedCalculations,
     estimatedCalculations,
     stats: {
-      permutationCount: totalResults,
+      savedResults: resultsSent,
+      computedPermutations: computedResults,
       itemCount: items.length - classItems.length,
       totalTime: Date.now() - startTime,
     },
@@ -674,6 +743,21 @@ addEventListener("message", async ({ data }) => {
   switch (data.type) {
     case "builderRequest":
       await handleArmorBuilderRequest(data);
+      break;
+    case "siblingUpdate":
+      // Update maximumPossibleTiers from other workers' discoveries
+      if (data.maximumPossibleTiers && Array.isArray(data.maximumPossibleTiers)) {
+        for (let i = 0; i < 6; i++) {
+          runtime.maximumPossibleTiers[i] = Math.max(
+            runtime.maximumPossibleTiers[i],
+            data.maximumPossibleTiers[i] || 0
+          );
+        }
+      }
+      break;
+    case "cancel":
+      // Request graceful cancellation; the main loop checks this flag
+      cancelRequested = true;
       break;
     default:
       console.warn(`Unknown message type: ${data.type}`);
@@ -934,8 +1018,6 @@ export function handlePermutation(
   if (result === null) return null;
 
   performTierAvailabilityTesting(stats, distances, artificeCount, availableTunings);
-
-  if (resultLimitReached) return null;
 
   const usedArtifice = result.mods.filter((d: StatModifier) => 0 == d % 3);
   const usedMods = result.mods.filter((d: StatModifier) => 0 != d % 3);
