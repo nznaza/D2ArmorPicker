@@ -55,7 +55,7 @@ type info = {
   totalPermutations: number;
   maximumPossibleTiers: number[];
   itemCount: number;
-  totalTime: number;
+  totalTime: number | null;
 };
 
 interface WorkerMessageData {
@@ -63,6 +63,7 @@ interface WorkerMessageData {
   checkedCalculations: number;
   estimatedCalculations: number;
   reachableTiers?: number[]; // Available in progress messages
+  resultLimitReached?: boolean; // Indicates this worker hit its local result cap
 
   // Runtime data (available when results are sent)
   runtime?: {
@@ -112,6 +113,7 @@ export class ArmorCalculatorService implements OnDestroy {
   private static threadCalculationAmountArr: number[] = [];
   private static threadCalculationDoneArr: number[] = [];
   private static threadCalculationReachableTiers: number[][] = [];
+  private static threadResultLimitReachedArr: boolean[] = [];
   private static globalMaximumPossibleTiers: number[] = [0, 0, 0, 0, 0, 0];
   private static updateResultsStart: number = 0;
 
@@ -119,6 +121,7 @@ export class ArmorCalculatorService implements OnDestroy {
   private static doneWorkerCount = 0;
   private static lastProgressUpdateTime = 0;
   private static emittedPossibleCombinations = false;
+  private static allThreadsResultLimitReached = false;
 
   // Cancellation handling
   private static cancellationRequested = false;
@@ -449,6 +452,10 @@ export class ArmorCalculatorService implements OnDestroy {
     ArmorCalculatorService.threadCalculationReachableTiers[workerIndex] = data.reachableTiers ||
       data.runtime?.maximumPossibleTiers || [0, 0, 0, 0, 0, 0];
 
+    if (data.resultLimitReached) {
+      ArmorCalculatorService.threadResultLimitReachedArr[workerIndex] = true;
+    }
+
     // Aggregate per-stat maximum tiers across all workers (each worker can max different stats)
     const globalMaxTiers = ArmorCalculatorService.threadCalculationReachableTiers
       .slice(0, totalThreads)
@@ -508,6 +515,24 @@ export class ArmorCalculatorService implements OnDestroy {
 
     // Add partial results to the collection
     ArmorCalculatorService.results.push(...(data.results as IPermutatorArmorSet[]));
+
+    // When every worker has hit its local result limit,
+    if (
+      !ArmorCalculatorService.allThreadsResultLimitReached &&
+      ArmorCalculatorService.threadResultLimitReachedArr.every((val) => val)
+    ) {
+      console.log("All threads have reached their local result limit");
+      console.log(
+        ArmorCalculatorService.results.length +
+          " results found, " +
+          sumDone +
+          " calculations done out of estimated " +
+          sumTotal
+      );
+      this.processIntermediateResults(inventoryArmorItems);
+
+      ArmorCalculatorService.allThreadsResultLimitReached = true;
+    }
 
     // Handle completion of individual worker threads
     if (data.done == true) {
@@ -611,6 +636,88 @@ export class ArmorCalculatorService implements OnDestroy {
       "ArmorCalculatorService",
       "updateResults",
       `updateResults with WebWorker took ${updateResultsEnd - ArmorCalculatorService.updateResultsStart} ms`
+    );
+  }
+
+  private processIntermediateResults(inventoryArmorItems: IInventoryArmor[]): void {
+    // Do not toggle calculatingResults or reset progress; workers are still running.
+
+    ArmorCalculatorService.endResults = [];
+
+    for (let armorSet of ArmorCalculatorService.results) {
+      const items = armorSet.armor.map((x) =>
+        inventoryArmorItems.find((y) => y.id == x)
+      ) as IInventoryArmor[];
+      const exotic = items.find((x) => x.isExotic);
+      const v: ResultDefinition = {
+        loaded: false,
+        tuningStats: armorSet.tuning,
+        exotic:
+          exotic == null
+            ? undefined
+            : {
+                icon: exotic.icon,
+                watermark: exotic.watermarkIcon,
+                name: exotic.name,
+                hash: exotic.hash,
+              },
+        artifice: armorSet.usedArtifice,
+        modCount: armorSet.usedMods.length,
+        modCost: armorSet.usedMods.reduce((p, d: StatModifier) => p + STAT_MOD_VALUES[d][2], 0),
+        mods: armorSet.usedMods,
+        stats: armorSet.statsWithMods,
+        statsNoMods: armorSet.statsWithoutMods,
+        tiers: getSkillTier(armorSet.statsWithMods),
+        waste: getWaste(armorSet.statsWithMods),
+        items: items.map(
+          (instance): ResultItem => ({
+            tuningStat: instance.tuningStat,
+            energyLevel: instance.energyLevel,
+            hash: instance.hash,
+            itemInstanceId: instance.itemInstanceId,
+            name: instance.name,
+            exotic: !!instance.isExotic,
+            masterworked: instance.masterworkLevel == MAXIMUM_MASTERWORK_LEVEL,
+            archetypeStats: instance.archetypeStats,
+            armorSystem: instance.armorSystem,
+            masterworkLevel: instance.masterworkLevel,
+            slot: instance.slot,
+            perk: instance.perk,
+            transferState: 0,
+            tier: instance.tier,
+            stats: [
+              instance.mobility,
+              instance.resilience,
+              instance.recovery,
+              instance.discipline,
+              instance.intellect,
+              instance.strength,
+            ],
+            source: instance.source,
+            statsNoMods: [],
+          })
+        ),
+        usesCollectionRoll: items.some((y) => y.source === InventoryArmorSource.Collections),
+        usesVendorRoll: items.some((y) => y.source === InventoryArmorSource.Vendor),
+      };
+      ArmorCalculatorService.endResults.push(v);
+    }
+
+    this._armorResults.next({
+      results: ArmorCalculatorService.endResults,
+      savedResults: ArmorCalculatorService.results.length,
+      totalPermutations: ArmorCalculatorService.totalPermutationsCount,
+      itemCount: inventoryArmorItems.length,
+      totalTime: null,
+      maximumPossibleTiers: ArmorCalculatorService.globalMaximumPossibleTiers.map(
+        (k) => Math.min(200, k) / 10
+      ),
+    });
+
+    this.logger.info(
+      "ArmorCalculatorService",
+      "processIntermediateResults",
+      "Published intermediate results after all workers reached result limit"
     );
   }
 
@@ -838,6 +945,10 @@ export class ArmorCalculatorService implements OnDestroy {
         Array(6).fill(0)
       );
       ArmorCalculatorService.globalMaximumPossibleTiers = [0, 0, 0, 0, 0, 0];
+      ArmorCalculatorService.threadResultLimitReachedArr = [...Array(nthreads).keys()].map(
+        () => false
+      );
+      ArmorCalculatorService.allThreadsResultLimitReached = false;
 
       // Improve per thread performance by shuffling the inventory
       // sorting is a naive aproach that can be optimized

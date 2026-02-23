@@ -686,14 +686,21 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
       }
     }
 
-    if (resultsLength >= 5000) {
+    if (resultsLength >= 5000 || (resultLimitReached && resultsLength > 0)) {
       // Check if the best result is in this batch
       if (bestResult && results.includes(bestResult)) {
         bestResultSent = true;
       }
 
       // @ts-ignore
-      postMessage({ runtime, results, done: false, checkedCalculations, estimatedCalculations });
+      postMessage({
+        runtime,
+        results,
+        done: false,
+        checkedCalculations,
+        estimatedCalculations,
+        resultLimitReached,
+      });
       results = [];
       resultsLength = 0;
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -730,6 +737,7 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
     done: true,
     checkedCalculations,
     estimatedCalculations,
+    resultLimitReached,
     stats: {
       savedResults: resultsSent,
       computedPermutations: computedResults,

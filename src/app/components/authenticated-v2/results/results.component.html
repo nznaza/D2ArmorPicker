@@ -226,6 +226,31 @@
         </button>
       </div>
 
+      <!-- Ongoing calculation progress while results are already visible -->
+      <div
+        class="progress-bar-container"
+        *ngIf="_results.length > 0 && isCalculatingPermutations && !initializing">
+        <mat-icon class="rotate"> hourglass_top </mat-icon>
+        <h3>Continuing calculation...</h3>
+        <mat-progress-bar
+          [value]="computationProgress"
+          aria-label="Continuing calculation..."></mat-progress-bar>
+        <p>
+          Additional combinations are still being checked. Current results are shown while the
+          calculation continues.
+        </p>
+
+        <br />
+        <button
+          mat-raised-button
+          color="warn"
+          matTooltip="Cancel the current calculation. This is useful if you want to change your settings or if the calculation takes too long."
+          (click)="cancelCalculation()"
+          [disabled]="!isCalculatingPermutations">
+          Cancel Calculation
+        </button>
+      </div>
+
       <!-- Cancelled Message -->
       <div class="cancelled-message" *ngIf="_results.length === 0 && cancelledCalculation">
         <mat-icon>cancel</mat-icon>
@@ -271,6 +296,16 @@
 
       <!-- Results Content -->
       <div *ngIf="_results.length > 0">
+        <!-- Warning when results are shown after cancellation -->
+        <div class="cancelled-warning-banner" *ngIf="cancelledCalculation">
+          <mat-icon>warning</mat-icon>
+          <div>
+            <strong>Calculation was cancelled.</strong>
+            <span>
+              These results might be incomplete. The possible max stats might be inaccurate</span
+            >
+          </div>
+        </div>
         <!-- Card View -->
         <app-results-card-view
           *ngIf="viewMode === 'cards'"

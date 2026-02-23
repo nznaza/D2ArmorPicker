@@ -110,7 +110,7 @@ export class ResultsComponent implements OnInit, OnDestroy {
 
   // info values
   selectedClass: DestinyClass = DestinyClass.Unknown;
-  totalTime: number = 0;
+  totalTime: number | null = 0;
   itemCount: number = 0;
   savedResults: number = 0;
   totalPermutations: number = 0;
