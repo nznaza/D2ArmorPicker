@@ -3,6 +3,7 @@ import { ArmorPerkOrSlot, ArmorStat } from "../enum/armor-stat";
 import { IDestinyArmor } from "./IInventoryArmor";
 
 export interface IPermutatorArmor extends IDestinyArmor {
+  id: number;
   clazz: DestinyClass;
   perk: ArmorPerkOrSlot;
   isExotic: 0 | 1;

@@ -31,6 +31,8 @@ export enum ArmorSystem {
 }
 
 export interface IDisplayManifestArmor {
+  id: number;
+
   hash: number;
   name: string;
   icon: string;

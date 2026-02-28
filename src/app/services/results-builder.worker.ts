@@ -16,7 +16,7 @@
  */
 
 // region Imports
-import { BuildConfiguration, FixableSelection } from "../data/buildConfiguration";
+import { BuildConfiguration } from "../data/buildConfiguration";
 import { IDestinyArmor } from "../data/types/IInventoryArmor";
 import { ArmorSlot } from "../data/enum/armor-slot";
 import {
@@ -366,9 +366,6 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
 
   const threadSplit = data.threadSplit as { count: number; current: number };
   const config = data.config as BuildConfiguration;
-  const anyStatFixed = Object.values(config.minimumStatTiers).some(
-    (v: FixableSelection<number>) => v.fixed
-  );
   let items = data.items as IPermutatorArmor[];
 
   if (threadSplit == undefined || config == undefined || items == undefined) {
@@ -388,99 +385,11 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
     };
   }
 
-  let helmets = items
-    .filter((i) => i.slot == ArmorSlot.ArmorSlotHelmet)
-    .filter((k) => {
-      return (
-        !config.useFotlArmor ||
-        [
-          199733460, // titan masq
-          2545426109, // warlock
-          3224066584, // hunter
-          2390807586, // titan new fotl
-          2462335932, // hunter new fotl
-          4095816113, // warlock new fotl
-        ].indexOf(k.hash) > -1
-      );
-    });
+  let helmets = items.filter((i) => i.slot == ArmorSlot.ArmorSlotHelmet);
   let gauntlets = items.filter((i) => i.slot == ArmorSlot.ArmorSlotGauntlet);
   let chests = items.filter((i) => i.slot == ArmorSlot.ArmorSlotChest);
   let legs = items.filter((i) => i.slot == ArmorSlot.ArmorSlotLegs);
   let classItems = items.filter((i) => i.slot == ArmorSlot.ArmorSlotClass);
-
-  // Sort by Masterwork, descending
-  classItems = classItems.sort(
-    (a, b) => (b.tier ?? 0) - (a.tier ?? 0) || (b.masterworkLevel ?? 0) - (a.masterworkLevel ?? 0)
-  );
-
-  // Filter exotic class items based on selected exotic perks if they are not "Any"
-  if (config.selectedExoticPerks && config.selectedExoticPerks.length >= 2) {
-    const firstPerkFilter = config.selectedExoticPerks[0];
-    const secondPerkFilter = config.selectedExoticPerks[1];
-
-    if (firstPerkFilter !== ArmorPerkOrSlot.Any || secondPerkFilter !== ArmorPerkOrSlot.Any) {
-      classItems = classItems.filter((item) => {
-        if (!item.isExotic || !item.exoticPerkHash || item.exoticPerkHash.length < 2) {
-          return true; // Keep non-exotic items or items without proper perk data
-        }
-
-        const hasFirstPerk =
-          firstPerkFilter === ArmorPerkOrSlot.Any || item.exoticPerkHash.includes(firstPerkFilter);
-        const hasSecondPerk =
-          secondPerkFilter === ArmorPerkOrSlot.Any ||
-          item.exoticPerkHash.includes(secondPerkFilter);
-
-        return hasFirstPerk && hasSecondPerk;
-      });
-    }
-  }
-
-  if (
-    config.assumeEveryLegendaryIsArtifice ||
-    config.assumeEveryExoticIsArtifice ||
-    config.assumeClassItemIsArtifice
-  ) {
-    classItems = classItems.map((item) => {
-      if (
-        item.armorSystem == ArmorSystem.Armor2 &&
-        ((config.assumeEveryLegendaryIsArtifice && !item.isExotic) ||
-          (config.assumeEveryExoticIsArtifice && item.isExotic) ||
-          (config.assumeClassItemIsArtifice && !item.isExotic))
-      ) {
-        return { ...item, perk: ArmorPerkOrSlot.SlotArtifice };
-      }
-      return item;
-    });
-  }
-
-  // true if any armorPerks is not "any"
-  const doesNotRequireArmorPerks = config.armorRequirements.length == 0;
-
-  classItems = classItems.filter(
-    (item, index, self) =>
-      index ===
-      self.findIndex(
-        (i) =>
-          i.mobility === item.mobility &&
-          i.resilience === item.resilience &&
-          i.recovery === item.recovery &&
-          i.discipline === item.discipline &&
-          i.intellect === item.intellect &&
-          i.strength === item.strength &&
-          i.isExotic === item.isExotic &&
-          //i.tier >= (item.tier ?? 0) &&
-          ((i.tier < 5 && item.tier < 5) || i.tuningStat == item.tuningStat) &&
-          ((i.isExotic && config.assumeExoticsMasterworked) ||
-            (!i.isExotic && config.assumeLegendariesMasterworked) ||
-            // If there is any stat fixed, we check if the masterwork level is the same as the first item
-            (anyStatFixed && i.masterworkLevel === item.masterworkLevel) ||
-            // If there is no stat fixed, then we just use the masterwork level of the first item.
-            // As it is already sorted descending, we can just check if the masterwork level is the same
-            !anyStatFixed) &&
-          (doesNotRequireArmorPerks || (i.perk === item.perk && i.gearSetHash === item.gearSetHash))
-      )
-  );
-  //*/
 
   // Support multithreading. Find the largest set and split it by N, ensuring even exotic distribution.
   if (threadSplit.count > 1) {
@@ -503,7 +412,7 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
     // Deterministically sort both groups (by hash, then by masterworkLevel, then by name if available)
     const stableSort = (arr: IPermutatorArmor[]) =>
       arr.slice().sort((a, b) => {
-        if (a.hash !== b.hash) return a.hash - b.hash;
+        //if (a.hash !== b.hash) return a.hash - b.hash;
         if ((a.masterworkLevel ?? 0) !== (b.masterworkLevel ?? 0))
           return (a.masterworkLevel ?? 0) - (b.masterworkLevel ?? 0);
         return 0;

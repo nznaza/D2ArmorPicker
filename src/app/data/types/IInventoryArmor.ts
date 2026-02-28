@@ -31,8 +31,6 @@ export enum InventoryArmorSource {
 }
 
 export interface IDestinyArmor {
-  id: number;
-  hash: number;
   slot: ArmorSlot;
 
   masterworkLevel: number; // 0-5; 5 = full masterwork
@@ -152,7 +150,6 @@ export function getInvestmentStats(r: IInventoryArmor): { [id: number]: number }
 export function isEqualItem(a: IDestinyArmor, b: IDestinyArmor): boolean {
   return (
     a.slot === b.slot &&
-    a.hash === b.hash &&
     a.mobility === b.mobility &&
     a.resilience === b.resilience &&
     a.recovery === b.recovery &&

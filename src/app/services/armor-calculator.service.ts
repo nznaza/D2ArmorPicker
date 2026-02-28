@@ -22,7 +22,7 @@ import { DatabaseService } from "./database.service";
 import { IManifestArmor } from "../data/types/IManifestArmor";
 import { BehaviorSubject, Observable, Subject } from "rxjs";
 import { BuildConfiguration } from "../data/buildConfiguration";
-import { STAT_MOD_VALUES, StatModifier } from "../data/enum/armor-stat";
+import { ArmorPerkOrSlot, STAT_MOD_VALUES, StatModifier } from "../data/enum/armor-stat";
 import { StatusProviderService } from "./status-provider.service";
 import { ConfigurationService } from "./configuration.service";
 import { UserInformationService } from "./user-information.service";
@@ -814,7 +814,7 @@ export class ArmorCalculatorService implements OnDestroy {
       )
       // sunset armor
       .filter((item) => !config.ignoreSunsetArmor || !item.isSunset);
-    // this.logger.debug("ArmorCalculatorService", "updateResults", items.map(d => "id:'"+d.itemInstanceId+"'").join(" or "))
+    // this.logger.debug("ArmorCalculatorService", "updateResults", items.map(d => "id:'"+d.itemInstanceId+"'" ).join(" or "))
     // Remove collection items if they are in inventory
     inventoryArmorItems = inventoryArmorItems.filter((item) => {
       if (item.source === InventoryArmorSource.Inventory) return true;
@@ -827,13 +827,134 @@ export class ArmorCalculatorService implements OnDestroy {
       // already has a real copy of the same item.
       return purchasedItemInstance === undefined;
     });
+
+    // Sort items by total stats, then exotics first, then tier, then masterwork level (all descending)
+    inventoryArmorItems = inventoryArmorItems.sort((a, b) => {
+      const totalDiff = totalStats(b) - totalStats(a);
+      if (totalDiff !== 0) return totalDiff;
+
+      const exoticDiff = (b.isExotic ? 1 : 0) - (a.isExotic ? 1 : 0);
+      if (exoticDiff !== 0) return exoticDiff;
+
+      const tierDiff = (b.tier ?? 0) - (a.tier ?? 0);
+      if (tierDiff !== 0) return tierDiff;
+
+      return (b.masterworkLevel ?? 0) - (a.masterworkLevel ?? 0);
+    });
+
+    // Slot-specific post-processing
+    // Helmets: apply FotL helmet restriction when enabled, using a slot-based regrouping
+    const helmets = inventoryArmorItems.filter((i) => i.slot === ArmorSlot.ArmorSlotHelmet);
+    const gauntlets = inventoryArmorItems.filter((i) => i.slot === ArmorSlot.ArmorSlotGauntlet);
+    const chests = inventoryArmorItems.filter((i) => i.slot === ArmorSlot.ArmorSlotChest);
+    const legs = inventoryArmorItems.filter((i) => i.slot === ArmorSlot.ArmorSlotLegs);
+    const classItems = inventoryArmorItems.filter((i) => i.slot === ArmorSlot.ArmorSlotClass);
+
+    let filteredHelmets = helmets;
+    if (config.useFotlArmor) {
+      const fotlHelmetHashes = [
+        199733460, // titan masq
+        2545426109, // warlock
+        3224066584, // hunter
+        2390807586, // titan new fotl
+        2462335932, // hunter new fotl
+        4095816113, // warlock new fotl
+      ];
+      filteredHelmets = helmets.filter((k) => fotlHelmetHashes.indexOf(k.hash) > -1);
+    }
+
+    // Apply exotic class item perk filtering and class item grouping logic
+    const anyStatFixed = Object.values(config.minimumStatTiers).some((v: any) => v.fixed);
+
+    let filteredClassItems = classItems;
+
+    if (filteredClassItems.length > 0) {
+      // Filter exotic class items based on selected exotic perks if they are not "Any"
+      if (config.selectedExoticPerks && config.selectedExoticPerks.length >= 2) {
+        const firstPerkFilter = config.selectedExoticPerks[0];
+        const secondPerkFilter = config.selectedExoticPerks[1];
+
+        if (firstPerkFilter !== ArmorPerkOrSlot.Any || secondPerkFilter !== ArmorPerkOrSlot.Any) {
+          filteredClassItems = filteredClassItems.filter((item) => {
+            if (!item.isExotic || !item.exoticPerkHash || item.exoticPerkHash.length < 2) {
+              // Keep non-exotic items or items without proper perk data
+              return true;
+            }
+
+            const hasFirstPerk =
+              firstPerkFilter === ArmorPerkOrSlot.Any ||
+              item.exoticPerkHash.includes(firstPerkFilter);
+            const hasSecondPerk =
+              secondPerkFilter === ArmorPerkOrSlot.Any ||
+              item.exoticPerkHash.includes(secondPerkFilter);
+
+            return hasFirstPerk && hasSecondPerk;
+          });
+        }
+      }
+
+      // Apply artifice assumptions for Armor 2.0 class items
+      if (
+        config.assumeEveryLegendaryIsArtifice ||
+        config.assumeEveryExoticIsArtifice ||
+        config.assumeClassItemIsArtifice
+      ) {
+        filteredClassItems = filteredClassItems.map((item) => {
+          if (
+            item.armorSystem === ArmorSystem.Armor2 &&
+            ((config.assumeEveryLegendaryIsArtifice && !item.isExotic) ||
+              (config.assumeEveryExoticIsArtifice && item.isExotic) ||
+              (config.assumeClassItemIsArtifice && !item.isExotic))
+          ) {
+            return { ...item, perk: ArmorPerkOrSlot.SlotArtifice };
+          }
+          return item;
+        });
+      }
+
+      inventoryArmorItems = [
+        ...filteredHelmets,
+        ...gauntlets,
+        ...chests,
+        ...legs,
+        ...filteredClassItems,
+      ];
+    }
+
+    const doesNotRequireArmorPerks = config.armorRequirements.length === 0;
+    // When there are armor requirements, keep distinct items only
+    inventoryArmorItems = inventoryArmorItems.filter(
+      (item, index, self) =>
+        index ===
+        self.findIndex(
+          (i) =>
+            i.mobility === item.mobility &&
+            i.resilience === item.resilience &&
+            i.recovery === item.recovery &&
+            i.discipline === item.discipline &&
+            i.intellect === item.intellect &&
+            i.strength === item.strength &&
+            i.isExotic === item.isExotic &&
+            // Keep items grouped by tier/tuning behavior
+            ((i.tier < 5 && item.tier < 5) || i.tuningStat === item.tuningStat) &&
+            ((i.isExotic && config.assumeExoticsMasterworked) ||
+              (!i.isExotic && config.assumeLegendariesMasterworked) ||
+              // If there is any stat fixed, we check if the masterwork level is the same as the first item
+              (anyStatFixed && i.masterworkLevel === item.masterworkLevel) ||
+              // If there is no stat fixed, then we just use the masterwork level of the first item.
+              // As it is already sorted descending, we can just check if the masterwork level is the same
+              !anyStatFixed) &&
+            (doesNotRequireArmorPerks ||
+              (i.perk === item.perk && i.gearSetHash === item.gearSetHash))
+        )
+    );
     return inventoryArmorItems;
   }
 
   static convertInventoryArmorToPermutatorArmor(armor: IInventoryArmor): IPermutatorArmor {
     return {
       id: armor.id,
-      hash: armor.hash,
+      // hash: armor.hash,
       slot: armor.slot,
       clazz: armor.clazz,
       perk: armor.perk,
@@ -950,10 +1071,6 @@ export class ArmorCalculatorService implements OnDestroy {
       );
       ArmorCalculatorService.allThreadsResultLimitReached = false;
 
-      // Improve per thread performance by shuffling the inventory
-      // sorting is a naive aproach that can be optimized
-      // in my test is better than the default order from the db
-      permutatorArmorItems = permutatorArmorItems.sort((a, b) => totalStats(b) - totalStats(a));
       this._calculationProgress.next(0);
 
       for (let n = 0; n < nthreads; n++) {
