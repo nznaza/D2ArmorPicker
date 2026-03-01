@@ -894,6 +894,7 @@ export class ArmorCalculatorService implements OnDestroy {
 
       ArmorCalculatorService.results = [];
       ArmorCalculatorService.savedResultsCount = 0;
+      ArmorCalculatorService.totalPermutationsCount = 0;
       ArmorCalculatorService.resultMaximumTiers = [];
 
       // Reset progress and worker state
