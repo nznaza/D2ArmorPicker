@@ -937,7 +937,7 @@ export class ArmorCalculatorService implements OnDestroy {
             i.strength === item.strength &&
             i.isExotic === item.isExotic &&
             // Keep items grouped by tier/tuning behavior
-            ((i.tier < 5 && item.tier < 5) || i.tuningStat === item.tuningStat) &&
+            i.tuningStat === item.tuningStat &&
             ((i.isExotic && config.assumeExoticsMasterworked) ||
               (!i.isExotic && config.assumeLegendariesMasterworked) ||
               // If there is any stat fixed, we check if the masterwork level is the same as the first item
