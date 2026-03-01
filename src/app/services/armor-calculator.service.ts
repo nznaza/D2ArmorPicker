@@ -928,6 +928,7 @@ export class ArmorCalculatorService implements OnDestroy {
         index ===
         self.findIndex(
           (i) =>
+            i.slot === item.slot &&
             i.mobility === item.mobility &&
             i.resilience === item.resilience &&
             i.recovery === item.recovery &&
