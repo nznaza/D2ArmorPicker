@@ -828,7 +828,7 @@ export class ArmorCalculatorService implements OnDestroy {
       return purchasedItemInstance === undefined;
     });
 
-    // Sort items by total stats, then exotics first, then tier, then masterwork level (all descending)
+    // Sort items by total stats, then exotics first, then if it has a tuning stat, then masterwork level (all descending)
     inventoryArmorItems = inventoryArmorItems.sort((a, b) => {
       const totalDiff = totalStats(b) - totalStats(a);
       if (totalDiff !== 0) return totalDiff;
@@ -836,8 +836,8 @@ export class ArmorCalculatorService implements OnDestroy {
       const exoticDiff = (b.isExotic ? 1 : 0) - (a.isExotic ? 1 : 0);
       if (exoticDiff !== 0) return exoticDiff;
 
-      const tierDiff = (b.tier ?? 0) - (a.tier ?? 0);
-      if (tierDiff !== 0) return tierDiff;
+      const tuningStatDiff = (b.tuningStat == null ? -1 : 1) - (a.tuningStat == null ? -1 : 1);
+      if (tuningStatDiff !== 0) return tuningStatDiff;
 
       return (b.masterworkLevel ?? 0) - (a.masterworkLevel ?? 0);
     });
@@ -971,15 +971,10 @@ export class ArmorCalculatorService implements OnDestroy {
       intellect: armor.intellect,
       strength: armor.strength,
       source: armor.source,
-      exoticPerkHash: armor.exoticPerkHash,
 
       gearSetHash: armor.gearSetHash ?? null,
       tuningStat: armor.tuningStat,
 
-      //icon: armor.icon,
-      //watermarkIcon: armor.watermarkIcon,
-      //name: armor.name,
-      //energyLevel: armor.energyLevel,
       tier: armor.tier,
       armorSystem: armor.armorSystem,
     };
