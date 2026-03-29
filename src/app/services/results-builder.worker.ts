@@ -39,10 +39,6 @@ import { ArmorSystem } from "../data/types/IManifestArmor";
 
 import { precalculatedTuningModCombinations } from "../data/generated/precalculatedModCombinationsWithTunings";
 
-// Mod table sorted per optimization strategy; populated once per worker run
-let _sortedModCombinations: { [key: number]: [number, number, number, number, number, number][] } =
-  precalculatedTuningModCombinations;
-
 // endregion Imports
 
 type t5Improvement = {
@@ -276,25 +272,6 @@ addEventListener("message", async ({ data }) => {
       maxMods: 5, // M: total mods allowed (0–5)
       maxMajorMods: 5, // N: major mods allowed (0–maxMods)
     };
-  }
-
-  // Sort precalculated mod tables based on optimization strategy
-  if (config.modOptimizationStrategy === ModOptimizationStrategy.None) {
-    _sortedModCombinations = precalculatedTuningModCombinations;
-  } else {
-    _sortedModCombinations = {};
-    for (const key in precalculatedTuningModCombinations) {
-      const entries = precalculatedTuningModCombinations[key];
-      const sorted = entries.slice() as [number, number, number, number, number, number][];
-      if (config.modOptimizationStrategy === ModOptimizationStrategy.ReduceUsedModSockets) {
-        // Fewest mod slots first: artifice + minor + major ascending
-        sorted.sort((a, b) => a[0] + a[1] + a[2] - (b[0] + b[1] + b[2]));
-      } else {
-        // Cheapest mod cost first: artifice*3 + minor*5 + major*10 ascending
-        sorted.sort((a, b) => a[0] * 3 + a[1] * 5 + a[2] * 10 - (b[0] * 3 + b[1] * 5 + b[2] * 10));
-      }
-      _sortedModCombinations[key] = sorted;
-    }
   }
 
   // FotL helmet filter (config-dependent, must stay in worker)
@@ -973,6 +950,7 @@ export function handlePermutation(
       distances,
       optionalDistances,
       availableArtificeCount,
+      config.modOptimizationStrategy,
       availableTunings
     );
   }
@@ -1109,6 +1087,7 @@ function performTierAvailabilityTesting(
         _testDistances,
         _zeroOptional,
         availableArtificeCount,
+        ModOptimizationStrategy.None,
         tmpTunings
       );
 
@@ -1131,6 +1110,7 @@ function performTierAvailabilityTesting(
         _testDistances,
         _zeroOptional,
         availableArtificeCount,
+        ModOptimizationStrategy.None,
         tmpTunings
       );
       if (mods != null) {
@@ -1216,7 +1196,7 @@ function get_mods_recursive(
 
   const distance = distances_to_check[statIdx];
 
-  const precalculatedMods = _sortedModCombinations[distance] || [[0, 0, 0, 0, 0, 0]];
+  const precalculatedMods = precalculatedTuningModCombinations[distance] || [[0, 0, 0, 0, 0, 0]];
 
   for (let mi = 0; mi < precalculatedMods.length; mi++) {
     const mod = precalculatedMods[mi];
@@ -1277,6 +1257,7 @@ function get_mods_precalc(
   distances: number[],
   optionalDistances: number[],
   availableArtificeCount: number,
+  optimize: ModOptimizationStrategy = ModOptimizationStrategy.None,
   availableTunings: Tuning[]
 ): StatModifierPrecalc | null {
   const totalDistance =
