@@ -63,6 +63,29 @@ function mapItemToTuning(i: IPermutatorArmor): t5Improvement {
 }
 
 // region Validation and Preparation Functions
+// Pre-allocated working map for checkSlots — avoids cloning constantModslotRequirement per call
+const _slotReqs = new Map<number, number>();
+
+function checkSlotsItem(item: IPermutatorArmor, config: BuildConfiguration): void {
+  if (item.armorSystem === ArmorSystem.Armor2) {
+    if (
+      (item.isExotic && config.assumeEveryExoticIsArtifice) ||
+      (!item.isExotic && config.assumeEveryLegendaryIsArtifice) ||
+      (!item.isExotic && item.slot == ArmorSlot.ArmorSlotClass && config.assumeClassItemIsArtifice)
+    ) {
+      _slotReqs.set(
+        ArmorPerkOrSlot.SlotArtifice,
+        (_slotReqs.get(ArmorPerkOrSlot.SlotArtifice) ?? 0) - 1
+      );
+      return;
+    }
+  }
+
+  _slotReqs.set(item.perk, (_slotReqs.get(item.perk) ?? 0) - 1);
+  if (item.gearSetHash != null)
+    _slotReqs.set(item.gearSetHash, (_slotReqs.get(item.gearSetHash) ?? 0) - 1);
+}
+
 function checkSlots(
   config: BuildConfiguration,
   constantModslotRequirement: Map<number, number>,
@@ -72,34 +95,19 @@ function checkSlots(
   leg: IPermutatorArmor,
   classItem: IPermutatorArmor
 ): boolean {
-  let requirements = new Map(constantModslotRequirement);
+  // Reset working map from constant source (avoids new Map() allocation)
+  _slotReqs.clear();
+  for (const [k, v] of constantModslotRequirement) _slotReqs.set(k, v);
 
-  const items_inline = [helmet, gauntlet, chest, leg, classItem];
-  for (let item of items_inline) {
-    if (item.armorSystem === ArmorSystem.Armor2) {
-      if (
-        (item.isExotic && config.assumeEveryExoticIsArtifice) ||
-        (!item.isExotic && config.assumeEveryLegendaryIsArtifice) ||
-        (!item.isExotic &&
-          item.slot == ArmorSlot.ArmorSlotClass &&
-          config.assumeClassItemIsArtifice)
-      ) {
-        requirements.set(
-          ArmorPerkOrSlot.SlotArtifice,
-          (requirements.get(ArmorPerkOrSlot.SlotArtifice) ?? 0) - 1
-        );
-        continue;
-      }
-    }
+  checkSlotsItem(helmet, config);
+  checkSlotsItem(gauntlet, config);
+  checkSlotsItem(chest, config);
+  checkSlotsItem(leg, config);
+  checkSlotsItem(classItem, config);
 
-    requirements.set(item.perk, (requirements.get(item.perk) ?? 0) - 1);
-    if (item.gearSetHash != null)
-      requirements.set(item.gearSetHash, (requirements.get(item.gearSetHash) ?? 0) - 1);
-  }
-
-  for (let [key] of requirements) {
+  for (const [key, val] of _slotReqs) {
     if (key == ArmorPerkOrSlot.Any || key == ArmorPerkOrSlot.None) continue;
-    if ((requirements.get(key) ?? 0) > 0) return false;
+    if (val > 0) return false;
   }
 
   return true;
