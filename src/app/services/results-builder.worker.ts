@@ -149,39 +149,38 @@ function prepareConstantModslotRequirement(config: BuildConfiguration) {
   return constantPerkRequirement;
 }
 
-function* generateArmorCombinations(
+function forEachCombination(
   helmets: IPermutatorArmor[],
   gauntlets: IPermutatorArmor[],
   chests: IPermutatorArmor[],
   legs: IPermutatorArmor[],
   classItems: IPermutatorArmor[],
-  requiresAtLeastOneExotic: boolean
+  requiresAtLeastOneExotic: boolean,
+  callback: (
+    helmet: IPermutatorArmor,
+    gauntlet: IPermutatorArmor,
+    chest: IPermutatorArmor,
+    leg: IPermutatorArmor,
+    classItem: IPermutatorArmor
+  ) => void
 ) {
-  for (let helmet of helmets) {
-    for (let gauntlet of gauntlets) {
+  for (let hi = 0; hi < helmets.length; hi++) {
+    const helmet = helmets[hi];
+    for (let gi = 0; gi < gauntlets.length; gi++) {
+      const gauntlet = gauntlets[gi];
       if (helmet.isExotic && gauntlet.isExotic) continue;
-      for (let chest of chests) {
+      for (let ci = 0; ci < chests.length; ci++) {
+        const chest = chests[ci];
         if ((helmet.isExotic || gauntlet.isExotic) && chest.isExotic) continue;
-        for (let leg of legs) {
+        for (let li = 0; li < legs.length; li++) {
+          const leg = legs[li];
           if ((helmet.isExotic || gauntlet.isExotic || chest.isExotic) && leg.isExotic) continue;
-          for (let classItem of classItems) {
-            if (
-              (helmet.isExotic || gauntlet.isExotic || chest.isExotic || leg.isExotic) &&
-              classItem.isExotic
-            )
-              continue;
-            if (
-              requiresAtLeastOneExotic &&
-              !(
-                helmet.isExotic ||
-                gauntlet.isExotic ||
-                chest.isExotic ||
-                leg.isExotic ||
-                classItem.isExotic
-              )
-            )
-              continue;
-            yield [helmet, gauntlet, chest, leg, classItem];
+          const anyExotic = helmet.isExotic || gauntlet.isExotic || chest.isExotic || leg.isExotic;
+          for (let ki = 0; ki < classItems.length; ki++) {
+            const classItem = classItems[ki];
+            if (anyExotic && classItem.isExotic) continue;
+            if (requiresAtLeastOneExotic && !anyExotic && !classItem.isExotic) continue;
+            callback(helmet, gauntlet, chest, leg, classItem);
           }
         }
       }
@@ -478,76 +477,80 @@ addEventListener("message", async ({ data }) => {
 
   let allTiersMaxed = false;
 
-  for (let [helmet, gauntlet, chest, leg, classItem] of generateArmorCombinations(
+  forEachCombination(
     helmets,
     gauntlets,
     chests,
     legs,
     classItems,
-    requiresAtLeastOneExotic
-  )) {
-    checkedCalculations++;
+    requiresAtLeastOneExotic,
+    (helmet, gauntlet, chest, leg, classItem) => {
+      checkedCalculations++;
 
-    // Early termination: no more output needed and tier tracking fully converged
-    if (doNotOutput && allTiersMaxed) continue;
+      // Early termination: no more output needed and tier tracking fully converged
+      if (doNotOutput && allTiersMaxed) return;
 
-    if (
-      hasSlotRequirements &&
-      !checkSlots(config, constantModslotRequirement, helmet, gauntlet, chest, leg, classItem)
-    )
-      continue;
+      if (
+        hasSlotRequirements &&
+        !checkSlots(config, constantModslotRequirement, helmet, gauntlet, chest, leg, classItem)
+      )
+        return;
 
-    const result = handlePermutation(
-      runtime,
-      config,
-      helmet,
-      gauntlet,
-      chest,
-      leg,
-      classItem,
-      constantBonus,
-      doNotOutput,
-      targetVals,
-      targetFixed,
-      possibleIncreaseByMod,
-      assumeEveryLegendaryIsArtifice,
-      assumeEveryExoticIsArtifice
-    );
-    // Only add 50k to the list if the setting is activated.
-    // We will still calculate the rest so that we get accurate results for the runtime values
-    if (result !== null) {
-      totalResults++;
+      const result = handlePermutation(
+        runtime,
+        config,
+        helmet,
+        gauntlet,
+        chest,
+        leg,
+        classItem,
+        constantBonus,
+        doNotOutput,
+        targetVals,
+        targetFixed,
+        possibleIncreaseByMod,
+        assumeEveryLegendaryIsArtifice,
+        assumeEveryExoticIsArtifice
+      );
+      // Only add 50k to the list if the setting is activated.
+      // We will still calculate the rest so that we get accurate results for the runtime values
+      if (result !== null) {
+        totalResults++;
 
-      results.push(result);
-      resultsLength++;
-      listedResults++;
-      doNotOutput =
-        doNotOutput ||
-        (config.limitParsedResults && listedResults >= 3e4 / threadSplit.count) ||
-        listedResults >= 1e6 / threadSplit.count;
+        results.push(result);
+        resultsLength++;
+        listedResults++;
+        doNotOutput =
+          doNotOutput ||
+          (config.limitParsedResults && listedResults >= 3e4 / threadSplit.count) ||
+          listedResults >= 1e6 / threadSplit.count;
+      }
+
+      // Check if all tiers have reached the 200 cap — no further tier testing needed
+      if (doNotOutput && !allTiersMaxed) {
+        allTiersMaxed = runtime.maximumPossibleTiers.every((t: number) => t >= 200);
+      }
+
+      if (
+        checkedCalculations % 5000 == 0 &&
+        lastProgressReportTime + progressBarDelay < Date.now()
+      ) {
+        lastProgressReportTime = Date.now();
+        postMessage({
+          checkedCalculations,
+          estimatedCalculations,
+          reachableTiers: runtime.maximumPossibleTiers,
+        });
+      }
+
+      if (resultsLength >= 5000) {
+        // @ts-ignore
+        postMessage({ runtime, results, done: false, checkedCalculations, estimatedCalculations });
+        results = [];
+        resultsLength = 0;
+      }
     }
-
-    // Check if all tiers have reached the 200 cap — no further tier testing needed
-    if (doNotOutput && !allTiersMaxed) {
-      allTiersMaxed = runtime.maximumPossibleTiers.every((t: number) => t >= 200);
-    }
-
-    if (checkedCalculations % 5000 == 0 && lastProgressReportTime + progressBarDelay < Date.now()) {
-      lastProgressReportTime = Date.now();
-      postMessage({
-        checkedCalculations,
-        estimatedCalculations,
-        reachableTiers: runtime.maximumPossibleTiers,
-      });
-    }
-
-    if (resultsLength >= 5000) {
-      // @ts-ignore
-      postMessage({ runtime, results, done: false, checkedCalculations, estimatedCalculations });
-      results = [];
-      resultsLength = 0;
-    }
-  }
+  );
   console.timeEnd(`Total run thread#${threadSplit.current}`);
 
   // @ts-ignore
