@@ -1191,6 +1191,10 @@ function performTierAvailabilityTesting(
 // Pre-allocated buffers for tuning-stats recursion (M2)
 const _tuningNewStats: number[] = [0, 0, 0, 0, 0, 0];
 const _tuningNewDists: number[] = [0, 0, 0, 0, 0, 0];
+// Reusable tuning filter arrays — one per recursion depth (0-5).
+// Depth N writes to _filteredTunings[N], depth N+1 reads it as availableTunings.
+// Safe because recursion is depth-first (no concurrent access to the same depth).
+const _filteredTunings: Tuning[][] = [[], [], [], [], [], []];
 
 function get_mods_recursive(
   currentStats: number[],
@@ -1274,12 +1278,16 @@ function get_mods_recursive(
     const requiredTuningCount = mod[4];
     const requiredTuningValue = mod[3];
     if (requiredTuningCount > 0) {
-      selectedTuningsInner = availableTunings.filter(
-        (tuning) => tuning[statIdx] >= requiredTuningValue
-      );
-      if (selectedTuningsInner.length == 0) {
-        continue;
+      const filtered = _filteredTunings[statIdx];
+      let len = 0;
+      for (let fi = 0; fi < availableTunings.length; fi++) {
+        if (availableTunings[fi][statIdx] >= requiredTuningValue) {
+          filtered[len++] = availableTunings[fi];
+        }
       }
+      if (len === 0) continue;
+      filtered.length = len;
+      selectedTuningsInner = filtered;
     }
 
     if (
