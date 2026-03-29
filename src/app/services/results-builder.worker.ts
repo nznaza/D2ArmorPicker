@@ -66,6 +66,31 @@ function mapItemToTuning(i: IPermutatorArmor): t5Improvement {
   };
 }
 
+// Tuning generation cache: memoizes generate_tunings by sorted signature multiset
+const _tuningCache = new Map<string, Tuning[]>();
+const _TUNING_CACHE_MAX = 256;
+
+function t5Signature(imp: t5Improvement): number {
+  const as = imp.archetypeStats;
+  return imp.tuningStat * 1000 + as[0] * 100 + as[1] * 10 + as[2];
+}
+
+function getCachedTunings(improvements: t5Improvement[]): Tuning[] {
+  const sigs: number[] = new Array(improvements.length);
+  for (let i = 0; i < improvements.length; i++) sigs[i] = t5Signature(improvements[i]);
+  sigs.sort();
+  const key = sigs.join(",");
+
+  let result = _tuningCache.get(key);
+  if (result !== undefined) return result;
+
+  result = generate_tunings(improvements);
+  if (_tuningCache.size < _TUNING_CACHE_MAX) {
+    _tuningCache.set(key, result);
+  }
+  return result;
+}
+
 // region Validation and Preparation Functions
 // Pre-allocated working map for checkSlots — avoids cloning constantModslotRequirement per call
 const _slotReqs = new Map<number, number>();
@@ -954,7 +979,7 @@ export function handlePermutation(
 
   let availableTunings: Tuning[] = [[0, 0, 0, 0, 0, 0]];
   if (config.calculateTierFiveTuning) {
-    availableTunings = generate_tunings(t5Improvements);
+    availableTunings = getCachedTunings(t5Improvements);
   }
 
   // heavy work: mod precalc
