@@ -71,11 +71,11 @@ function checkSlots(
   chest: IPermutatorArmor,
   leg: IPermutatorArmor,
   classItem: IPermutatorArmor
-): { valid: boolean } {
+): boolean {
   let requirements = new Map(constantModslotRequirement);
-  const items = [helmet, gauntlet, chest, leg, classItem];
 
-  for (let item of items) {
+  const items_inline = [helmet, gauntlet, chest, leg, classItem];
+  for (let item of items_inline) {
     if (item.armorSystem === ArmorSystem.Armor2) {
       if (
         (item.isExotic && config.assumeEveryExoticIsArtifice) ||
@@ -97,13 +97,12 @@ function checkSlots(
       requirements.set(item.gearSetHash, (requirements.get(item.gearSetHash) ?? 0) - 1);
   }
 
-  let unmetRequirements = 0;
   for (let [key] of requirements) {
     if (key == ArmorPerkOrSlot.Any || key == ArmorPerkOrSlot.None) continue;
-    unmetRequirements += Math.max(0, requirements.get(key) ?? 0);
+    if ((requirements.get(key) ?? 0) > 0) return false;
   }
 
-  return { valid: unmetRequirements === 0 };
+  return true;
 }
 
 function prepareConstantStatBonus(config: BuildConfiguration) {
@@ -439,6 +438,20 @@ addEventListener("message", async ({ data }) => {
 
   const constantBonus = prepareConstantStatBonus(config);
   const constantModslotRequirement = prepareConstantModslotRequirement(config);
+  const hasSlotRequirements = config.armorRequirements.length > 0;
+
+  // Pre-compute config-derived constants (H3: hoisted out of handlePermutation)
+  const targetVals: number[] = new Array(6);
+  const targetFixed: boolean[] = new Array(6);
+  for (let n: ArmorStat = 0; n < 6; n++) {
+    targetVals[n] = (config.minimumStatTiers[n].value || 0) * 10;
+    targetFixed[n] = !!config.minimumStatTiers[n].fixed;
+  }
+  const maxMajorMods = config.statModLimits?.maxMajorMods || 0;
+  const maxMods = config.statModLimits?.maxMods || 0;
+  const possibleIncreaseByMod = 10 * maxMajorMods + 5 * Math.max(0, maxMods - maxMajorMods);
+  const assumeEveryLegendaryIsArtifice = !!config.assumeEveryLegendaryIsArtifice;
+  const assumeEveryExoticIsArtifice = !!config.assumeEveryExoticIsArtifice;
 
   const requiresAtLeastOneExotic = config.selectedExotics.indexOf(FORCE_USE_ANY_EXOTIC) > -1;
 
@@ -478,16 +491,11 @@ addEventListener("message", async ({ data }) => {
     // Early termination: no more output needed and tier tracking fully converged
     if (doNotOutput && allTiersMaxed) continue;
 
-    const slotCheckResult = checkSlots(
-      config,
-      constantModslotRequirement,
-      helmet,
-      gauntlet,
-      chest,
-      leg,
-      classItem
-    );
-    if (!slotCheckResult.valid) continue;
+    if (
+      hasSlotRequirements &&
+      !checkSlots(config, constantModslotRequirement, helmet, gauntlet, chest, leg, classItem)
+    )
+      continue;
 
     const result = handlePermutation(
       runtime,
@@ -498,7 +506,12 @@ addEventListener("message", async ({ data }) => {
       leg,
       classItem,
       constantBonus,
-      doNotOutput
+      doNotOutput,
+      targetVals,
+      targetFixed,
+      possibleIncreaseByMod,
+      assumeEveryLegendaryIsArtifice,
+      assumeEveryExoticIsArtifice
     );
     // Only add 50k to the list if the setting is activated.
     // We will still calculate the rest so that we get accurate results for the runtime values
@@ -677,6 +690,29 @@ function generate_tunings(possibleImprovements: t5Improvement[]): Tuning[] {
   return tunings;
 }
 
+// Pre-allocated reusable buffers for handlePermutation (H4)
+const _distances: number[] = [0, 0, 0, 0, 0, 0];
+const _tuningMax: number[] = [0, 0, 0, 0, 0, 0];
+const _optionalDistances: number[] = [0, 0, 0, 0, 0, 0];
+
+function isArtificeSlot(
+  d: IPermutatorArmor,
+  assumeEveryLegendaryIsArtifice: boolean,
+  assumeEveryExoticIsArtifice: boolean,
+  assumeClassItemIsArtifice: boolean
+): boolean {
+  return (
+    d.perk == ArmorPerkOrSlot.SlotArtifice ||
+    (d.armorSystem === ArmorSystem.Armor2 &&
+      ((assumeEveryLegendaryIsArtifice && !d.isExotic) ||
+        (assumeEveryExoticIsArtifice && !!d.isExotic))) ||
+    (!d.isExotic &&
+      d.slot == ArmorSlot.ArmorSlotClass &&
+      d.armorSystem === ArmorSystem.Armor2 &&
+      assumeClassItemIsArtifice)
+  );
+}
+
 export function handlePermutation(
   runtime: any,
   config: BuildConfiguration,
@@ -686,24 +722,43 @@ export function handlePermutation(
   leg: IPermutatorArmor,
   classItem: IPermutatorArmor,
   constantBonus: number[],
-  doNotOutput = false
+  doNotOutput: boolean,
+  targetVals: number[],
+  targetFixed: boolean[],
+  possibleIncreaseByMod: number,
+  assumeEveryLegendaryIsArtifice: boolean,
+  assumeEveryExoticIsArtifice: boolean
 ): IPermutatorArmorSet | null {
-  const items = [helmet, gauntlet, chest, leg, classItem];
-
-  // base stats — reuse pre-allocated buffer via getStatSum
-  const stats = getStatSum(items, _statBuffer);
+  // H2: inline stat sum for 5 items — no array allocation
+  const stats = _statBuffer;
+  stats[0] =
+    helmet.mobility + gauntlet.mobility + chest.mobility + leg.mobility + classItem.mobility;
+  stats[1] =
+    helmet.resilience +
+    gauntlet.resilience +
+    chest.resilience +
+    leg.resilience +
+    classItem.resilience;
+  stats[2] =
+    helmet.recovery + gauntlet.recovery + chest.recovery + leg.recovery + classItem.recovery;
+  stats[3] =
+    helmet.discipline +
+    gauntlet.discipline +
+    chest.discipline +
+    leg.discipline +
+    classItem.discipline;
+  stats[4] =
+    helmet.intellect + gauntlet.intellect + chest.intellect + leg.intellect + classItem.intellect;
+  stats[5] =
+    helmet.strength + gauntlet.strength + chest.strength + leg.strength + classItem.strength;
   stats[1] += !chest.isExotic && config.addConstent1Health ? 1 : 0;
 
-  // apply masterwork effects directly into stats
-  for (const it of items) applyMasterworkStats(it, config, stats);
-
-  // precompute targets and fixed flags
-  const targetVals: number[] = new Array(6);
-  const targetFixed: boolean[] = new Array(6);
-  for (let n: ArmorStat = 0; n < 6; n++) {
-    targetVals[n] = (config.minimumStatTiers[n].value || 0) * 10;
-    targetFixed[n] = !!config.minimumStatTiers[n].fixed;
-  }
+  // H2: inline masterwork for 5 items — no items array
+  applyMasterworkStats(helmet, config, stats);
+  applyMasterworkStats(gauntlet, config, stats);
+  applyMasterworkStats(chest, config, stats);
+  applyMasterworkStats(leg, config, stats);
+  applyMasterworkStats(classItem, config, stats);
 
   // snapshot base stats before adding constantBonus (needed for output only)
   const s0 = stats[0],
@@ -726,27 +781,57 @@ export function handlePermutation(
     if (targetFixed[n] && stats[n] > targetVals[n]) return null;
   }
 
-  // count available artifice slots from all 5 items
-  const assumeEveryLegendaryIsArtifice = !!config.assumeEveryLegendaryIsArtifice;
-  const assumeEveryExoticIsArtifice = !!config.assumeEveryExoticIsArtifice;
+  // H2: inline artifice count for 5 items
+  const assumeClassItemIsArtifice = !!config.assumeClassItemIsArtifice;
   let availableArtificeCount = 0;
-  for (const d of items) {
-    if (
-      d.perk == ArmorPerkOrSlot.SlotArtifice ||
-      (d.armorSystem === ArmorSystem.Armor2 &&
-        ((assumeEveryLegendaryIsArtifice && !d.isExotic) ||
-          (assumeEveryExoticIsArtifice && d.isExotic))) ||
-      (!d.isExotic &&
-        d.slot == ArmorSlot.ArmorSlotClass &&
-        d.armorSystem === ArmorSystem.Armor2 &&
-        config.assumeClassItemIsArtifice)
-    ) {
-      availableArtificeCount++;
-    }
-  }
+  if (
+    isArtificeSlot(
+      helmet,
+      assumeEveryLegendaryIsArtifice,
+      assumeEveryExoticIsArtifice,
+      assumeClassItemIsArtifice
+    )
+  )
+    availableArtificeCount++;
+  if (
+    isArtificeSlot(
+      gauntlet,
+      assumeEveryLegendaryIsArtifice,
+      assumeEveryExoticIsArtifice,
+      assumeClassItemIsArtifice
+    )
+  )
+    availableArtificeCount++;
+  if (
+    isArtificeSlot(
+      chest,
+      assumeEveryLegendaryIsArtifice,
+      assumeEveryExoticIsArtifice,
+      assumeClassItemIsArtifice
+    )
+  )
+    availableArtificeCount++;
+  if (
+    isArtificeSlot(
+      leg,
+      assumeEveryLegendaryIsArtifice,
+      assumeEveryExoticIsArtifice,
+      assumeClassItemIsArtifice
+    )
+  )
+    availableArtificeCount++;
+  if (
+    isArtificeSlot(
+      classItem,
+      assumeEveryLegendaryIsArtifice,
+      assumeEveryExoticIsArtifice,
+      assumeClassItemIsArtifice
+    )
+  )
+    availableArtificeCount++;
 
-  // distances
-  const distances: number[] = new Array(6);
+  // H4: reuse distances buffer
+  const distances = _distances;
   for (let n: ArmorStat = 0; n < 6; n++) distances[n] = Math.max(0, targetVals[n] - stats[n]);
 
   if (config.onlyShowResultsWithNoWastedStats) {
@@ -756,14 +841,22 @@ export function handlePermutation(
     }
   }
 
-  // T5 improvements from all 5 items
+  // H2/H4: T5 improvements inlined for 5 items, reuse tuningMax buffer
   const t5Improvements: t5Improvement[] = [];
-  const tuningMax: number[] = [0, 0, 0, 0, 0, 0];
+  const tuningMax = _tuningMax;
+  tuningMax[0] = 0;
+  tuningMax[1] = 0;
+  tuningMax[2] = 0;
+  tuningMax[3] = 0;
+  tuningMax[4] = 0;
+  tuningMax[5] = 0;
 
   if (config.calculateTierFiveTuning) {
-    for (const it of items) {
-      if (isT5WithTuning(it)) t5Improvements.push(mapItemToTuning(it));
-    }
+    if (isT5WithTuning(helmet)) t5Improvements.push(mapItemToTuning(helmet));
+    if (isT5WithTuning(gauntlet)) t5Improvements.push(mapItemToTuning(gauntlet));
+    if (isT5WithTuning(chest)) t5Improvements.push(mapItemToTuning(chest));
+    if (isT5WithTuning(leg)) t5Improvements.push(mapItemToTuning(leg));
+    if (isT5WithTuning(classItem)) t5Improvements.push(mapItemToTuning(classItem));
 
     for (const t5 of t5Improvements) {
       const mask = [false, false, false, false, false, false];
@@ -780,8 +873,14 @@ export function handlePermutation(
     }
   }
 
-  // optional distances
-  const optionalDistances = [0, 0, 0, 0, 0, 0];
+  // H4: reuse optionalDistances buffer
+  const optionalDistances = _optionalDistances;
+  optionalDistances[0] = 0;
+  optionalDistances[1] = 0;
+  optionalDistances[2] = 0;
+  optionalDistances[3] = 0;
+  optionalDistances[4] = 0;
+  optionalDistances[5] = 0;
   if (config.tryLimitWastedStats) {
     for (let stat: ArmorStat = 0; stat < 6; stat++) {
       if (
@@ -810,17 +909,9 @@ export function handlePermutation(
     return null;
   }
 
-  // mod caps
-  const maxMajorMods = config.statModLimits?.maxMajorMods || 0;
-  const maxMods = config.statModLimits?.maxMods || 0;
-  const possibleIncreaseByMod = 10 * maxMajorMods + 5 * Math.max(0, maxMods - maxMajorMods);
-
-  // per-stat quick feasibility check
+  // per-stat quick feasibility check (H3: possibleIncreaseByMod is pre-computed)
   for (let stat = 0; stat < 6; stat++) {
-    const possibleIncreaseByTuning = tuningMax[stat];
-    const possibleIncreaseByArtifice = 3 * availableArtificeCount;
-    const possibleIncrease =
-      possibleIncreaseByMod + possibleIncreaseByTuning + possibleIncreaseByArtifice;
+    const possibleIncrease = possibleIncreaseByMod + tuningMax[stat] + 3 * availableArtificeCount;
     if (possibleIncrease < distances[stat]) {
       return null;
     }

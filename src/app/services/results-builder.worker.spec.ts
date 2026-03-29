@@ -216,6 +216,45 @@ function buildRuntime() {
   };
 }
 
+// Wrapper that computes hoisted params from config, matching the new handlePermutation signature
+function callHandlePermutation(
+  runtime: any,
+  config: BuildConfiguration,
+  helmet: IPermutatorArmor,
+  gauntlet: IPermutatorArmor,
+  chest: IPermutatorArmor,
+  leg: IPermutatorArmor,
+  classItem: IPermutatorArmor,
+  constantBonus: number[],
+  doNotOutput: boolean
+): IPermutatorArmorSet | null {
+  const targetVals: number[] = new Array(6);
+  const targetFixed: boolean[] = new Array(6);
+  for (let n = 0; n < 6; n++) {
+    targetVals[n] = (config.minimumStatTiers[n as ArmorStat].value || 0) * 10;
+    targetFixed[n] = !!config.minimumStatTiers[n as ArmorStat].fixed;
+  }
+  const maxMajorMods = config.statModLimits?.maxMajorMods || 0;
+  const maxMods = config.statModLimits?.maxMods || 0;
+  const possibleIncreaseByMod = 10 * maxMajorMods + 5 * Math.max(0, maxMods - maxMajorMods);
+  return handlePermutation(
+    runtime,
+    config,
+    helmet,
+    gauntlet,
+    chest,
+    leg,
+    classItem,
+    constantBonus,
+    doNotOutput,
+    targetVals,
+    targetFixed,
+    possibleIncreaseByMod,
+    !!config.assumeEveryLegendaryIsArtifice,
+    !!config.assumeEveryExoticIsArtifice
+  );
+}
+
 describe("Results Worker", () => {
   it("should swap mods around to see replace old mods", () => {
     // this is an edge case in which the artifice mod, which initially will be applied to
@@ -240,7 +279,7 @@ describe("Results Worker", () => {
     config.minimumStatTiers[ArmorStat.StatSuper].value = 5;
     config.minimumStatTiers[ArmorStat.StatMelee].value = 2;
 
-    let presult = handlePermutation(
+    let presult = callHandlePermutation(
       runtime,
       config,
       mockItems[0],
@@ -311,7 +350,7 @@ describe("Results Worker", () => {
     config.minimumStatTiers[ArmorStat.StatSuper].value = 0;
     config.minimumStatTiers[ArmorStat.StatMelee].value = 0;
 
-    let presult = handlePermutation(
+    let presult = callHandlePermutation(
       runtime,
       config,
       mockItems[0],
@@ -382,7 +421,7 @@ describe("Results Worker", () => {
     config.minimumStatTiers[ArmorStat.StatMelee].value = 0;
 
     const constantBonus = [-10, 0, 10, 0, 0, -10];
-    let presult = handlePermutation(
+    let presult = callHandlePermutation(
       runtime,
       config,
       mockItems[0],
@@ -446,7 +485,7 @@ describe("Results Worker", () => {
     config.tryLimitWastedStats = true;
     config.onlyShowResultsWithNoWastedStats = true;
 
-    let result = handlePermutation(
+    let result = callHandlePermutation(
       runtime,
       config,
       mockItems[0],
@@ -498,7 +537,7 @@ describe("Results Worker", () => {
     config.tryLimitWastedStats = true;
     config.onlyShowResultsWithNoWastedStats = true;
 
-    let presult = handlePermutation(
+    let presult = callHandlePermutation(
       runtime,
       config,
       mockItems[0],
@@ -529,7 +568,7 @@ describe("Results Worker", () => {
       //config.onlyShowResultsWithNoWastedStats = true
 
       const constantBonus1 = [0, 0, 0, 0, 0, 0];
-      handlePermutation(
+      callHandlePermutation(
         runtime,
         config,
         mockItems[0],
@@ -550,7 +589,7 @@ describe("Results Worker", () => {
           runtime.maximumPossibleTiers[statId] / 10;
 
         runtime = buildRuntime();
-        let presult = handlePermutation(
+        let presult = callHandlePermutation(
           runtime,
           config,
           mockItems[0],
@@ -668,7 +707,7 @@ describe("Results Worker", () => {
 
     //const constantBonus = [-10, -10, -10, -10, -10, -10];
     const constantBonus = [0, 0, 0, 0, 0, 0];
-    let presult = handlePermutation(
+    let presult = callHandlePermutation(
       runtime,
       config,
       mockItems[0],
@@ -730,7 +769,7 @@ describe("Results Worker", () => {
       rarity: TierType.Exotic,
     });
 
-    const result = handlePermutation(
+    const result = callHandlePermutation(
       runtime,
       config,
       helmet,
@@ -756,7 +795,7 @@ describe("Results Worker", () => {
     const leg = buildTestItem(ArmorSlot.ArmorSlotLegs, false, [12, 8, 10, 14, 8, 10]);
     const legendaryClassItem = buildTestClassItem([4, 8, 14, 10, 6, 8]);
 
-    const result = handlePermutation(
+    const result = callHandlePermutation(
       runtime,
       config,
       helmet,
@@ -781,7 +820,7 @@ describe("Results Worker", () => {
     const leg = buildTestItem(ArmorSlot.ArmorSlotLegs, false, [14, 8, 10, 14, 8, 10]);
     const classItem = buildTestClassItem([10, 6, 16, 12, 8, 10]);
 
-    const result = handlePermutation(
+    const result = callHandlePermutation(
       runtime,
       config,
       helmet,
@@ -819,7 +858,7 @@ describe("Results Worker", () => {
     const goodClassItem = buildTestClassItem([10, 2, 20, 12, 8, 10]);
 
     // Bad class item should return null (exceeds fixed tier)
-    const badResult = handlePermutation(
+    const badResult = callHandlePermutation(
       runtime,
       config,
       helmet,
@@ -833,7 +872,7 @@ describe("Results Worker", () => {
     expect(badResult).toBeNull();
 
     // Good class item should return a valid result
-    const goodResult = handlePermutation(
+    const goodResult = callHandlePermutation(
       buildRuntime(),
       config,
       helmet,
@@ -859,7 +898,7 @@ describe("Results Worker", () => {
     // Only class item has artifice
     const classItem = buildTestClassItem([6, 10, 16, 12, 8, 10], ArmorPerkOrSlot.SlotArtifice);
 
-    const result = handlePermutation(
+    const result = callHandlePermutation(
       runtime,
       config,
       helmet,
@@ -895,7 +934,7 @@ describe("Results Worker", () => {
     const leg = buildTestItem(ArmorSlot.ArmorSlotLegs, false, [10, 10, 10, 20, 10, 8]);
     const classItem = buildTestClassItem([10, 10, 10, 20, 10, 10]);
 
-    const result = handlePermutation(
+    const result = callHandlePermutation(
       runtime,
       config,
       helmet,
@@ -931,7 +970,7 @@ describe("Results Worker", () => {
       armorSystem: ArmorSystem.Armor3,
     });
 
-    const result = handlePermutation(
+    const result = callHandlePermutation(
       runtime,
       config,
       helmet,
@@ -961,7 +1000,7 @@ describe("Results Worker", () => {
 
     // Low-stat class item: needs mods to reach T10 resilience
     const lowClassItem = buildTestClassItem([2, 2, 2, 2, 2, 2]);
-    const lowResult = handlePermutation(
+    const lowResult = callHandlePermutation(
       runtime,
       config,
       helmet,
@@ -976,7 +1015,7 @@ describe("Results Worker", () => {
     // High-stat class item: needs fewer/no mods
     const highClassItem = buildTestClassItem([2, 20, 10, 12, 8, 10]);
     const runtime2 = buildRuntime();
-    const highResult = handlePermutation(
+    const highResult = callHandlePermutation(
       runtime2,
       config,
       helmet,
@@ -1006,7 +1045,7 @@ describe("Results Worker", () => {
       const constantBonus = [0, 0, 0, 0, 0, 0];
 
       // First pass: discover maximumPossibleTiers
-      handlePermutation(
+      callHandlePermutation(
         runtime,
         config,
         mockItems[0],
@@ -1025,7 +1064,7 @@ describe("Results Worker", () => {
           runtime.maximumPossibleTiers[statId] / 10;
 
         runtime = buildRuntime();
-        let presult = handlePermutation(
+        let presult = callHandlePermutation(
           runtime,
           config,
           mockItems[0],
