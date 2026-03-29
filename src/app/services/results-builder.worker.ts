@@ -628,10 +628,23 @@ function generate_tunings(possibleImprovements: t5Improvement[]): Tuning[] {
   });
   const tunings: Tuning[] = [];
 
-  const seen = new Set<string>();
+  const seen = new Set<number>();
+
+  function tuningKey(t: number[]): number {
+    // Encode 6 values in [-30,30] as a single safe integer (base 61, offset 30)
+    return (
+      t[0] +
+      30 +
+      (t[1] + 30) * 61 +
+      (t[2] + 30) * 3721 +
+      (t[3] + 30) * 226981 +
+      (t[4] + 30) * 13845841 +
+      (t[5] + 30) * 844596301
+    );
+  }
 
   function addUniqueTuning(tuning: Tuning) {
-    const key = tuning.join(",");
+    const key = tuningKey(tuning);
     if (!seen.has(key)) {
       tunings.push(tuning as Tuning);
       seen.add(key);
@@ -886,6 +899,9 @@ function getStatVal(statId: ArmorStat, mods: StatModifierPrecalc, start: number)
 }
 
 // region Tier Availability Testing
+const _testDistances: number[] = [0, 0, 0, 0, 0, 0];
+const _zeroOptional: number[] = [0, 0, 0, 0, 0, 0];
+
 function performTierAvailabilityTesting(
   runtime: any,
   config: BuildConfiguration,
@@ -896,8 +912,15 @@ function performTierAvailabilityTesting(
   availableTunings: Tuning[]
 ): void {
   for (let stat = 0; stat < 6; stat++) {
-    const minimumTuning = availableTunings.map((t) => t[stat]).reduce((a, b) => Math.min(a, b), 0);
     const minStat = stats[stat];
+    if (minStat >= 200) continue;
+
+    // Inline minimumTuning — avoid .map().reduce() allocation
+    let minimumTuning = 0;
+    for (let t = 0; t < availableTunings.length; t++) {
+      const v = availableTunings[t][stat];
+      if (v < minimumTuning) minimumTuning = v;
+    }
 
     const tmpTunings = availableTunings.slice().sort((a, b) => {
       const aVal = a[stat];
@@ -905,23 +928,17 @@ function performTierAvailabilityTesting(
       const aNeg = aVal < 0;
       const bNeg = bVal < 0;
       if (aNeg && bNeg) {
-        // Both negative: sort descending
         return bVal - aVal;
       } else if (!aNeg && !bNeg) {
-        // Both zero or positive: sort ascending
         return aVal - bVal;
       } else {
-        // Zero/positive first, then negative
         return aNeg ? 1 : -1;
       }
     });
 
-    if (runtime.maximumPossibleTiers[stat] < stats[stat] + minimumTuning) {
-      runtime.maximumPossibleTiers[stat] = stats[stat] + minimumTuning;
+    if (runtime.maximumPossibleTiers[stat] < minStat + minimumTuning) {
+      runtime.maximumPossibleTiers[stat] = minStat + minimumTuning;
     }
-    //const tuningsWithoutNegatives = tmpTunings.filter((t) => t[stat] >= 0);
-
-    if (minStat >= 200) continue; // Already at max value, no need to test
 
     const minTier = config.minimumStatTiers[stat as ArmorStat].value * 10;
 
@@ -929,27 +946,25 @@ function performTierAvailabilityTesting(
     let low = Math.max(runtime.maximumPossibleTiers[stat], minTier);
     let high = 200;
 
+    // Reuse testDistances buffer — copy distances once, restore stat slot after loop
+    for (let i = 0; i < 6; i++) _testDistances[i] = distances[i];
+
     while (low <= high) {
-      // Try middle value, rounded to nearest 10 for tier optimization
       const mid = Math.min(200, Math.ceil((low + high) / 2));
 
       if (minStat >= mid && minimumTuning == 0) {
-        // We can already reach this value naturally
         low = mid + 1;
         continue;
       }
 
-      // Calculate distance needed to reach this value
-      const testDistances = [...distances];
-      testDistances[stat] = Math.max(0, mid - minStat);
+      _testDistances[stat] = Math.max(0, mid - minStat);
 
-      // Check if this value is achievable with mods
       const mods = get_mods_precalc(
         stats,
         targetStats,
         config,
-        testDistances,
-        [0, 0, 0, 0, 0, 0],
+        _testDistances,
+        _zeroOptional,
         availableArtificeCount,
         ModOptimizationStrategy.None,
         tmpTunings
@@ -960,29 +975,25 @@ function performTierAvailabilityTesting(
         runtime.maximumPossibleTiers[stat] = Math.max(val, runtime.maximumPossibleTiers[stat]);
         low = Math.max(runtime.maximumPossibleTiers[stat], mid) + 1;
       } else {
-        // This value is not achievable, try lower
         high = mid - 1;
       }
     }
 
     // Verify the final value
     if (low > runtime.maximumPossibleTiers[stat] && low <= 200) {
-      const testDistances = [...distances];
-      testDistances[stat] = Math.max(low - minStat, 0);
+      _testDistances[stat] = Math.max(low - minStat, 0);
       const mods = get_mods_precalc(
         stats,
         targetStats,
         config,
-        testDistances,
-        [0, 0, 0, 0, 0, 0],
+        _testDistances,
+        _zeroOptional,
         availableArtificeCount,
         ModOptimizationStrategy.None,
         tmpTunings
       );
       if (mods != null) {
         runtime.maximumPossibleTiers[stat] = low;
-        // also set the other stats
-        // This may reduce the amount of required calculations for the stats that will be checked later on
         for (let otherStat = stat + 1; otherStat < 6; otherStat++) {
           runtime.maximumPossibleTiers[otherStat] = Math.max(
             getStatVal(otherStat, mods, stats[otherStat]),
@@ -991,6 +1002,9 @@ function performTierAvailabilityTesting(
         }
       }
     }
+
+    // Restore the original distance for this stat
+    _testDistances[stat] = distances[stat];
   }
 }
 
