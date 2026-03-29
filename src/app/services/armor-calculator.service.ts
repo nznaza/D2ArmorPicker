@@ -44,6 +44,7 @@ import { IPermutatorArmor } from "../data/types/IPermutatorArmor";
 import { FORCE_USE_NO_EXOTIC, MAXIMUM_MASTERWORK_LEVEL } from "../data/constants";
 import { calculateCPUConcurrency } from "../data/commonFunctions";
 import { ModOptimizationStrategy } from "../data/enum/mod-optimization-strategy";
+import { EventArmorType } from "../data/enum/event-armor-type";
 import { ArmorSystem } from "../data/types/IManifestArmor";
 import { combineLatest, Subscription } from "rxjs";
 import { debounceTime, distinctUntilChanged, catchError, startWith } from "rxjs/operators";
@@ -851,11 +852,11 @@ export class ArmorCalculatorService implements OnDestroy {
     const classItems = inventoryArmorItems.filter((i) => i.slot === ArmorSlot.ArmorSlotClass);
 
     let filteredHelmets = helmets;
-    if (config.useFotlArmor) {
+    if (config.useEventArmor === EventArmorType.FestivalOfTheLost) {
       const fotlHelmetHashes = [
         199733460, // titan masq
-        2545426109, // warlock
         3224066584, // hunter
+        2545426109, // warlock
         2390807586, // titan new fotl
         2462335932, // hunter new fotl
         4095816113, // warlock new fotl
@@ -867,6 +868,15 @@ export class ArmorCalculatorService implements OnDestroy {
     const anyStatFixed = Object.values(config.minimumStatTiers).some((v: any) => v.fixed);
 
     let filteredClassItems = classItems;
+
+    if (config.useEventArmor === EventArmorType.GuardianGames) {
+      const ggClassItemHashes = [
+        3299562545, // titan gg class item
+        3111568261, // hunter gg class item
+        1326541974, // warlock gg class item
+      ];
+      filteredClassItems = classItems.filter((k) => ggClassItemHashes.indexOf(k.hash) > -1);
+    }
 
     if (filteredClassItems.length > 0) {
       // Filter exotic class items based on selected exotic perks if they are not "Any"

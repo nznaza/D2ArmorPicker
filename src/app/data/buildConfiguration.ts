@@ -25,6 +25,7 @@ import { EnumDictionary } from "./types/EnumDictionary";
 // import { ArmorSlot } from "./enum/armor-slot";
 import { ModifierType } from "./enum/modifierType";
 import { ModOptimizationStrategy } from "./enum/mod-optimization-strategy";
+import { EventArmorType } from "./enum/event-armor-type";
 import { DestinyClass } from "bungie-api-ts/destiny2/interfaces";
 
 export function getDefaultStatDict(
@@ -80,7 +81,7 @@ export class BuildConfiguration {
 
   calculateTierFiveTuning = false;
   putArtificeMods = true;
-  useFotlArmor = false;
+  useEventArmor: EventArmorType = EventArmorType.None;
   allowBlueArmorPieces = true;
   // Allow armor 2.0, which is the legacy armor system
   allowLegacyLegendaryArmor = true;
@@ -119,7 +120,7 @@ export class BuildConfiguration {
       assumeEveryExoticIsArtifice: false,
       assumeClassItemIsArtifice: false,
       putArtificeMods: true,
-      useFotlArmor: false,
+      useEventArmor: EventArmorType.None,
       onlyUseMasterworkedExotics: false,
       onlyUseMasterworkedLegendaries: false,
       ignoreSunsetArmor: false,
