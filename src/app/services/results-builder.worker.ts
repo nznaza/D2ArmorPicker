@@ -67,7 +67,7 @@ function mapItemToTuning(i: IPermutatorArmor): t5Improvement {
 }
 
 // Tuning generation cache: memoizes generate_tunings + tuningMax by sorted signature multiset
-type TuningCacheEntry = { tunings: Tuning[]; tuningMax: number[] };
+type TuningCacheEntry = { tunings: Tuning[]; tuningMax: number[]; sortedByStat: Tuning[][] };
 const _tuningCache = new Map<string, TuningCacheEntry>();
 const _TUNING_CACHE_MAX = 256;
 
@@ -126,9 +126,18 @@ function getCachedTunings(
 
   // Cache miss — generate and store
   const improvements = _t5Items.slice(0, itemCount);
+  const tunings = generate_tunings(improvements);
   entry = {
-    tunings: generate_tunings(improvements),
+    tunings,
     tuningMax: computeTuningMax(improvements),
+    sortedByStat: [
+      sortTuningsForStat(tunings, 0),
+      sortTuningsForStat(tunings, 1),
+      sortTuningsForStat(tunings, 2),
+      sortTuningsForStat(tunings, 3),
+      sortTuningsForStat(tunings, 4),
+      sortTuningsForStat(tunings, 5),
+    ],
   };
   if (_tuningCache.size < _TUNING_CACHE_MAX) {
     _tuningCache.set(key, entry);
@@ -795,6 +804,17 @@ function generate_tunings(possibleImprovements: t5Improvement[]): Tuning[] {
   return tunings;
 }
 
+// Default tunings for non-T5 case (module-level to avoid per-permutation allocation)
+const _defaultTunings: Tuning[] = [[0, 0, 0, 0, 0, 0]];
+const _defaultSortedByStat: Tuning[][] = [
+  _defaultTunings,
+  _defaultTunings,
+  _defaultTunings,
+  _defaultTunings,
+  _defaultTunings,
+  _defaultTunings,
+];
+
 // Pre-allocated reusable buffers for handlePermutation (H4)
 const _distances: number[] = [0, 0, 0, 0, 0, 0];
 const _tuningMax: number[] = [0, 0, 0, 0, 0, 0];
@@ -1013,9 +1033,11 @@ export function handlePermutation(
     }
   }
 
-  let availableTunings: Tuning[] = [[0, 0, 0, 0, 0, 0]];
+  let availableTunings: Tuning[] = _defaultTunings;
+  let sortedByStat: Tuning[][] = _defaultSortedByStat;
   if (tuningCacheEntry !== null) {
     availableTunings = tuningCacheEntry.tunings;
+    sortedByStat = tuningCacheEntry.sortedByStat;
   }
 
   // heavy work: mod precalc
@@ -1059,7 +1081,8 @@ export function handlePermutation(
       targetVals,
       distances,
       availableArtificeCount,
-      availableTunings
+      availableTunings,
+      sortedByStat
     );
   }
 
@@ -1129,18 +1152,9 @@ function performTierAvailabilityTesting(
   targetStats: number[],
   distances: number[],
   availableArtificeCount: number,
-  availableTunings: Tuning[]
+  availableTunings: Tuning[],
+  sortedByStat: Tuning[][]
 ): void {
-  // Pre-sort tunings for all 6 stats once, outside the per-stat loop
-  const sortedBystat: Tuning[][] = [
-    sortTuningsForStat(availableTunings, 0),
-    sortTuningsForStat(availableTunings, 1),
-    sortTuningsForStat(availableTunings, 2),
-    sortTuningsForStat(availableTunings, 3),
-    sortTuningsForStat(availableTunings, 4),
-    sortTuningsForStat(availableTunings, 5),
-  ];
-
   for (let stat = 0; stat < 6; stat++) {
     const minStat = stats[stat];
     if (minStat >= 200) continue;
@@ -1151,7 +1165,7 @@ function performTierAvailabilityTesting(
       if (v < minimumTuning) minimumTuning = v;
     }
 
-    const tmpTunings = sortedBystat[stat];
+    const tmpTunings = sortedByStat[stat];
 
     if (runtime.maximumPossibleTiers[stat] < minStat + minimumTuning) {
       runtime.maximumPossibleTiers[stat] = minStat + minimumTuning;
