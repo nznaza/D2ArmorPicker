@@ -252,25 +252,34 @@ addEventListener("message", async ({ data }) => {
     };
   }
 
-  let helmets = items
-    .filter((i) => i.slot == ArmorSlot.ArmorSlotHelmet)
-    .filter((k) => {
-      return (
-        !config.useFotlArmor ||
-        [
-          199733460, // titan masq
-          2545426109, // warlock
-          3224066584, // hunter
-          2390807586, // titan new fotl
-          2462335932, // hunter new fotl
-          4095816113, // warlock new fotl
-        ].indexOf(k.hash) > -1
-      );
-    });
-  let gauntlets = items.filter((i) => i.slot == ArmorSlot.ArmorSlotGauntlet);
-  let chests = items.filter((i) => i.slot == ArmorSlot.ArmorSlotChest);
-  let legs = items.filter((i) => i.slot == ArmorSlot.ArmorSlotLegs);
-  let classItems = items.filter((i) => i.slot == ArmorSlot.ArmorSlotClass);
+  const fotlHashes = config.useFotlArmor
+    ? new Set([199733460, 2545426109, 3224066584, 2390807586, 2462335932, 4095816113])
+    : null;
+  let helmets: IPermutatorArmor[] = [];
+  let gauntlets: IPermutatorArmor[] = [];
+  let chests: IPermutatorArmor[] = [];
+  let legs: IPermutatorArmor[] = [];
+  let classItems: IPermutatorArmor[] = [];
+  for (let idx = 0; idx < items.length; idx++) {
+    const i = items[idx];
+    switch (i.slot) {
+      case ArmorSlot.ArmorSlotHelmet:
+        if (!fotlHashes || fotlHashes.has(i.hash)) helmets.push(i);
+        break;
+      case ArmorSlot.ArmorSlotGauntlet:
+        gauntlets.push(i);
+        break;
+      case ArmorSlot.ArmorSlotChest:
+        chests.push(i);
+        break;
+      case ArmorSlot.ArmorSlotLegs:
+        legs.push(i);
+        break;
+      case ArmorSlot.ArmorSlotClass:
+        classItems.push(i);
+        break;
+    }
+  }
 
   // Sort by Masterwork, descending
   classItems = classItems.sort(
@@ -320,31 +329,24 @@ addEventListener("message", async ({ data }) => {
   // true if any armorPerks is not "any"
   const doesNotRequireArmorPerks = config.armorRequirements.length == 0;
 
-  classItems = classItems.filter(
-    (item, index, self) =>
-      index ===
-      self.findIndex(
-        (i) =>
-          i.mobility === item.mobility &&
-          i.resilience === item.resilience &&
-          i.recovery === item.recovery &&
-          i.discipline === item.discipline &&
-          i.intellect === item.intellect &&
-          i.strength === item.strength &&
-          i.isExotic === item.isExotic &&
-          //i.tier >= (item.tier ?? 0) &&
-          ((i.tier < 5 && item.tier < 5) || i.tuningStat == item.tuningStat) &&
-          ((i.isExotic && config.assumeExoticsMasterworked) ||
-            (!i.isExotic && config.assumeLegendariesMasterworked) ||
-            // If there is any stat fixed, we check if the masterwork level is the same as the first item
-            (anyStatFixed && i.masterworkLevel === item.masterworkLevel) ||
-            // If there is no stat fixed, then we just use the masterwork level of the first item.
-            // As it is already sorted descending, we can just check if the masterwork level is the same
-            !anyStatFixed) &&
-          (doesNotRequireArmorPerks || (i.perk === item.perk && i.gearSetHash === item.gearSetHash))
-      )
-  );
-  //*/
+  {
+    const seen = new Set<string>();
+    classItems = classItems.filter((item) => {
+      const tuningPart = item.tier < 5 ? -1 : (item.tuningStat ?? -1);
+      const mwPart =
+        (item.isExotic && config.assumeExoticsMasterworked) ||
+        (!item.isExotic && config.assumeLegendariesMasterworked) ||
+        !anyStatFixed
+          ? 0
+          : (item.masterworkLevel ?? 0);
+      const perkPart = doesNotRequireArmorPerks ? 0 : item.perk;
+      const gearSetPart = doesNotRequireArmorPerks ? 0 : (item.gearSetHash ?? 0);
+      const key = `${item.mobility}|${item.resilience}|${item.recovery}|${item.discipline}|${item.intellect}|${item.strength}|${item.isExotic}|${tuningPart}|${mwPart}|${perkPart}|${gearSetPart}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
 
   // Support multithreading. Find the largest set and split it by N, ensuring even exotic distribution.
   if (threadSplit.count > 1) {
