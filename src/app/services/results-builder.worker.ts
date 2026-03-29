@@ -958,11 +958,16 @@ export function handlePermutation(
 
   if (doNotOutput) return null;
 
-  const usedArtifice = modResult.mods.filter((d: StatModifier) => 0 == d % 3);
-  const usedMods = modResult.mods.filter((d: StatModifier) => 0 != d % 3);
+  const usedArtifice: StatModifier[] = [];
+  const usedMods: StatModifier[] = [];
+  for (let mi = 0; mi < modResult.mods.length; mi++) {
+    const d = modResult.mods[mi];
+    if (d % 3 === 0) usedArtifice.push(d);
+    else usedMods.push(d);
+  }
 
   // Apply mods to stats for final calculation
-  const finalStats = [...stats];
+  const finalStats = [stats[0], stats[1], stats[2], stats[3], stats[4], stats[5]];
   for (let statModifier of modResult.mods) {
     const stat = Math.floor((statModifier - 1) / 3);
     finalStats[stat] += STAT_MOD_VALUES[statModifier][1];
@@ -1173,10 +1178,8 @@ function get_mods_recursive(
 
   const precalculatedMods = precalculatedTuningModCombinations[distance] || [[0, 0, 0, 0, 0, 0]];
 
-  let anyValid = false;
   for (let mi = 0; mi < precalculatedMods.length; mi++) {
     const mod = precalculatedMods[mi];
-    // M1: inline filter check instead of allocating filtered array
     if (
       mod[0] > availableArtificeCount ||
       mod[2] > availableMajorMods ||
@@ -1184,7 +1187,6 @@ function get_mods_recursive(
       mod[3] > maxValueOfAvailableTunings
     )
       continue;
-    anyValid = true;
 
     const totalMods = Math.max(0, availableMods - mod[1] - mod[2]);
     const majorMods = Math.min(totalMods, Math.max(0, availableMajorMods - mod[2]));
@@ -1219,7 +1221,7 @@ function get_mods_recursive(
       return true;
     }
   }
-  return anyValid ? false : false;
+  return false;
 }
 
 type StatModifierPrecalc = {
@@ -1241,11 +1243,6 @@ function get_mods_precalc(
   const totalDistance =
     distances[0] + distances[1] + distances[2] + distances[3] + distances[4] + distances[5];
   if (totalDistance > 50 + 25) return null;
-
-  if (totalDistance == 0 && optionalDistances.every((d) => d == 0)) {
-    // no mods needed, return empty array
-    return { mods: [], tuning: [0, 0, 0, 0, 0, 0], modBonus: [0, 0, 0, 0, 0, 0] };
-  }
 
   const resultAccum: number[][] = [];
   const found = get_mods_recursive(
