@@ -463,6 +463,8 @@ addEventListener("message", async ({ data }) => {
   // if the estimated calculations >= 1e6, then we will use 125ms
   let progressBarDelay = estimatedCalculations >= 1e6 ? 125 : 75;
 
+  let allTiersMaxed = false;
+
   for (let [helmet, gauntlet, chest, leg, classItem] of generateArmorCombinations(
     helmets,
     gauntlets,
@@ -472,11 +474,10 @@ addEventListener("message", async ({ data }) => {
     requiresAtLeastOneExotic
   )) {
     checkedCalculations++;
-    /**
-     *  At this point we already have:
-     *  - Masterworked Exotic/Legendaries, if they must be masterworked (config.onlyUseMasterworkedExotics/config.onlyUseMasterworkedLegendaries)
-     *  - disabled items were already removed (config.disabledItems)
-     */
+
+    // Early termination: no more output needed and tier tracking fully converged
+    if (doNotOutput && allTiersMaxed) continue;
+
     const slotCheckResult = checkSlots(
       config,
       constantModslotRequirement,
@@ -511,6 +512,11 @@ addEventListener("message", async ({ data }) => {
         doNotOutput ||
         (config.limitParsedResults && listedResults >= 3e4 / threadSplit.count) ||
         listedResults >= 1e6 / threadSplit.count;
+    }
+
+    // Check if all tiers have reached the 200 cap — no further tier testing needed
+    if (doNotOutput && !allTiersMaxed) {
+      allTiersMaxed = runtime.maximumPossibleTiers.every((t: number) => t >= 200);
     }
 
     if (checkedCalculations % 5000 == 0 && lastProgressReportTime + progressBarDelay < Date.now()) {
@@ -548,24 +554,25 @@ addEventListener("message", async ({ data }) => {
 // endregion Main Worker Event Handler
 
 // region Core Calculation Functions
-export function getStatSum(
-  items: IDestinyArmor[]
-): [number, number, number, number, number, number] {
-  let mob = 0,
-    res = 0,
-    rec = 0,
-    dis = 0,
-    int = 0,
-    str = 0;
+// Pre-allocated buffer reused by getStatSum to avoid per-call allocation
+const _statBuffer: number[] = [0, 0, 0, 0, 0, 0];
+
+export function getStatSum(items: IDestinyArmor[], out: number[] = [0, 0, 0, 0, 0, 0]): number[] {
+  out[0] = 0;
+  out[1] = 0;
+  out[2] = 0;
+  out[3] = 0;
+  out[4] = 0;
+  out[5] = 0;
   for (const item of items) {
-    mob += item.mobility;
-    res += item.resilience;
-    rec += item.recovery;
-    dis += item.discipline;
-    int += item.intellect;
-    str += item.strength;
+    out[0] += item.mobility;
+    out[1] += item.resilience;
+    out[2] += item.recovery;
+    out[3] += item.discipline;
+    out[4] += item.intellect;
+    out[5] += item.strength;
   }
-  return [mob, res, rec, dis, int, str];
+  return out;
 }
 
 function applyMasterworkStats(
@@ -670,12 +677,12 @@ export function handlePermutation(
 ): IPermutatorArmorSet | null {
   const items = [helmet, gauntlet, chest, leg, classItem];
 
-  // base stats and apply constant health tweak
-  const baseStats = getStatSum(items);
-  baseStats[1] += !chest.isExotic && config.addConstent1Health ? 1 : 0;
+  // base stats — reuse pre-allocated buffer via getStatSum
+  const stats = getStatSum(items, _statBuffer);
+  stats[1] += !chest.isExotic && config.addConstent1Health ? 1 : 0;
 
-  // apply masterwork effects to baseStats
-  for (const it of items) applyMasterworkStats(it, config, baseStats);
+  // apply masterwork effects directly into stats
+  for (const it of items) applyMasterworkStats(it, config, stats);
 
   // precompute targets and fixed flags
   const targetVals: number[] = new Array(6);
@@ -685,23 +692,21 @@ export function handlePermutation(
     targetFixed[n] = !!config.minimumStatTiers[n].fixed;
   }
 
-  // stats without mods, and stats with constant bonuses
-  const statsWithoutMods: number[] = [
-    baseStats[0],
-    baseStats[1],
-    baseStats[2],
-    baseStats[3],
-    baseStats[4],
-    baseStats[5],
-  ];
-  const stats: number[] = [
-    statsWithoutMods[0] + (constantBonus[0] || 0),
-    statsWithoutMods[1] + (constantBonus[1] || 0),
-    statsWithoutMods[2] + (constantBonus[2] || 0),
-    statsWithoutMods[3] + (constantBonus[3] || 0),
-    statsWithoutMods[4] + (constantBonus[4] || 0),
-    statsWithoutMods[5] + (constantBonus[5] || 0),
-  ];
+  // snapshot base stats before adding constantBonus (needed for output only)
+  const s0 = stats[0],
+    s1 = stats[1],
+    s2 = stats[2],
+    s3 = stats[3],
+    s4 = stats[4],
+    s5 = stats[5];
+
+  // fold constantBonus into stats in-place
+  stats[0] += constantBonus[0];
+  stats[1] += constantBonus[1];
+  stats[2] += constantBonus[2];
+  stats[3] += constantBonus[3];
+  stats[4] += constantBonus[4];
+  stats[5] += constantBonus[5];
 
   // early abort if fixed tiers exceeded
   for (let n: ArmorStat = 0; n < 6; n++) {
@@ -858,6 +863,9 @@ export function handlePermutation(
 
   const waste = getWaste(finalStats);
   if (config.onlyShowResultsWithNoWastedStats && waste > 0) return null;
+
+  // Reconstruct statsWithoutMods from snapshot (only on output path)
+  const statsWithoutMods = [s0, s1, s2, s3, s4, s5];
 
   return createArmorSet(
     helmet,
