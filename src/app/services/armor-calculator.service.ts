@@ -64,7 +64,6 @@ export class ArmorCalculatorService implements OnDestroy {
     this._calculationProgress.asObservable();
 
   private workers: Worker[];
-  private results: IPermutatorArmorSet[] = [];
   private totalPermutationCount = 0;
   private resultMaximumTiers: number[][] = [];
   private selectedExotics: IManifestArmor[] = [];
@@ -406,7 +405,7 @@ export class ArmorCalculatorService implements OnDestroy {
       this.status.modifyStatus((s) => (s.cancelledCalculation = false));
       let doneWorkerCount = 0;
 
-      this.results = [];
+      this.endResults = [];
       this.totalPermutationCount = 0;
       this.resultMaximumTiers = [];
       const startTime = Date.now();
@@ -557,7 +556,15 @@ export class ArmorCalculatorService implements OnDestroy {
         Array(6).fill(0)
       );
       let oldProgressValue = 0;
+      let runningTotal = 0;
+      let runningDone = 0;
       this._calculationProgress.next(0);
+
+      // Build ID→item map once before workers start for O(1) lookups during result mapping
+      const itemById = new Map<number, IInventoryArmor>();
+      for (const item of this.inventoryArmorItems) {
+        itemById.set(item.id, item);
+      }
 
       for (let n = 0; n < nthreads; n++) {
         this.workers[n] = new Worker(new URL("./results-builder.worker", import.meta.url), {
@@ -565,22 +572,26 @@ export class ArmorCalculatorService implements OnDestroy {
         });
         this.workers[n].onmessage = async (ev) => {
           let data = ev.data;
-          threadCalculationDoneArr[n] = data.checkedCalculations;
+          runningTotal += data.estimatedCalculations - threadCalculationAmountArr[n];
+          runningDone += data.checkedCalculations - threadCalculationDoneArr[n];
           threadCalculationAmountArr[n] = data.estimatedCalculations;
+          threadCalculationDoneArr[n] = data.checkedCalculations;
           threadCalculationReachableTiers[n] =
             data.reachableTiers || data.runtime.maximumPossibleTiers;
-          const sumTotal = threadCalculationAmountArr.reduce((a, b) => a + b, 0);
-          const sumDone = threadCalculationDoneArr.reduce((a, b) => a + b, 0);
-          const minReachableTiers = threadCalculationReachableTiers
-            .reduce((minArr, currArr) => {
-              // Using MAX would be more accurate, but using min is more visually appealing as it leads to larger jumps
-              return minArr.map((val, idx) => Math.max(val, currArr[idx]));
-            })
-            .map((k) => Math.min(200, k) / 10);
-          this._reachableTiers.next(minReachableTiers);
+          const maxReachableTiers: number[] = [0, 0, 0, 0, 0, 0];
+          for (let t = 0; t < nthreads; t++) {
+            const arr = threadCalculationReachableTiers[t];
+            for (let s = 0; s < 6; s++) {
+              if (arr[s] > maxReachableTiers[s]) maxReachableTiers[s] = arr[s];
+            }
+          }
+          for (let s = 0; s < 6; s++) {
+            maxReachableTiers[s] = Math.min(200, maxReachableTiers[s]) / 10;
+          }
+          this._reachableTiers.next(maxReachableTiers);
 
           if (threadCalculationDoneArr.every((v) => v > 0)) {
-            const newProgress = (sumDone / sumTotal) * 100;
+            const newProgress = (runningDone / runningTotal) * 100;
             if (newProgress > oldProgressValue + 0.25) {
               oldProgressValue = newProgress;
               this._calculationProgress.next(newProgress);
@@ -590,7 +601,76 @@ export class ArmorCalculatorService implements OnDestroy {
 
           const batchResults = data.results as IPermutatorArmorSet[];
           for (let ri = 0; ri < batchResults.length; ri++) {
-            this.results.push(batchResults[ri]);
+            const armorSet = batchResults[ri];
+            const armorIds = armorSet.armor;
+            const resultItems: ResultItem[] = new Array(armorIds.length);
+            let exotic: IInventoryArmor | undefined;
+            let usesCollectionRoll = false;
+            let usesVendorRoll = false;
+
+            for (let ii = 0; ii < armorIds.length; ii++) {
+              const instance = itemById.get(armorIds[ii])!;
+              if (instance.isExotic) exotic = instance;
+              if (instance.source === InventoryArmorSource.Collections) usesCollectionRoll = true;
+              if (instance.source === InventoryArmorSource.Vendor) usesVendorRoll = true;
+              resultItems[ii] = {
+                tuningStat: instance.tuningStat,
+                energyLevel: instance.energyLevel,
+                hash: instance.hash,
+                itemInstanceId: instance.itemInstanceId,
+                name: instance.name,
+                exotic: !!instance.isExotic,
+                masterworked: instance.masterworkLevel == MAXIMUM_MASTERWORK_LEVEL,
+                archetypeStats: instance.archetypeStats,
+                armorSystem: instance.armorSystem,
+                masterworkLevel: instance.masterworkLevel,
+                slot: instance.slot,
+                perk: instance.perk,
+                transferState: 0,
+                tier: instance.tier,
+                stats: [
+                  instance.mobility,
+                  instance.resilience,
+                  instance.recovery,
+                  instance.discipline,
+                  instance.intellect,
+                  instance.strength,
+                ],
+                source: instance.source,
+                statsNoMods: [],
+              };
+            }
+
+            const usedMods = armorSet.usedMods;
+            let modCost = 0;
+            for (let mi = 0; mi < usedMods.length; mi++) {
+              modCost += STAT_MOD_VALUES[usedMods[mi]][2];
+            }
+
+            this.endResults.push({
+              loaded: false,
+              tuningStats: armorSet.tuning,
+              exotic:
+                exotic == null
+                  ? undefined
+                  : {
+                      icon: exotic.icon,
+                      watermark: exotic.watermarkIcon,
+                      name: exotic.name,
+                      hash: exotic.hash,
+                    },
+              artifice: armorSet.usedArtifice,
+              modCount: usedMods.length,
+              modCost,
+              mods: usedMods,
+              stats: armorSet.statsWithMods,
+              statsNoMods: armorSet.statsWithoutMods,
+              tiers: getSkillTier(armorSet.statsWithMods),
+              waste: getWaste(armorSet.statsWithMods),
+              items: resultItems,
+              usesCollectionRoll,
+              usesVendorRoll,
+            });
           }
           if (data.done == true) {
             doneWorkerCount++;
@@ -601,101 +681,20 @@ export class ArmorCalculatorService implements OnDestroy {
             this.status.modifyStatus((s) => (s.calculatingResults = false));
             this._calculationProgress.next(0);
 
-            this.endResults = [];
-
-            // Build ID→item map for O(1) lookups instead of repeated .find()
-            const itemById = new Map<number, IInventoryArmor>();
-            for (const item of this.inventoryArmorItems) {
-              itemById.set(item.id, item);
-            }
-
-            for (let ai = 0; ai < this.results.length; ai++) {
-              const armorSet = this.results[ai];
-              const armorIds = armorSet.armor;
-              const resultItems: ResultItem[] = new Array(armorIds.length);
-              let exotic: IInventoryArmor | undefined;
-              let usesCollectionRoll = false;
-              let usesVendorRoll = false;
-
-              for (let ii = 0; ii < armorIds.length; ii++) {
-                const instance = itemById.get(armorIds[ii])!;
-                if (instance.isExotic) exotic = instance;
-                if (instance.source === InventoryArmorSource.Collections) usesCollectionRoll = true;
-                if (instance.source === InventoryArmorSource.Vendor) usesVendorRoll = true;
-                resultItems[ii] = {
-                  tuningStat: instance.tuningStat,
-                  energyLevel: instance.energyLevel,
-                  hash: instance.hash,
-                  itemInstanceId: instance.itemInstanceId,
-                  name: instance.name,
-                  exotic: !!instance.isExotic,
-                  masterworked: instance.masterworkLevel == MAXIMUM_MASTERWORK_LEVEL,
-                  archetypeStats: instance.archetypeStats,
-                  armorSystem: instance.armorSystem,
-                  masterworkLevel: instance.masterworkLevel,
-                  slot: instance.slot,
-                  perk: instance.perk,
-                  transferState: 0,
-                  tier: instance.tier,
-                  stats: [
-                    instance.mobility,
-                    instance.resilience,
-                    instance.recovery,
-                    instance.discipline,
-                    instance.intellect,
-                    instance.strength,
-                  ],
-                  source: instance.source,
-                  statsNoMods: [],
-                };
-              }
-
-              const usedMods = armorSet.usedMods;
-              let modCost = 0;
-              for (let mi = 0; mi < usedMods.length; mi++) {
-                modCost += STAT_MOD_VALUES[usedMods[mi]][2];
-              }
-
-              this.endResults.push({
-                loaded: false,
-                tuningStats: armorSet.tuning,
-                exotic:
-                  exotic == null
-                    ? undefined
-                    : {
-                        icon: exotic.icon,
-                        watermark: exotic.watermarkIcon,
-                        name: exotic.name,
-                        hash: exotic.hash,
-                      },
-                artifice: armorSet.usedArtifice,
-                modCount: usedMods.length,
-                modCost,
-                mods: usedMods,
-                stats: armorSet.statsWithMods,
-                statsNoMods: armorSet.statsWithoutMods,
-                tiers: getSkillTier(armorSet.statsWithMods),
-                waste: getWaste(armorSet.statsWithMods),
-                items: resultItems,
-                usesCollectionRoll,
-                usesVendorRoll,
-              });
-            }
-
             this._armorResults.next({
               results: this.endResults,
               totalResults: this.totalPermutationCount, // Total amount of results, differs from the real amount if the memory save setting is active
               itemCount: data.stats.itemCount,
               totalTime: Date.now() - startTime,
-              maximumPossibleTiers: this.resultMaximumTiers
-                .reduce(
-                  (p, v) => {
-                    for (let k = 0; k < 6; k++) if (p[k] < v[k]) p[k] = v[k];
-                    return p;
-                  },
-                  [0, 0, 0, 0, 0, 0]
-                )
-                .map((k) => Math.min(200, k) / 10),
+              maximumPossibleTiers: (() => {
+                const maxTiers = [0, 0, 0, 0, 0, 0];
+                for (let t = 0; t < this.resultMaximumTiers.length; t++) {
+                  const v = this.resultMaximumTiers[t];
+                  for (let k = 0; k < 6; k++) if (v[k] > maxTiers[k]) maxTiers[k] = v[k];
+                }
+                for (let k = 0; k < 6; k++) maxTiers[k] = Math.min(200, maxTiers[k]) / 10;
+                return maxTiers;
+              })(),
             });
             const updateResultsEnd = performance.now();
             this.logger.info(
