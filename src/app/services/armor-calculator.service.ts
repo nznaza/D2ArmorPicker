@@ -31,12 +31,7 @@ import {
   ResultDefinition,
   ResultItem,
 } from "../components/authenticated-v2/results/results.component";
-import {
-  IInventoryArmor,
-  InventoryArmorSource,
-  isEqualItem,
-  totalStats,
-} from "../data/types/IInventoryArmor";
+import { IInventoryArmor, InventoryArmorSource, totalStats } from "../data/types/IInventoryArmor";
 import { DestinyClass, TierType } from "bungie-api-ts/destiny2";
 import { IPermutatorArmorSet } from "../data/types/IPermutatorArmorSet";
 import { getSkillTier, getWaste } from "./results-builder.worker";
@@ -305,14 +300,27 @@ export class ArmorCalculatorService implements OnDestroy {
     this.clearResults();
   }
 
+  private bucketBySlot(): Map<ArmorSlot, IPermutatorArmor[]> {
+    const buckets = new Map<ArmorSlot, IPermutatorArmor[]>([
+      [ArmorSlot.ArmorSlotHelmet, []],
+      [ArmorSlot.ArmorSlotGauntlet, []],
+      [ArmorSlot.ArmorSlotChest, []],
+      [ArmorSlot.ArmorSlotLegs, []],
+      [ArmorSlot.ArmorSlotClass, []],
+    ]);
+    for (const item of this.permutatorArmorItems) {
+      buckets.get(item.slot)?.push(item);
+    }
+    return buckets;
+  }
+
   estimateRequiredThreads(config: BuildConfiguration): number {
-    const helmets = this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotHelmet);
-    const gauntlets = this.permutatorArmorItems.filter(
-      (d) => d.slot == ArmorSlot.ArmorSlotGauntlet
-    );
-    const chests = this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotChest);
-    const legs = this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotLegs);
-    const classItems = this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotClass);
+    const buckets = this.bucketBySlot();
+    const helmets = buckets.get(ArmorSlot.ArmorSlotHelmet)!;
+    const gauntlets = buckets.get(ArmorSlot.ArmorSlotGauntlet)!;
+    const chests = buckets.get(ArmorSlot.ArmorSlotChest)!;
+    const legs = buckets.get(ArmorSlot.ArmorSlotLegs)!;
+    const classItems = buckets.get(ArmorSlot.ArmorSlotClass)!;
     const estimatedCalculations = this.estimateCombinationsToBeChecked(
       helmets,
       gauntlets,
@@ -417,11 +425,14 @@ export class ArmorCalculatorService implements OnDestroy {
         .distinct()
         .toArray()) as IInventoryArmor[];
 
+      const disabledItemsSet = new Set(config.disabledItems);
+      const noExoticSelected = config.selectedExotics.indexOf(FORCE_USE_NO_EXOTIC) > -1;
+
       this.inventoryArmorItems = this.inventoryArmorItems
         // only armor :)
         .filter((item) => item.slot != ArmorSlot.ArmorSlotNone)
         // filter disabled items
-        .filter((item) => config.disabledItems.indexOf(item.itemInstanceId) == -1)
+        .filter((item) => !disabledItemsSet.has(item.itemInstanceId))
         // filter armor 3.0
         .filter((item) => item.isExotic || !config.enforceFeaturedLegendaryArmor || item.isFeatured)
         .filter((item) => !item.isExotic || !config.enforceFeaturedExoticArmor || item.isFeatured)
@@ -449,9 +460,7 @@ export class ArmorCalculatorService implements OnDestroy {
           }
         })
         // filter the selected exotic right here
-        .filter(
-          (item) => config.selectedExotics.indexOf(FORCE_USE_NO_EXOTIC) == -1 || !item.isExotic
-        )
+        .filter((item) => !noExoticSelected || !item.isExotic)
         .filter(
           (item) =>
             this.selectedExotics.length === 0 ||
@@ -484,17 +493,19 @@ export class ArmorCalculatorService implements OnDestroy {
         .filter((item) => !config.ignoreSunsetArmor || !item.isSunset);
       // this.logger.debug("ArmorCalculatorService", "updateResults", items.map(d => "id:'"+d.itemInstanceId+"'").join(" or "))
 
-      // Remove collection items if they are in inventory
+      // Remove collection items if they are in inventory — O(n) via Set
+      const inventoryItemKeys = new Set<string>();
+      for (const item of this.inventoryArmorItems) {
+        if (item.source === InventoryArmorSource.Inventory) {
+          inventoryItemKeys.add(
+            `${item.slot}:${item.hash}:${item.mobility}:${item.resilience}:${item.recovery}:${item.discipline}:${item.intellect}:${item.strength}`
+          );
+        }
+      }
       this.inventoryArmorItems = this.inventoryArmorItems.filter((item) => {
         if (item.source === InventoryArmorSource.Inventory) return true;
-
-        const purchasedItemInstance = this.inventoryArmorItems.find(
-          (rhs) => rhs.source === InventoryArmorSource.Inventory && isEqualItem(item, rhs)
-        );
-
-        // If this item is a collection/vendor item, ignore it if the player
-        // already has a real copy of the same item.
-        return purchasedItemInstance === undefined;
+        const key = `${item.slot}:${item.hash}:${item.mobility}:${item.resilience}:${item.recovery}:${item.discipline}:${item.intellect}:${item.strength}`;
+        return !inventoryItemKeys.has(key);
       });
       this.permutatorArmorItems = this.inventoryArmorItems.map((armor) => {
         return {
@@ -529,14 +540,14 @@ export class ArmorCalculatorService implements OnDestroy {
         };
       });
 
+      const slotBuckets = this.bucketBySlot();
       if (
         this.permutatorArmorItems.length == 0 ||
-        this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotHelmet).length == 0 ||
-        this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotGauntlet).length ==
-          0 ||
-        this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotChest).length == 0 ||
-        this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotLegs).length == 0 ||
-        this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotClass).length == 0
+        slotBuckets.get(ArmorSlot.ArmorSlotHelmet)!.length == 0 ||
+        slotBuckets.get(ArmorSlot.ArmorSlotGauntlet)!.length == 0 ||
+        slotBuckets.get(ArmorSlot.ArmorSlotChest)!.length == 0 ||
+        slotBuckets.get(ArmorSlot.ArmorSlotLegs)!.length == 0 ||
+        slotBuckets.get(ArmorSlot.ArmorSlotClass)!.length == 0
       ) {
         this.logger.warn(
           "ArmorCalculatorService",
