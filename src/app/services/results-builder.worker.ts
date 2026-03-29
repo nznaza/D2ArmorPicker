@@ -1012,10 +1012,14 @@ export function handlePermutation(
     }
   }
   if (canImproveTier) {
+    // Snapshot stats to break the alias with _statBuffer. Without this,
+    // any future code that writes to _statBuffer before tier testing
+    // returns would silently corrupt the values tier testing reads.
+    const tierTestStats = [stats[0], stats[1], stats[2], stats[3], stats[4], stats[5]];
     performTierAvailabilityTesting(
       runtime,
       config,
-      stats,
+      tierTestStats,
       targetVals,
       distances,
       availableArtificeCount,
