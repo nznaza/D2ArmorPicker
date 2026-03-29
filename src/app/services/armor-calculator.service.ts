@@ -22,7 +22,7 @@ import { DatabaseService } from "./database.service";
 import { IManifestArmor } from "../data/types/IManifestArmor";
 import { BehaviorSubject, Observable, Subject } from "rxjs";
 import { BuildConfiguration } from "../data/buildConfiguration";
-import { STAT_MOD_VALUES, StatModifier } from "../data/enum/armor-stat";
+import { STAT_MOD_VALUES } from "../data/enum/armor-stat";
 import { StatusProviderService } from "./status-provider.service";
 import { ConfigurationService } from "./configuration.service";
 import { UserInformationService } from "./user-information.service";
@@ -427,73 +427,11 @@ export class ArmorCalculatorService implements OnDestroy {
 
       const disabledItemsSet = new Set(config.disabledItems);
       const noExoticSelected = config.selectedExotics.indexOf(FORCE_USE_NO_EXOTIC) > -1;
+      const selectedExoticHashes = new Set(this.selectedExotics.map((e) => e.hash));
+      const selectedExoticSlots = new Set(this.selectedExotics.map((e) => e.slot));
+      const hasSelectedExotics = this.selectedExotics.length > 0;
 
-      this.inventoryArmorItems = this.inventoryArmorItems
-        // only armor :)
-        .filter((item) => item.slot != ArmorSlot.ArmorSlotNone)
-        // filter disabled items
-        .filter((item) => !disabledItemsSet.has(item.itemInstanceId))
-        // filter armor 3.0
-        .filter((item) => item.isExotic || !config.enforceFeaturedLegendaryArmor || item.isFeatured)
-        .filter((item) => !item.isExotic || !config.enforceFeaturedExoticArmor || item.isFeatured)
-        .filter(
-          (item) =>
-            item.armorSystem === ArmorSystem.Armor3 ||
-            item.isExotic ||
-            config.allowLegacyLegendaryArmor
-        )
-        .filter(
-          (item) =>
-            item.armorSystem === ArmorSystem.Armor3 ||
-            !item.isExotic ||
-            config.allowLegacyExoticArmor
-        )
-        // filter collection/vendor rolls if not allowed
-        .filter((item) => {
-          switch (item.source) {
-            case InventoryArmorSource.Collections:
-              return config.includeCollectionRolls;
-            case InventoryArmorSource.Vendor:
-              return config.includeVendorRolls;
-            default:
-              return true;
-          }
-        })
-        // filter the selected exotic right here
-        .filter((item) => !noExoticSelected || !item.isExotic)
-        .filter(
-          (item) =>
-            this.selectedExotics.length === 0 ||
-            (item.isExotic && this.selectedExotics.some((exotic) => exotic.hash === item.hash)) ||
-            (!item.isExotic && this.selectedExotics.every((exotic) => exotic.slot !== item.slot))
-        )
-
-        // config.OnlyUseMasterworkedExotics - only keep exotics that are masterworked
-        .filter(
-          (item) =>
-            !config.onlyUseMasterworkedExotics ||
-            !(item.rarity == TierType.Exotic && item.masterworkLevel != MAXIMUM_MASTERWORK_LEVEL)
-        )
-
-        // config.OnlyUseMasterworkedLegendaries - only keep legendaries that are masterworked
-        .filter(
-          (item) =>
-            !config.onlyUseMasterworkedLegendaries ||
-            !(item.rarity == TierType.Superior && item.masterworkLevel != MAXIMUM_MASTERWORK_LEVEL)
-        )
-
-        // non-legendaries and non-exotics
-        .filter(
-          (item) =>
-            config.allowBlueArmorPieces ||
-            item.rarity == TierType.Exotic ||
-            item.rarity == TierType.Superior
-        )
-        // sunset armor
-        .filter((item) => !config.ignoreSunsetArmor || !item.isSunset);
-      // this.logger.debug("ArmorCalculatorService", "updateResults", items.map(d => "id:'"+d.itemInstanceId+"'").join(" or "))
-
-      // Remove collection items if they are in inventory — O(n) via Set
+      // Build inventory key set for collection/vendor dedup (first pass)
       const inventoryItemKeys = new Set<string>();
       for (const item of this.inventoryArmorItems) {
         if (item.source === InventoryArmorSource.Inventory) {
@@ -502,37 +440,88 @@ export class ArmorCalculatorService implements OnDestroy {
           );
         }
       }
-      this.inventoryArmorItems = this.inventoryArmorItems.filter((item) => {
-        if (item.source === InventoryArmorSource.Inventory) return true;
-        const key = `${item.slot}:${item.hash}:${item.mobility}:${item.resilience}:${item.recovery}:${item.discipline}:${item.intellect}:${item.strength}`;
-        return !inventoryItemKeys.has(key);
-      });
-      // Strip display-only fields (icon, watermarkIcon, name, clazz, rarity, isSunset)
-      // to reduce structured clone overhead when posting to workers
-      this.permutatorArmorItems = this.inventoryArmorItems.map((armor) => {
-        return {
-          id: armor.id,
-          hash: armor.hash,
-          slot: armor.slot,
-          perk: armor.perk,
-          isExotic: armor.isExotic,
-          masterworkLevel: armor.masterworkLevel,
-          archetypeStats: armor.archetypeStats,
-          mobility: armor.mobility,
-          resilience: armor.resilience,
-          recovery: armor.recovery,
-          discipline: armor.discipline,
-          intellect: armor.intellect,
-          strength: armor.strength,
-          source: armor.source,
-          exoticPerkHash: armor.exoticPerkHash,
-          gearSetHash: armor.gearSetHash ?? null,
-          tuningStat: armor.tuningStat,
-          energyLevel: armor.energyLevel,
-          tier: armor.tier,
-          armorSystem: armor.armorSystem,
-        } as unknown as IPermutatorArmor;
-      });
+
+      // Single-pass filter + field stripping (replaces 12 chained .filter() + .map())
+      const rawItems = this.inventoryArmorItems;
+      this.permutatorArmorItems = [];
+      this.inventoryArmorItems = [];
+
+      for (let idx = 0; idx < rawItems.length; idx++) {
+        const item = rawItems[idx];
+        if (item.slot == ArmorSlot.ArmorSlotNone) continue;
+        if (disabledItemsSet.has(item.itemInstanceId)) continue;
+        if (!item.isExotic && config.enforceFeaturedLegendaryArmor && !item.isFeatured) continue;
+        if (item.isExotic && config.enforceFeaturedExoticArmor && !item.isFeatured) continue;
+        if (
+          item.armorSystem !== ArmorSystem.Armor3 &&
+          !item.isExotic &&
+          !config.allowLegacyLegendaryArmor
+        )
+          continue;
+        if (
+          item.armorSystem !== ArmorSystem.Armor3 &&
+          item.isExotic &&
+          !config.allowLegacyExoticArmor
+        )
+          continue;
+        if (item.source === InventoryArmorSource.Collections && !config.includeCollectionRolls)
+          continue;
+        if (item.source === InventoryArmorSource.Vendor && !config.includeVendorRolls) continue;
+        if (noExoticSelected && item.isExotic) continue;
+        if (hasSelectedExotics) {
+          if (item.isExotic && !selectedExoticHashes.has(item.hash)) continue;
+          if (!item.isExotic && selectedExoticSlots.has(item.slot)) continue;
+        }
+        if (
+          config.onlyUseMasterworkedExotics &&
+          item.rarity == TierType.Exotic &&
+          item.masterworkLevel != MAXIMUM_MASTERWORK_LEVEL
+        )
+          continue;
+        if (
+          config.onlyUseMasterworkedLegendaries &&
+          item.rarity == TierType.Superior &&
+          item.masterworkLevel != MAXIMUM_MASTERWORK_LEVEL
+        )
+          continue;
+        if (
+          !config.allowBlueArmorPieces &&
+          item.rarity != TierType.Exotic &&
+          item.rarity != TierType.Superior
+        )
+          continue;
+        if (config.ignoreSunsetArmor && item.isSunset) continue;
+        // Collection/vendor dedup
+        if (item.source !== InventoryArmorSource.Inventory) {
+          const key = `${item.slot}:${item.hash}:${item.mobility}:${item.resilience}:${item.recovery}:${item.discipline}:${item.intellect}:${item.strength}`;
+          if (inventoryItemKeys.has(key)) continue;
+        }
+
+        this.inventoryArmorItems.push(item);
+        // Inline field stripping (avoids separate .map() pass)
+        this.permutatorArmorItems.push({
+          id: item.id,
+          hash: item.hash,
+          slot: item.slot,
+          perk: item.perk,
+          isExotic: item.isExotic,
+          masterworkLevel: item.masterworkLevel,
+          archetypeStats: item.archetypeStats,
+          mobility: item.mobility,
+          resilience: item.resilience,
+          recovery: item.recovery,
+          discipline: item.discipline,
+          intellect: item.intellect,
+          strength: item.strength,
+          source: item.source,
+          exoticPerkHash: item.exoticPerkHash,
+          gearSetHash: item.gearSetHash ?? null,
+          tuningStat: item.tuningStat,
+          energyLevel: item.energyLevel,
+          tier: item.tier,
+          armorSystem: item.armorSystem,
+        } as unknown as IPermutatorArmor);
+      }
 
       // Sort by total stats descending before bucketing so bucket arrays inherit the order
       this.permutatorArmorItems = this.permutatorArmorItems.sort(
@@ -597,7 +586,10 @@ export class ArmorCalculatorService implements OnDestroy {
           }
           if (data.runtime == null) return;
 
-          this.results.push(...(data.results as IPermutatorArmorSet[]));
+          const batchResults = data.results as IPermutatorArmorSet[];
+          for (let ri = 0; ri < batchResults.length; ri++) {
+            this.results.push(batchResults[ri]);
+          }
           if (data.done == true) {
             doneWorkerCount++;
             this.totalPermutationCount += data.stats.permutationCount;
@@ -615,66 +607,77 @@ export class ArmorCalculatorService implements OnDestroy {
               itemById.set(item.id, item);
             }
 
-            for (let armorSet of this.results) {
-              let items = armorSet.armor.map((x) => itemById.get(x)!) as IInventoryArmor[];
-              let exotic = items.find((x) => x.isExotic);
-              let v: ResultDefinition = {
-                loaded: false, // TODO check if loaded is even needed
+            for (let ai = 0; ai < this.results.length; ai++) {
+              const armorSet = this.results[ai];
+              const armorIds = armorSet.armor;
+              const resultItems: ResultItem[] = new Array(armorIds.length);
+              let exotic: IInventoryArmor | undefined;
+              let usesCollectionRoll = false;
+              let usesVendorRoll = false;
+
+              for (let ii = 0; ii < armorIds.length; ii++) {
+                const instance = itemById.get(armorIds[ii])!;
+                if (instance.isExotic) exotic = instance;
+                if (instance.source === InventoryArmorSource.Collections) usesCollectionRoll = true;
+                if (instance.source === InventoryArmorSource.Vendor) usesVendorRoll = true;
+                resultItems[ii] = {
+                  tuningStat: instance.tuningStat,
+                  energyLevel: instance.energyLevel,
+                  hash: instance.hash,
+                  itemInstanceId: instance.itemInstanceId,
+                  name: instance.name,
+                  exotic: !!instance.isExotic,
+                  masterworked: instance.masterworkLevel == MAXIMUM_MASTERWORK_LEVEL,
+                  archetypeStats: instance.archetypeStats,
+                  armorSystem: instance.armorSystem,
+                  masterworkLevel: instance.masterworkLevel,
+                  slot: instance.slot,
+                  perk: instance.perk,
+                  transferState: 0,
+                  tier: instance.tier,
+                  stats: [
+                    instance.mobility,
+                    instance.resilience,
+                    instance.recovery,
+                    instance.discipline,
+                    instance.intellect,
+                    instance.strength,
+                  ],
+                  source: instance.source,
+                  statsNoMods: [],
+                };
+              }
+
+              const usedMods = armorSet.usedMods;
+              let modCost = 0;
+              for (let mi = 0; mi < usedMods.length; mi++) {
+                modCost += STAT_MOD_VALUES[usedMods[mi]][2];
+              }
+
+              this.endResults.push({
+                loaded: false,
                 tuningStats: armorSet.tuning,
                 exotic:
                   exotic == null
                     ? undefined
                     : {
-                        icon: exotic?.icon,
-                        watermark: exotic?.watermarkIcon,
-                        name: exotic?.name,
-                        hash: exotic?.hash,
+                        icon: exotic.icon,
+                        watermark: exotic.watermarkIcon,
+                        name: exotic.name,
+                        hash: exotic.hash,
                       },
                 artifice: armorSet.usedArtifice,
-                modCount: armorSet.usedMods.length,
-                modCost: armorSet.usedMods.reduce(
-                  (p, d: StatModifier) => p + STAT_MOD_VALUES[d][2],
-                  0
-                ),
-                mods: armorSet.usedMods,
+                modCount: usedMods.length,
+                modCost,
+                mods: usedMods,
                 stats: armorSet.statsWithMods,
                 statsNoMods: armorSet.statsWithoutMods,
                 tiers: getSkillTier(armorSet.statsWithMods),
                 waste: getWaste(armorSet.statsWithMods),
-                items: items.map(
-                  (instance): ResultItem => ({
-                    tuningStat: instance.tuningStat,
-                    energyLevel: instance.energyLevel,
-                    hash: instance.hash,
-                    itemInstanceId: instance.itemInstanceId,
-                    name: instance.name,
-                    exotic: !!instance.isExotic,
-                    masterworked: instance.masterworkLevel == MAXIMUM_MASTERWORK_LEVEL,
-                    archetypeStats: instance.archetypeStats,
-                    armorSystem: instance.armorSystem, // 2 = Armor 2.0, 3 = Armor 3.0
-                    masterworkLevel: instance.masterworkLevel,
-                    slot: instance.slot,
-                    perk: instance.perk,
-                    transferState: 0, // TRANSFER_NONE
-                    tier: instance.tier,
-                    stats: [
-                      instance.mobility,
-                      instance.resilience,
-                      instance.recovery,
-                      instance.discipline,
-                      instance.intellect,
-                      instance.strength,
-                    ],
-                    source: instance.source,
-                    statsNoMods: [],
-                  })
-                ),
-                usesCollectionRoll: items.some(
-                  (y) => y.source === InventoryArmorSource.Collections
-                ),
-                usesVendorRoll: items.some((y) => y.source === InventoryArmorSource.Vendor),
-              };
-              this.endResults.push(v);
+                items: resultItems,
+                usesCollectionRoll,
+                usesVendorRoll,
+              });
             }
 
             this._armorResults.next({
