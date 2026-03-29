@@ -204,15 +204,20 @@ function estimateCombinationsToBeChecked(
   classItems: IPermutatorArmor[]
 ) {
   let totalCalculations = 0;
-  const exoticHelmets = helmets.filter((d) => d.isExotic).length;
+  let exoticHelmets = 0;
+  for (let i = 0; i < helmets.length; i++) if (helmets[i].isExotic) exoticHelmets++;
   const legendaryHelmets = helmets.length - exoticHelmets;
-  const exoticGauntlets = gauntlets.filter((d) => d.isExotic).length;
+  let exoticGauntlets = 0;
+  for (let i = 0; i < gauntlets.length; i++) if (gauntlets[i].isExotic) exoticGauntlets++;
   const legendaryGauntlets = gauntlets.length - exoticGauntlets;
-  const exoticChests = chests.filter((d) => d.isExotic).length;
+  let exoticChests = 0;
+  for (let i = 0; i < chests.length; i++) if (chests[i].isExotic) exoticChests++;
   const legendaryChests = chests.length - exoticChests;
-  const exoticLegs = legs.filter((d) => d.isExotic).length;
+  let exoticLegs = 0;
+  for (let i = 0; i < legs.length; i++) if (legs[i].isExotic) exoticLegs++;
   const legendaryLegs = legs.length - exoticLegs;
-  const exoticClassItems = classItems.filter((d) => d.isExotic).length;
+  let exoticClassItems = 0;
+  for (let i = 0; i < classItems.length; i++) if (classItems[i].isExotic) exoticClassItems++;
   const legendaryClassItems = classItems.length - exoticClassItems;
   // all legendary
   totalCalculations +=
@@ -627,8 +632,10 @@ function applyMasterworkStats(
     if (multiplier == 0) return;
 
     // item.archetypeStats contains three stat indices. The OTHER THREE get +1 per multiplier
+    const as = item.archetypeStats;
+    const mask = (1 << as[0]) | (1 << as[1]) | (1 << as[2]);
     for (let i = 0; i < 6; i++) {
-      if (item.archetypeStats.includes(i)) continue;
+      if (mask & (1 << i)) continue;
       stats[i] += multiplier;
     }
   }
