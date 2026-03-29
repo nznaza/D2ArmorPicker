@@ -264,7 +264,8 @@ export class ArmorCalculatorService implements OnDestroy {
     helmets: IPermutatorArmor[],
     gauntlets: IPermutatorArmor[],
     chests: IPermutatorArmor[],
-    legs: IPermutatorArmor[]
+    legs: IPermutatorArmor[],
+    classItems: IPermutatorArmor[]
   ) {
     let totalCalculations = 0;
     const exoticHelmets = helmets.filter((d) => d.isExotic).length;
@@ -275,12 +276,22 @@ export class ArmorCalculatorService implements OnDestroy {
     const legendaryChests = chests.length - exoticChests;
     const exoticLegs = legs.filter((d) => d.isExotic).length;
     const legendaryLegs = legs.length - exoticLegs;
+    const exoticClassItems = classItems.filter((d) => d.isExotic).length;
+    const legendaryClassItems = classItems.length - exoticClassItems;
 
-    totalCalculations += exoticHelmets * legendaryGauntlets * legendaryChests * legendaryLegs;
-    totalCalculations += legendaryHelmets * exoticGauntlets * legendaryChests * legendaryLegs;
-    totalCalculations += legendaryHelmets * legendaryGauntlets * exoticChests * legendaryLegs;
-    totalCalculations += legendaryHelmets * legendaryGauntlets * legendaryChests * exoticLegs;
-    totalCalculations += legendaryHelmets * legendaryGauntlets * legendaryChests * legendaryLegs;
+    totalCalculations +=
+      legendaryHelmets * legendaryGauntlets * legendaryChests * legendaryLegs * legendaryClassItems;
+    totalCalculations +=
+      exoticHelmets * legendaryGauntlets * legendaryChests * legendaryLegs * legendaryClassItems;
+    totalCalculations +=
+      legendaryHelmets * exoticGauntlets * legendaryChests * legendaryLegs * legendaryClassItems;
+    totalCalculations +=
+      legendaryHelmets * legendaryGauntlets * exoticChests * legendaryLegs * legendaryClassItems;
+    totalCalculations +=
+      legendaryHelmets * legendaryGauntlets * legendaryChests * exoticLegs * legendaryClassItems;
+    totalCalculations +=
+      legendaryHelmets * legendaryGauntlets * legendaryChests * legendaryLegs * exoticClassItems;
+
     return totalCalculations;
   }
 
@@ -301,18 +312,21 @@ export class ArmorCalculatorService implements OnDestroy {
     );
     const chests = this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotChest);
     const legs = this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotLegs);
+    const classItems = this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotClass);
     const estimatedCalculations = this.estimateCombinationsToBeChecked(
       helmets,
       gauntlets,
       chests,
-      legs
+      legs,
+      classItems
     );
 
     const largestArmorBucket = Math.max(
       helmets.length,
       gauntlets.length,
       chests.length,
-      legs.length
+      legs.length,
+      classItems.length
     );
 
     let calculationMultiplier = 1.0;
@@ -521,7 +535,8 @@ export class ArmorCalculatorService implements OnDestroy {
         this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotGauntlet).length ==
           0 ||
         this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotChest).length == 0 ||
-        this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotLegs).length == 0
+        this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotLegs).length == 0 ||
+        this.permutatorArmorItems.filter((d) => d.slot == ArmorSlot.ArmorSlotClass).length == 0
       ) {
         this.logger.warn(
           "ArmorCalculatorService",
@@ -570,11 +585,7 @@ export class ArmorCalculatorService implements OnDestroy {
             .map((k) => Math.min(200, k) / 10);
           this._reachableTiers.next(minReachableTiers);
 
-          if (
-            threadCalculationDoneArr[0] > 0 &&
-            threadCalculationDoneArr[1] > 0 &&
-            threadCalculationDoneArr[2] > 0
-          ) {
+          if (threadCalculationDoneArr.every((v) => v > 0)) {
             const newProgress = (sumDone / sumTotal) * 100;
             if (newProgress > oldProgressValue + 0.25) {
               oldProgressValue = newProgress;

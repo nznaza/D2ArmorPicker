@@ -147,8 +147,7 @@
               "browserTarget": "D2ArmorPicker:build:canary"
             },
             "development": {
-              "browserTarget": "D2ArmorPicker:build:development",
-              "host": "192.168.100.15"
+              "browserTarget": "D2ArmorPicker:build:development"
             }
           },
           "defaultConfiguration": "development"
