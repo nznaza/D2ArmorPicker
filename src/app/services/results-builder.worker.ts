@@ -975,15 +975,28 @@ export function handlePermutation(
 
   if (modResult === null) return null;
 
-  performTierAvailabilityTesting(
-    runtime,
-    config,
-    stats,
-    targetVals,
-    distances,
-    availableArtificeCount,
-    availableTunings
-  );
+  // Upper bound guard: skip tier testing when no stat can possibly improve
+  let canImproveTier = false;
+  for (let stat = 0; stat < 6; stat++) {
+    if (
+      stats[stat] + possibleIncreaseByMod + 3 * availableArtificeCount + tuningMax[stat] >
+      runtime.maximumPossibleTiers[stat]
+    ) {
+      canImproveTier = true;
+      break;
+    }
+  }
+  if (canImproveTier) {
+    performTierAvailabilityTesting(
+      runtime,
+      config,
+      stats,
+      targetVals,
+      distances,
+      availableArtificeCount,
+      availableTunings
+    );
+  }
 
   if (doNotOutput) return null;
 
