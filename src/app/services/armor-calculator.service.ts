@@ -534,6 +534,11 @@ export class ArmorCalculatorService implements OnDestroy {
         } as unknown as IPermutatorArmor;
       });
 
+      // Sort by total stats descending before bucketing so bucket arrays inherit the order
+      this.permutatorArmorItems = this.permutatorArmorItems.sort(
+        (a, b) => totalStats(b) - totalStats(a)
+      );
+
       const slotBuckets = this.bucketBySlot();
       if (
         this.permutatorArmorItems.length == 0 ||
@@ -561,13 +566,6 @@ export class ArmorCalculatorService implements OnDestroy {
         Array(6).fill(0)
       );
       let oldProgressValue = 0;
-
-      // Improve per thread performance by shuffling the inventory
-      // sorting is a naive aproach that can be optimized
-      // in my test is better than the default order from the db
-      this.permutatorArmorItems = this.permutatorArmorItems.sort(
-        (a, b) => totalStats(b) - totalStats(a)
-      );
       this._calculationProgress.next(0);
 
       for (let n = 0; n < nthreads; n++) {
@@ -707,16 +705,20 @@ export class ArmorCalculatorService implements OnDestroy {
           this.workers[n].terminate();
         };
 
+        // Strip fields the worker never reads to reduce structured clone cost
+        const workerConfig = { ...config, disabledItems: [] as string[] };
         this.workers[n].postMessage({
           type: "builderRequest",
-          currentClass: currentClass,
-          config: config,
+          config: workerConfig,
           threadSplit: {
             count: nthreads,
             current: n,
           },
-          items: this.permutatorArmorItems,
-          selectedExotics: this.selectedExotics,
+          helmets: slotBuckets.get(ArmorSlot.ArmorSlotHelmet)!,
+          gauntlets: slotBuckets.get(ArmorSlot.ArmorSlotGauntlet)!,
+          chests: slotBuckets.get(ArmorSlot.ArmorSlotChest)!,
+          legs: slotBuckets.get(ArmorSlot.ArmorSlotLegs)!,
+          classItems: slotBuckets.get(ArmorSlot.ArmorSlotClass)!,
         });
       }
     } finally {

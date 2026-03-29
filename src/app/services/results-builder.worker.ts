@@ -246,14 +246,23 @@ addEventListener("message", async ({ data }) => {
   const anyStatFixed = Object.values(config.minimumStatTiers).some(
     (v: FixableSelection<number>) => v.fixed
   );
-  let items = data.items as IPermutatorArmor[];
 
-  if (threadSplit == undefined || config == undefined || items == undefined) {
+  // Accept pre-bucketed slot arrays from service (avoids cloning all items to every worker)
+  let helmets = data.helmets as IPermutatorArmor[];
+  let gauntlets = data.gauntlets as IPermutatorArmor[];
+  let chests = data.chests as IPermutatorArmor[];
+  let legs = data.legs as IPermutatorArmor[];
+  let classItems = data.classItems as IPermutatorArmor[];
+
+  if (threadSplit == undefined || config == undefined || !helmets) {
     return;
   }
 
+  const totalItemCount =
+    helmets.length + gauntlets.length + chests.length + legs.length + classItems.length;
+
   const startTime = Date.now();
-  console.log(`Thread ${threadSplit.current} started with ${items.length} items to process.`);
+  console.log(`Thread ${threadSplit.current} started with ${totalItemCount} items to process.`);
   console.time(`Total run thread#${threadSplit.current}`);
   // toggle feature flags
   config.onlyShowResultsWithNoWastedStats =
@@ -265,33 +274,12 @@ addEventListener("message", async ({ data }) => {
     };
   }
 
-  const fotlHashes = config.useFotlArmor
-    ? new Set([199733460, 2545426109, 3224066584, 2390807586, 2462335932, 4095816113])
-    : null;
-  let helmets: IPermutatorArmor[] = [];
-  let gauntlets: IPermutatorArmor[] = [];
-  let chests: IPermutatorArmor[] = [];
-  let legs: IPermutatorArmor[] = [];
-  let classItems: IPermutatorArmor[] = [];
-  for (let idx = 0; idx < items.length; idx++) {
-    const i = items[idx];
-    switch (i.slot) {
-      case ArmorSlot.ArmorSlotHelmet:
-        if (!fotlHashes || fotlHashes.has(i.hash)) helmets.push(i);
-        break;
-      case ArmorSlot.ArmorSlotGauntlet:
-        gauntlets.push(i);
-        break;
-      case ArmorSlot.ArmorSlotChest:
-        chests.push(i);
-        break;
-      case ArmorSlot.ArmorSlotLegs:
-        legs.push(i);
-        break;
-      case ArmorSlot.ArmorSlotClass:
-        classItems.push(i);
-        break;
-    }
+  // FotL helmet filter (config-dependent, must stay in worker)
+  if (config.useFotlArmor) {
+    const fotlHashes = new Set([
+      199733460, 2545426109, 3224066584, 2390807586, 2462335932, 4095816113,
+    ]);
+    helmets = helmets.filter((k) => fotlHashes.has(k.hash));
   }
 
   // Sort by Masterwork, descending
@@ -443,7 +431,7 @@ addEventListener("message", async ({ data }) => {
       estimatedCalculations: 0,
       stats: {
         permutationCount: 0,
-        itemCount: items.length - classItems.length,
+        itemCount: totalItemCount - classItems.length,
         totalTime: Date.now() - startTime,
       },
     });
@@ -577,7 +565,7 @@ addEventListener("message", async ({ data }) => {
     estimatedCalculations,
     stats: {
       permutationCount: totalResults,
-      itemCount: items.length - classItems.length,
+      itemCount: totalItemCount - classItems.length,
       totalTime: Date.now() - startTime,
     },
   });
