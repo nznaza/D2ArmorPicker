@@ -1105,6 +1105,10 @@ function performTierAvailabilityTesting(
 }
 
 // region Mod Calculation Functions
+// Pre-allocated buffers for tuning-stats recursion (M2)
+const _tuningNewStats: number[] = [0, 0, 0, 0, 0, 0];
+const _tuningNewDists: number[] = [0, 0, 0, 0, 0, 0];
+
 function get_mods_recursive(
   currentStats: number[],
   targetStats: number[],
@@ -1114,107 +1118,108 @@ function get_mods_recursive(
   statIdx: number,
   availableArtificeCount: number,
   availableMajorMods: number,
-  availableMods: number
-): number[][] | null {
+  availableMods: number,
+  resultAccum: number[][]
+): boolean {
   if (statIdx > 5) {
     // Now we have a valid set of mods and tunings, but we still have to check -5 values. This will happen in innermost loop
-    // statIdx is no longer useful here
 
-    // 1. If there is any tuning with no negative in any value, then return []
-    //    if (availableTunings.some(tuning => tuning.every(v => v >= 0))) {
-    //      return [];
-    //    }
-
-    // Now there are only tunings with negative values left.
     // 2.1 If there is any stat where (currentStat - tuningValue) >= target value, then return
     outer: for (let tuning of availableTunings) {
       for (let i = 0; i < 6; i++) {
         if (tuning[i] >= 0) continue;
         if (currentStats[i] + tuning[i] < targetStats[i]) continue outer;
       }
-      return [tuning];
+      resultAccum.push(tuning);
+      return true;
     }
 
     // 2.2 if we still have a few mods left, we can simply call the recursion again, but with the new "temp" stats
     if (availableMods > 0) {
       for (let tuning of availableTunings) {
-        const newStats = currentStats.map((s, i) => s + tuning[i]);
-        const newDists = distances_to_check.map((d, i) =>
-          Math.max(0, targetStats[i] - newStats[i])
-        );
-        const otherMods = get_mods_recursive(
-          newStats,
-          targetStats,
-          newDists,
-          [],
-          0,
-          availableArtificeCount,
-          availableMajorMods,
-          availableMods
-        );
-        if (otherMods !== null) {
-          return [...otherMods, tuning];
+        for (let i = 0; i < 6; i++) {
+          _tuningNewStats[i] = currentStats[i] + tuning[i];
+          _tuningNewDists[i] = Math.max(0, targetStats[i] - _tuningNewStats[i]);
+        }
+        if (
+          get_mods_recursive(
+            _tuningNewStats,
+            targetStats,
+            _tuningNewDists,
+            [],
+            0,
+            availableArtificeCount,
+            availableMajorMods,
+            availableMods,
+            resultAccum
+          )
+        ) {
+          resultAccum.push(tuning);
+          return true;
         }
       }
     }
 
-    return null;
+    return false;
   }
 
-  const maxValueOfAvailableTunings = availableTunings.reduce(
-    (max, tuning) => Math.max(max, tuning[statIdx]),
-    0
-  );
+  let maxValueOfAvailableTunings = 0;
+  for (let ti = 0; ti < availableTunings.length; ti++) {
+    const v = availableTunings[ti][statIdx];
+    if (v > maxValueOfAvailableTunings) maxValueOfAvailableTunings = v;
+  }
 
   const distance = distances_to_check[statIdx];
 
-  //let precalculatedMods = precalculatedModCombinations[distance] || [[0, 0, 0, 0, 0, 0]];
-  let precalculatedMods = precalculatedTuningModCombinations[distance] || [[0, 0, 0, 0, 0, 0]];
-  precalculatedMods = precalculatedMods.filter(
-    (mod) =>
-      mod[0] <= availableArtificeCount &&
-      mod[2] <= availableMajorMods &&
-      mod[2] + mod[1] <= availableMods &&
-      mod[3] <= maxValueOfAvailableTunings
-  );
+  const precalculatedMods = precalculatedTuningModCombinations[distance] || [[0, 0, 0, 0, 0, 0]];
 
-  if (precalculatedMods.length == 0) {
-    return null;
-  }
+  let anyValid = false;
+  for (let mi = 0; mi < precalculatedMods.length; mi++) {
+    const mod = precalculatedMods[mi];
+    // M1: inline filter check instead of allocating filtered array
+    if (
+      mod[0] > availableArtificeCount ||
+      mod[2] > availableMajorMods ||
+      mod[2] + mod[1] > availableMods ||
+      mod[3] > maxValueOfAvailableTunings
+    )
+      continue;
+    anyValid = true;
 
-  for (const pickedMod of precalculatedMods) {
-    const totalMods = Math.max(0, availableMods - pickedMod[1] - pickedMod[2]);
-    const majorMods = Math.min(totalMods, Math.max(0, availableMajorMods - pickedMod[2]));
-    const artifice = Math.max(0, availableArtificeCount - pickedMod[0]);
+    const totalMods = Math.max(0, availableMods - mod[1] - mod[2]);
+    const majorMods = Math.min(totalMods, Math.max(0, availableMajorMods - mod[2]));
+    const artifice = Math.max(0, availableArtificeCount - mod[0]);
 
     let selectedTuningsInner = availableTunings;
-    const requiredTuningCount = pickedMod[4];
-    const requiredTuningValue = pickedMod[3];
+    const requiredTuningCount = mod[4];
+    const requiredTuningValue = mod[3];
     if (requiredTuningCount > 0) {
       selectedTuningsInner = availableTunings.filter(
         (tuning) => tuning[statIdx] >= requiredTuningValue
       );
       if (selectedTuningsInner.length == 0) {
         continue;
-        // return null; // we could also return, if the table is sorted ascending to tuningCount
       }
     }
 
-    const otherMods = get_mods_recursive(
-      currentStats,
-      targetStats,
-      distances_to_check, //.slice(1),
-      selectedTuningsInner,
-      statIdx + 1,
-      artifice,
-      majorMods,
-      totalMods
-    );
-    if (otherMods !== null) {
-      return [pickedMod, ...otherMods];
+    if (
+      get_mods_recursive(
+        currentStats,
+        targetStats,
+        distances_to_check,
+        selectedTuningsInner,
+        statIdx + 1,
+        artifice,
+        majorMods,
+        totalMods,
+        resultAccum
+      )
+    ) {
+      resultAccum.push(mod);
+      return true;
     }
   }
-  return null;
+  return anyValid ? false : false;
 }
 
 type StatModifierPrecalc = {
@@ -1242,7 +1247,8 @@ function get_mods_precalc(
     return { mods: [], tuning: [0, 0, 0, 0, 0, 0], modBonus: [0, 0, 0, 0, 0, 0] };
   }
 
-  let pickedMods = get_mods_recursive(
+  const resultAccum: number[][] = [];
+  const found = get_mods_recursive(
     currentStats,
     targetStats,
     distances,
@@ -1250,33 +1256,37 @@ function get_mods_precalc(
     0,
     availableArtificeCount,
     config.statModLimits.maxMajorMods,
-    config.statModLimits.maxMods
+    config.statModLimits.maxMods,
+    resultAccum
   );
 
-  if (pickedMods === null) return null;
+  if (!found) return null;
 
+  // resultAccum is in reverse order: [tuning, stat5_mod, ..., stat0_mod]
   const usedMods = [];
   const modBonus = [0, 0, 0, 0, 0, 0];
-  // The last entry is always the tuning
-  for (let i = 0; i < pickedMods.length - 1; i++) {
-    for (let n = 0; n < pickedMods[i][1]; n++) {
-      usedMods.push(1 + 3 * i);
-      modBonus[i] += 5;
+  // Iterate in reverse to get stat0..stat5, skip index 0 which is the tuning
+  for (let ri = resultAccum.length - 1; ri >= 1; ri--) {
+    const statIndex = resultAccum.length - 1 - ri;
+    const mod = resultAccum[ri];
+    for (let n = 0; n < mod[1]; n++) {
+      usedMods.push(1 + 3 * statIndex);
+      modBonus[statIndex] += 5;
     }
-    for (let n = 0; n < pickedMods[i][2]; n++) {
-      usedMods.push(2 + 3 * i);
-      modBonus[i] += 10;
+    for (let n = 0; n < mod[2]; n++) {
+      usedMods.push(2 + 3 * statIndex);
+      modBonus[statIndex] += 10;
     }
-    for (let n = 0; n < pickedMods[i][0]; n++) {
-      usedMods.push(3 + 3 * i);
-      modBonus[i] += 3;
+    for (let n = 0; n < mod[0]; n++) {
+      usedMods.push(3 + 3 * statIndex);
+      modBonus[statIndex] += 3;
     }
   }
 
   return {
     mods: usedMods,
     modBonus: modBonus,
-    tuning: pickedMods[pickedMods.length - 1] as Tuning,
+    tuning: resultAccum[0] as Tuning,
   };
 }
 
