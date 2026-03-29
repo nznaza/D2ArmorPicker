@@ -680,24 +680,32 @@ function generate_tunings(possibleImprovements: t5Improvement[]): Tuning[] {
   if (impValues.length === 0) {
     addUniqueTuning([0, 0, 0, 0, 0, 0]);
   } else {
-    function recurse(idx: number, acc: number[]) {
+    const acc = [0, 0, 0, 0, 0, 0];
+    function recurse(idx: number) {
       if (idx === impValues.length) {
-        addUniqueTuning(acc as Tuning);
+        // snapshot the accumulator into a new tuple for storage
+        addUniqueTuning([acc[0], acc[1], acc[2], acc[3], acc[4], acc[5]] as Tuning);
         return;
       }
       for (const v of impValues[idx]) {
-        const next = [
-          acc[0] + v[0],
-          acc[1] + v[1],
-          acc[2] + v[2],
-          acc[3] + v[3],
-          acc[4] + v[4],
-          acc[5] + v[5],
-        ];
-        recurse(idx + 1, next);
+        // mutate accumulator
+        acc[0] += v[0];
+        acc[1] += v[1];
+        acc[2] += v[2];
+        acc[3] += v[3];
+        acc[4] += v[4];
+        acc[5] += v[5];
+        recurse(idx + 1);
+        // restore accumulator
+        acc[0] -= v[0];
+        acc[1] -= v[1];
+        acc[2] -= v[2];
+        acc[3] -= v[3];
+        acc[4] -= v[4];
+        acc[5] -= v[5];
       }
     }
-    recurse(0, [0, 0, 0, 0, 0, 0]);
+    recurse(0);
   }
 
   return tunings;
@@ -1011,6 +1019,18 @@ function getStatVal(statId: ArmorStat, mods: StatModifierPrecalc, start: number)
 const _testDistances: number[] = [0, 0, 0, 0, 0, 0];
 const _zeroOptional: number[] = [0, 0, 0, 0, 0, 0];
 
+function sortTuningsForStat(tunings: Tuning[], stat: number): Tuning[] {
+  return tunings.slice().sort((a, b) => {
+    const aVal = a[stat];
+    const bVal = b[stat];
+    const aNeg = aVal < 0;
+    const bNeg = bVal < 0;
+    if (aNeg && bNeg) return bVal - aVal;
+    if (!aNeg && !bNeg) return aVal - bVal;
+    return aNeg ? 1 : -1;
+  });
+}
+
 function performTierAvailabilityTesting(
   runtime: any,
   config: BuildConfiguration,
@@ -1020,30 +1040,27 @@ function performTierAvailabilityTesting(
   availableArtificeCount: number,
   availableTunings: Tuning[]
 ): void {
+  // Pre-sort tunings for all 6 stats once, outside the per-stat loop
+  const sortedBystat: Tuning[][] = [
+    sortTuningsForStat(availableTunings, 0),
+    sortTuningsForStat(availableTunings, 1),
+    sortTuningsForStat(availableTunings, 2),
+    sortTuningsForStat(availableTunings, 3),
+    sortTuningsForStat(availableTunings, 4),
+    sortTuningsForStat(availableTunings, 5),
+  ];
+
   for (let stat = 0; stat < 6; stat++) {
     const minStat = stats[stat];
     if (minStat >= 200) continue;
 
-    // Inline minimumTuning — avoid .map().reduce() allocation
     let minimumTuning = 0;
     for (let t = 0; t < availableTunings.length; t++) {
       const v = availableTunings[t][stat];
       if (v < minimumTuning) minimumTuning = v;
     }
 
-    const tmpTunings = availableTunings.slice().sort((a, b) => {
-      const aVal = a[stat];
-      const bVal = b[stat];
-      const aNeg = aVal < 0;
-      const bNeg = bVal < 0;
-      if (aNeg && bNeg) {
-        return bVal - aVal;
-      } else if (!aNeg && !bNeg) {
-        return aVal - bVal;
-      } else {
-        return aNeg ? 1 : -1;
-      }
-    });
+    const tmpTunings = sortedBystat[stat];
 
     if (runtime.maximumPossibleTiers[stat] < minStat + minimumTuning) {
       runtime.maximumPossibleTiers[stat] = minStat + minimumTuning;
