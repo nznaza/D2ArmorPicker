@@ -314,8 +314,10 @@ export class ArmorCalculatorService implements OnDestroy {
     return buckets;
   }
 
-  estimateRequiredThreads(config: BuildConfiguration): number {
-    const buckets = this.bucketBySlot();
+  estimateRequiredThreads(
+    config: BuildConfiguration,
+    buckets: Map<ArmorSlot, IPermutatorArmor[]>
+  ): number {
     const helmets = buckets.get(ArmorSlot.ArmorSlotHelmet)!;
     const gauntlets = buckets.get(ArmorSlot.ArmorSlotGauntlet)!;
     const chests = buckets.get(ArmorSlot.ArmorSlotChest)!;
@@ -545,7 +547,7 @@ export class ArmorCalculatorService implements OnDestroy {
         this.status.modifyStatus((s) => (s.calculatingResults = false));
         return;
       }
-      nthreads = this.estimateRequiredThreads(config);
+      nthreads = this.estimateRequiredThreads(config, slotBuckets);
       this.logger.info("ArmorCalculatorService", "updateResults", "Estimated threads: " + nthreads);
 
       // Values to calculate ETA
