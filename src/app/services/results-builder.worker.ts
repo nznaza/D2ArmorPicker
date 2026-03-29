@@ -66,29 +66,74 @@ function mapItemToTuning(i: IPermutatorArmor): t5Improvement {
   };
 }
 
-// Tuning generation cache: memoizes generate_tunings by sorted signature multiset
-const _tuningCache = new Map<string, Tuning[]>();
+// Tuning generation cache: memoizes generate_tunings + tuningMax by sorted signature multiset
+type TuningCacheEntry = { tunings: Tuning[]; tuningMax: number[] };
+const _tuningCache = new Map<string, TuningCacheEntry>();
 const _TUNING_CACHE_MAX = 256;
 
-function t5Signature(imp: t5Improvement): number {
-  const as = imp.archetypeStats;
-  return imp.tuningStat * 1000 + as[0] * 100 + as[1] * 10 + as[2];
+function itemT5Signature(item: IPermutatorArmor): number {
+  const as = item.archetypeStats;
+  return item.tuningStat! * 1000 + as[0] * 100 + as[1] * 10 + as[2];
 }
 
-function getCachedTunings(improvements: t5Improvement[]): Tuning[] {
-  const sigs: number[] = new Array(improvements.length);
-  for (let i = 0; i < improvements.length; i++) sigs[i] = t5Signature(improvements[i]);
-  sigs.sort();
-  const key = sigs.join(",");
+// Reusable arrays for signature computation and t5 collection
+const _t5Sigs: number[] = [];
+const _t5Items: t5Improvement[] = [];
 
-  let result = _tuningCache.get(key);
-  if (result !== undefined) return result;
-
-  result = generate_tunings(improvements);
-  if (_tuningCache.size < _TUNING_CACHE_MAX) {
-    _tuningCache.set(key, result);
+function computeTuningMax(improvements: t5Improvement[]): number[] {
+  const tMax = [0, 0, 0, 0, 0, 0];
+  for (const t5 of improvements) {
+    const mask = [false, false, false, false, false, false];
+    for (const s of t5.archetypeStats) if (s >= 0 && s < 6) mask[s] = true;
+    const balanced: number[] = [0, 0, 0, 0, 0, 0];
+    for (let i = 0; i < 6; i++) balanced[i] = mask[i] ? 0 : 1;
+    for (let n = 0; n < 6; n++) {
+      if (n === t5.tuningStat) continue;
+      const p: number[] = [0, 0, 0, 0, 0, 0];
+      p[t5.tuningStat] = 5;
+      p[n] = -5;
+      for (let i = 0; i < 6; i++) tMax[i] += Math.max(balanced[i], p[i]);
+    }
   }
-  return result;
+  return tMax;
+}
+
+function getCachedTunings(
+  helmet: IPermutatorArmor,
+  gauntlet: IPermutatorArmor,
+  chest: IPermutatorArmor,
+  leg: IPermutatorArmor,
+  classItem: IPermutatorArmor
+): TuningCacheEntry {
+  // Collect T5 items and signatures without allocating new objects per call
+  let sigCount = 0;
+  let itemCount = 0;
+  const items = [helmet, gauntlet, chest, leg, classItem];
+  for (let i = 0; i < 5; i++) {
+    if (isT5WithTuning(items[i])) {
+      _t5Sigs[sigCount++] = itemT5Signature(items[i]);
+      _t5Items[itemCount++] = mapItemToTuning(items[i]);
+    }
+  }
+  _t5Sigs.length = sigCount;
+  _t5Items.length = itemCount;
+
+  _t5Sigs.sort();
+  const key = _t5Sigs.join(",");
+
+  let entry = _tuningCache.get(key);
+  if (entry !== undefined) return entry;
+
+  // Cache miss — generate and store
+  const improvements = _t5Items.slice(0, itemCount);
+  entry = {
+    tunings: generate_tunings(improvements),
+    tuningMax: computeTuningMax(improvements),
+  };
+  if (_tuningCache.size < _TUNING_CACHE_MAX) {
+    _tuningCache.set(key, entry);
+  }
+  return entry;
 }
 
 // region Validation and Preparation Functions
@@ -901,8 +946,8 @@ export function handlePermutation(
     }
   }
 
-  // H2/H4: T5 improvements inlined for 5 items, reuse tuningMax buffer
-  const t5Improvements: t5Improvement[] = [];
+  // T5 tuning: fetch cached tunings + tuningMax, or use defaults
+  let tuningCacheEntry: TuningCacheEntry | null = null;
   const tuningMax = _tuningMax;
   tuningMax[0] = 0;
   tuningMax[1] = 0;
@@ -912,25 +957,14 @@ export function handlePermutation(
   tuningMax[5] = 0;
 
   if (config.calculateTierFiveTuning) {
-    if (isT5WithTuning(helmet)) t5Improvements.push(mapItemToTuning(helmet));
-    if (isT5WithTuning(gauntlet)) t5Improvements.push(mapItemToTuning(gauntlet));
-    if (isT5WithTuning(chest)) t5Improvements.push(mapItemToTuning(chest));
-    if (isT5WithTuning(leg)) t5Improvements.push(mapItemToTuning(leg));
-    if (isT5WithTuning(classItem)) t5Improvements.push(mapItemToTuning(classItem));
-
-    for (const t5 of t5Improvements) {
-      const mask = [false, false, false, false, false, false];
-      for (const s of t5.archetypeStats) if (s >= 0 && s < 6) mask[s] = true;
-      const balanced: number[] = [0, 0, 0, 0, 0, 0];
-      for (let i = 0; i < 6; i++) balanced[i] = mask[i] ? 0 : 1;
-      for (let n = 0; n < 6; n++) {
-        if (n === t5.tuningStat) continue;
-        const p: number[] = [0, 0, 0, 0, 0, 0];
-        p[t5.tuningStat] = 5;
-        p[n] = -5;
-        for (let i = 0; i < 6; i++) tuningMax[i] += Math.max(balanced[i], p[i]);
-      }
-    }
+    tuningCacheEntry = getCachedTunings(helmet, gauntlet, chest, leg, classItem);
+    const cachedMax = tuningCacheEntry.tuningMax;
+    tuningMax[0] = cachedMax[0];
+    tuningMax[1] = cachedMax[1];
+    tuningMax[2] = cachedMax[2];
+    tuningMax[3] = cachedMax[3];
+    tuningMax[4] = cachedMax[4];
+    tuningMax[5] = cachedMax[5];
   }
 
   // H4: reuse optionalDistances buffer
@@ -965,7 +999,9 @@ export function handlePermutation(
     optionalDistances[4] +
     optionalDistances[5];
 
-  if (distanceSum > 10 * 5 + 3 * availableArtificeCount + 5 * t5Improvements.length) {
+  const tuningMaxSum =
+    tuningMax[0] + tuningMax[1] + tuningMax[2] + tuningMax[3] + tuningMax[4] + tuningMax[5];
+  if (distanceSum > 10 * 5 + 3 * availableArtificeCount + tuningMaxSum) {
     return null;
   }
 
@@ -978,8 +1014,8 @@ export function handlePermutation(
   }
 
   let availableTunings: Tuning[] = [[0, 0, 0, 0, 0, 0]];
-  if (config.calculateTierFiveTuning) {
-    availableTunings = getCachedTunings(t5Improvements);
+  if (tuningCacheEntry !== null) {
+    availableTunings = tuningCacheEntry.tunings;
   }
 
   // heavy work: mod precalc
