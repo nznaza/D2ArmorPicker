@@ -136,10 +136,6 @@ function prepareConstantStatBonus(config: BuildConfiguration) {
 function prepareConstantModslotRequirement(config: BuildConfiguration) {
   let constantPerkRequirement = new Map<ArmorPerkOrSlot, number>();
 
-  for (let [key] of constantPerkRequirement) {
-    constantPerkRequirement.set(key, 0);
-  }
-
   for (const req of config.armorRequirements) {
     if ("perk" in req) {
       let perk = req.perk;
