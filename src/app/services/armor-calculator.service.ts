@@ -507,16 +507,15 @@ export class ArmorCalculatorService implements OnDestroy {
         const key = `${item.slot}:${item.hash}:${item.mobility}:${item.resilience}:${item.recovery}:${item.discipline}:${item.intellect}:${item.strength}`;
         return !inventoryItemKeys.has(key);
       });
+      // Strip display-only fields (icon, watermarkIcon, name, clazz, rarity, isSunset)
+      // to reduce structured clone overhead when posting to workers
       this.permutatorArmorItems = this.inventoryArmorItems.map((armor) => {
         return {
           id: armor.id,
           hash: armor.hash,
           slot: armor.slot,
-          clazz: armor.clazz,
           perk: armor.perk,
           isExotic: armor.isExotic,
-          rarity: armor.rarity,
-          isSunset: armor.isSunset,
           masterworkLevel: armor.masterworkLevel,
           archetypeStats: armor.archetypeStats,
           mobility: armor.mobility,
@@ -527,17 +526,12 @@ export class ArmorCalculatorService implements OnDestroy {
           strength: armor.strength,
           source: armor.source,
           exoticPerkHash: armor.exoticPerkHash,
-
           gearSetHash: armor.gearSetHash ?? null,
           tuningStat: armor.tuningStat,
-
-          icon: armor.icon,
-          watermarkIcon: armor.watermarkIcon,
-          name: armor.name,
           energyLevel: armor.energyLevel,
           tier: armor.tier,
           armorSystem: armor.armorSystem,
-        };
+        } as unknown as IPermutatorArmor;
       });
 
       const slotBuckets = this.bucketBySlot();
@@ -617,10 +611,14 @@ export class ArmorCalculatorService implements OnDestroy {
 
             this.endResults = [];
 
+            // Build ID→item map for O(1) lookups instead of repeated .find()
+            const itemById = new Map<number, IInventoryArmor>();
+            for (const item of this.inventoryArmorItems) {
+              itemById.set(item.id, item);
+            }
+
             for (let armorSet of this.results) {
-              let items = armorSet.armor.map((x) =>
-                this.inventoryArmorItems.find((y) => y.id == x)
-              ) as IInventoryArmor[];
+              let items = armorSet.armor.map((x) => itemById.get(x)!) as IInventoryArmor[];
               let exotic = items.find((x) => x.isExotic);
               let v: ResultDefinition = {
                 loaded: false, // TODO check if loaded is even needed
