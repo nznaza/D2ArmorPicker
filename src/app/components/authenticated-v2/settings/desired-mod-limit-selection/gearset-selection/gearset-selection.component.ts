@@ -86,12 +86,26 @@ export class GearsetSelectionComponent implements OnInit, OnDestroy {
 
     for (const gearSet of this.gearSets) {
       // Get all inventory items for this class and gear set
-      const items = await this.db.inventoryArmor
+      const itemsGearSet = await this.db.inventoryArmor
         .where({
           clazz: currentClass,
           gearSetHash: gearSet.hash,
         })
         .toArray();
+      const itemsGearSetSelectable = await this.db.inventoryArmor
+        .where({
+          clazz: currentClass,
+          gearSetPerkSelectable: true,
+        })
+        .toArray();
+
+      const allItems = [...itemsGearSet, ...itemsGearSetSelectable];
+      const uniqueItemsMap = new Map<string, (typeof allItems)[0]>();
+
+      allItems.forEach((item) => {
+        uniqueItemsMap.set(item.itemInstanceId, item);
+      });
+      const items = Array.from(uniqueItemsMap.values());
 
       // Count how many unique slots are represented by these items
       const uniqueSlots = new Set(items.map((item) => item.slot));

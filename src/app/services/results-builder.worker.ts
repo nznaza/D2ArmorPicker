@@ -74,6 +74,13 @@ let targetFixed: boolean[];
 let possibleIncreaseByMod: number;
 let resultLimitReached: boolean = false;
 
+// Precompute the numeric ArmorPerkOrSlot values so we can distinguish
+// between regular perk requirements and numeric gearSetHash requirements
+// inside the shared requirements map.
+const armorPerkValues = new Set<number>(
+  Object.values(ArmorPerkOrSlot).filter((v) => typeof v === "number") as number[]
+);
+
 type t5Improvement = {
   tuningStat: ArmorStat;
   archetypeStats: ArmorStat[];
@@ -151,6 +158,11 @@ function checkSlots(
   let requirements = new Map(requiredPerkSlotCounts);
   const items = [helmet, gauntlet, chest, leg, classItem];
 
+  // Items with gearSetPerkSelectable can fulfill any single gear set
+  // requirement (their gearSetHash will be null), so we track how many
+  // such wildcard items we have and apply them after normal counting.
+  let selectableGearSetItems = 0;
+
   for (let item of items) {
     let effectivePerk = item.perk;
 
@@ -166,17 +178,36 @@ function checkSlots(
     }
 
     requirements.set(effectivePerk, (requirements.get(effectivePerk) ?? 0) - 1);
+
+    if (item.gearSetPerkSelectable) {
+      selectableGearSetItems++;
+    }
+
     if (item.gearSetHash != null)
       requirements.set(item.gearSetHash, (requirements.get(item.gearSetHash) ?? 0) - 1);
   }
 
-  let SlotRequirements = 0;
-  for (let [key] of requirements) {
+  let remainingPerkRequirements = 0;
+  let remainingGearSetRequirements = 0;
+
+  for (let [key, value] of requirements) {
     if (key == ArmorPerkOrSlot.Any || key == ArmorPerkOrSlot.None) continue;
-    SlotRequirements += Math.max(0, requirements.get(key) ?? 0);
+    const remaining = Math.max(0, value ?? 0);
+    if (remaining === 0) continue;
+
+    if (armorPerkValues.has(key)) {
+      remainingPerkRequirements += remaining;
+    } else {
+      // Treat non-perk numeric keys as gear set requirements
+      remainingGearSetRequirements += remaining;
+    }
   }
 
-  return SlotRequirements === 0;
+  // Each selectable gear set item can satisfy one remaining gear set
+  // requirement, regardless of which specific gear set hash it is.
+  remainingGearSetRequirements = Math.max(0, remainingGearSetRequirements - selectableGearSetItems);
+
+  return remainingPerkRequirements + remainingGearSetRequirements === 0;
 }
 
 function computeEnabledModBonuses(config: BuildConfiguration) {

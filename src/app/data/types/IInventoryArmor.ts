@@ -37,7 +37,7 @@ export interface IDestinyArmor {
   archetypeStats: Array<ArmorStat>;
   tier: number; // 1-5, 0 = exotic
   gearSetHash: number | null;
-
+  gearSetPerkSelectable: boolean;
   mobility: number;
   resilience: number;
   recovery: number;

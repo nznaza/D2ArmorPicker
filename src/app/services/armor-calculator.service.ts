@@ -973,6 +973,8 @@ export class ArmorCalculatorService implements OnDestroy {
       source: armor.source,
 
       gearSetHash: armor.gearSetHash ?? null,
+      gearSetPerkSelectable: armor.gearSetPerkSelectable,
+
       tuningStat: armor.tuningStat,
 
       tier: armor.tier,

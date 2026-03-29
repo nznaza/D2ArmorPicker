@@ -44,6 +44,7 @@ export interface IDisplayManifestArmor {
   armorSystem: ArmorSystem;
   isFeatured: boolean;
   gearSetHash: number | null;
+  gearSetPerkSelectable: boolean;
 }
 export interface IManifestArmor extends IDisplayManifestArmor {
   watermarkIcon: string;
