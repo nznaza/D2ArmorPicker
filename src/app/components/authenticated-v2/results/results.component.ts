@@ -110,9 +110,11 @@ export class ResultsComponent implements OnInit, OnDestroy {
 
   // info values
   selectedClass: DestinyClass = DestinyClass.Unknown;
-  totalTime: number = 0;
+  totalTime: number | null = 0;
   itemCount: number = 0;
-  totalResults: number = 0;
+  savedResults: number = 0;
+  totalPermutations: number = 0;
+  totalPossibleCombinations: number = 0;
   parsedResults: number = 0;
   viewMode: "table" | "cards" = "table";
   _config_legacyArmor: any;
@@ -153,6 +155,14 @@ export class ResultsComponent implements OnInit, OnDestroy {
           this.computationProgress = progress;
         });
       });
+
+    this.armorCalculator.totalPossibleCombinations
+      .pipe(takeUntil(this.ngUnsubscribe))
+      .subscribe((value) => {
+        this.ngZone.run(() => {
+          this.totalPossibleCombinations = value;
+        });
+      });
     //
     this.configService.configuration
       .pipe(takeUntil(this.ngUnsubscribe))
@@ -186,7 +196,8 @@ export class ResultsComponent implements OnInit, OnDestroy {
         this._results = value.results;
         this.itemCount = value.itemCount;
         this.totalTime = value.totalTime;
-        this.totalResults = value.totalResults;
+        this.savedResults = value.savedResults;
+        this.totalPermutations = value.totalPermutations;
         this.parsedResults = this._results.length;
       });
   }
