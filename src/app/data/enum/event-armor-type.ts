@@ -1,4 +1,4 @@
-/*!
+/*
  * Copyright (c) 2023 D2ArmorPicker by Mijago.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,54 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-.category-spacer {
-  height: 3px;
-}
-
-.category-header {
-  font-style: italic;
-}
-
-.adv-settings {
-  margin-left: 20px;
-}
-
-.report-problem-icon {
-  color: lightcoral;
-}
-
-.dropdown-setting {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  margin-bottom: 8px;
-
-  .mat-mdc-form-field-infix {
-    padding-bottom: 4px;
-  }
-}
-
-.dropdown-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: nowrap;
-  font-size: 14px;
-  font-weight: 400;
-  margin-right: 8px;
-}
-
-.dropdown-inline {
-  min-width: 120px;
-  font-size: 13px;
-}
-
-.dropdown-label {
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.dropdown-label-always-on {
-  font-size: 14px;
-  font-weight: 500;
+export enum EventArmorType {
+  None = "None",
+  FestivalOfTheLost = "event_FOTL",
+  GuardianGames = "event_GG",
 }

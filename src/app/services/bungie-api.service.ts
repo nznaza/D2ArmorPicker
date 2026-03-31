@@ -486,8 +486,8 @@ export class BungieApiService implements OnDestroy {
         return !!instance.energy;
       })
       .map((d) => {
-        let instanceData = profile.Response.itemComponents.instances.data || {};
-        let instance = instanceData[d.itemInstanceId || ""] || {};
+        let instancesData = profile.Response.itemComponents.instances.data || {};
+        let instanceData = instancesData[d.itemInstanceId || ""] || {};
 
         if (!validManifestArmorMap[d.itemHash]) {
           this.logger.warn(
@@ -504,13 +504,13 @@ export class BungieApiService implements OnDestroy {
         );
 
         // Process armor system and tuning stats
-        this.processArmorSystemAndTuning(armorItem, instance, profile, d, modsMap);
+        this.processArmorSystemAndTuning(armorItem, instanceData, profile, d, modsMap);
 
+        const sockets =
+          profile.Response.itemComponents.sockets.data?.[d.itemInstanceId!]?.sockets || [];
         // Process exotic class items
         if (armorItem.isExotic && armorItem.slot === ArmorSlot.ArmorSlotClass) {
           armorItem.exoticPerkHash = [];
-          const sockets =
-            profile.Response.itemComponents.sockets.data?.[d.itemInstanceId!]?.sockets || [];
           for (const socket of sockets) {
             if (
               socket.plugHash &&
@@ -522,9 +522,17 @@ export class BungieApiService implements OnDestroy {
         }
 
         // Set energy level
-        armorItem.energyLevel = !!instance.energy ? instance.energy.energyCapacity : 0;
-
-        // Process investment stats, masterwork, and perks
+        armorItem.energyLevel = !!instanceData.energy ? instanceData.energy.energyCapacity : 0;
+        if (armorItem.gearSetPerkSelectable) {
+          let gearsetPerkIndex = validManifestArmorMap[d.itemHash].socketEntries.findIndex(
+            (s) => s.socketTypeHash == 1728849630
+          );
+          // Process investment stats, masterwork, and perks
+          let socketStatus = sockets[gearsetPerkIndex]?.isEnabled ?? false;
+          if (!socketStatus) {
+            armorItem.gearSetPerkSelectable = false;
+          }
+        }
         this.processStatsAndPerks(armorItem, d, profile, validManifestArmorMap, modsMap);
 
         return armorItem as IInventoryArmor;
@@ -1284,6 +1292,10 @@ export class BungieApiService implements OnDestroy {
 
         const isFeatured = !!(v as any)?.isFeaturedItem;
 
+        const gearSetSelectable = v.sockets?.socketEntries.some(
+          (s) => s.socketTypeHash == 1728849630
+        );
+
         entries.push({
           hash: v.hash,
           icon: v.displayProperties.icon,
@@ -1302,9 +1314,10 @@ export class BungieApiService implements OnDestroy {
           investmentStats: v.investmentStats,
           // TODO: fix as soon as DIM Api is updated
           perk: this.getArmorPerk(v),
-          gearSetHash: this.getGearSet(v, equipableItemSetsArray),
           socketEntries: v.sockets?.socketEntries ?? [],
           isFeatured: isFeatured,
+          gearSetHash: this.getGearSet(v, equipableItemSetsArray),
+          gearSetPerkSelectable: gearSetSelectable,
         } as IManifestArmor);
       }
     }

@@ -34,6 +34,17 @@ export const CHANGELOG_DATA: {
   entries: ChangelogEntry[];
 }[] = [
   {
+    version: "2.9.13",
+    date: "March, 2026",
+    clearManifest: false,
+    entries: [
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Added functionallity to allow items that have a gear set selectable and active (e.g Guardian Games Class Item, FOTL Mask) to act and fill that item slot as if they had the gear set perk",
+      },
+    ],
+  },
+  {
     version: "2.9.12",
     date: "February, 2026",
     clearManifest: false,

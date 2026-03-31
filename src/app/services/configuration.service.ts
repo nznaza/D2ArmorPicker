@@ -27,6 +27,7 @@ import { EnumDictionary } from "../data/types/EnumDictionary";
 import { ArmorStat } from "../data/enum/armor-stat";
 // import { ArmorSlot } from "../data/enum/armor-slot";
 import { ModInformation } from "../data/ModInformation";
+import { EventArmorType } from "../data/enum/event-armor-type";
 import { isEqual as _isEqual } from "lodash";
 
 export interface StoredConfiguration {
@@ -150,6 +151,11 @@ export class ConfigurationService implements OnDestroy {
     // Always reset risky mods on reload
     c.configuration.limitParsedResults = true;
     c.configuration.addConstent1Health = false;
+
+    // Migrate legacy event armor setting values
+    if ((c.configuration as any).useEventArmor === "FOTL") {
+      (c.configuration as any).useEventArmor = EventArmorType.FestivalOfTheLost;
+    }
   }
 
   listSavedConfigurations(): StoredConfiguration[] {
