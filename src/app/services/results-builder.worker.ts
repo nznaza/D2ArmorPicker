@@ -39,9 +39,29 @@ import { ArmorSystem } from "../data/types/IManifestArmor";
 
 import { precalculatedTuningModCombinations } from "../data/generated/precalculatedModCombinationsWithTunings";
 
+// Pre-sort mod table by fewest total mods (artifice+minor+major) at module load.
+// This gives fast early-exit even for "None" strategy, since simpler combos are tried first.
+const _defaultSortedMods: { [key: number]: [number, number, number, number, number, number][] } =
+  (() => {
+    const sorted: typeof precalculatedTuningModCombinations = {};
+    for (const key in precalculatedTuningModCombinations) {
+      sorted[key] = precalculatedTuningModCombinations[key]
+        .slice()
+        .sort((a, b) => a[0] + a[1] + a[2] - (b[0] + b[1] + b[2])) as [
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+      ][];
+    }
+    return sorted;
+  })();
+
 // Mod table sorted per optimization strategy; populated once per worker run
 let _sortedModCombinations: { [key: number]: [number, number, number, number, number, number][] } =
-  precalculatedTuningModCombinations;
+  _defaultSortedMods;
 
 // endregion Imports
 
@@ -306,23 +326,20 @@ addEventListener("message", async ({ data }) => {
     };
   }
 
-  // Sort precalculated mod tables based on optimization strategy
-  if (config.modOptimizationStrategy === ModOptimizationStrategy.None) {
-    _sortedModCombinations = precalculatedTuningModCombinations;
-  } else {
+  // Select mod table sort order based on optimization strategy.
+  // "None" and "ReduceUsedModSockets" both use the pre-sorted default (fewest mods first).
+  // "LowCost" re-sorts by weighted cost.
+  if (config.modOptimizationStrategy === ModOptimizationStrategy.ReduceUsedModPoints) {
     _sortedModCombinations = {};
     for (const key in precalculatedTuningModCombinations) {
       const entries = precalculatedTuningModCombinations[key];
       const sorted = entries.slice() as [number, number, number, number, number, number][];
-      if (config.modOptimizationStrategy === ModOptimizationStrategy.ReduceUsedModSockets) {
-        // Fewest mod slots first: artifice + minor + major ascending
-        sorted.sort((a, b) => a[0] + a[1] + a[2] - (b[0] + b[1] + b[2]));
-      } else {
-        // Cheapest mod cost first: artifice*3 + minor*5 + major*10 ascending
-        sorted.sort((a, b) => a[0] * 3 + a[1] * 5 + a[2] * 10 - (b[0] * 3 + b[1] * 5 + b[2] * 10));
-      }
+      sorted.sort((a, b) => a[0] * 3 + a[1] * 5 + a[2] * 10 - (b[0] * 3 + b[1] * 5 + b[2] * 10));
       _sortedModCombinations[key] = sorted;
     }
+  } else {
+    // None and ReduceUsedModSockets both use fewest-mods-first (pre-sorted at module load)
+    _sortedModCombinations = _defaultSortedMods;
   }
 
   // FotL helmet filter (config-dependent, must stay in worker)
