@@ -72,6 +72,18 @@ export class ArmorCalculatorService implements OnDestroy {
   private endResults: ResultDefinition[] = [];
   private allArmorResults: ResultDefinition[] = [];
 
+  // Offline index — rebuilt only when index-affecting config fields change
+  private cachedIndex: {
+    slotBuckets: Map<ArmorSlot, IPermutatorArmor[]>;
+    inventoryItems: IInventoryArmor[];
+    selectedExotics: IManifestArmor[];
+  } | null = null;
+
+  private indexGeneration = 0;
+  private queryGeneration = 0;
+  private indexing = false;
+  private latestConfig: BuildConfiguration | null = null;
+
   private calculationSubscription?: Subscription;
 
   constructor(
@@ -252,6 +264,207 @@ export class ArmorCalculatorService implements OnDestroy {
       w.terminate();
     });
     this.workers = [];
+  }
+
+  /**
+   * Rebuild the offline index: DB query, single-pass filter, field stripping,
+   * sort, and bucketing. Stores the result in `this.cachedIndex`.
+   * Returns `true` on success, `false` if stale or no usable armor.
+   */
+  private async rebuildIndex(config: BuildConfiguration): Promise<boolean> {
+    const gen = ++this.indexGeneration;
+    this.indexing = true;
+
+    try {
+      this.killWorkers();
+      this.clearResults();
+
+      // --- DB queries ---
+      let selectedExotics = await Promise.all(
+        config.selectedExotics
+          .filter((hash) => hash != FORCE_USE_NO_EXOTIC)
+          .map(
+            async (hash) =>
+              (await this.db.manifestArmor.where("hash").equals(hash).first()) as IManifestArmor
+          )
+      );
+      selectedExotics = selectedExotics.filter((i) => !!i);
+
+      const inventoryArmorRaw = (await this.db.inventoryArmor
+        .where("clazz")
+        .equals(config.characterClass)
+        .distinct()
+        .toArray()) as IInventoryArmor[];
+
+      // Staleness check after async DB work
+      if (gen !== this.indexGeneration) {
+        this.logger.debug(
+          "ArmorCalculatorService",
+          "rebuildIndex",
+          "Index generation stale after DB queries, aborting"
+        );
+        return false;
+      }
+
+      // --- Single-pass filter + field stripping ---
+      const disabledItemsSet = new Set(config.disabledItems);
+      const noExoticSelected = config.selectedExotics.indexOf(FORCE_USE_NO_EXOTIC) > -1;
+      const selectedExoticHashes = new Set(selectedExotics.map((e) => e.hash));
+      const selectedExoticSlots = new Set(selectedExotics.map((e) => e.slot));
+      const hasSelectedExotics = selectedExotics.length > 0;
+
+      // Build inventory key set for collection/vendor dedup
+      const inventoryItemKeys = new Set<string>();
+      for (const item of inventoryArmorRaw) {
+        if (item.source === InventoryArmorSource.Inventory) {
+          inventoryItemKeys.add(
+            `${item.slot}:${item.hash}:${item.mobility}:${item.resilience}:${item.recovery}:${item.discipline}:${item.intellect}:${item.strength}`
+          );
+        }
+      }
+
+      const filteredInventory: IInventoryArmor[] = [];
+      const permutatorItems: IPermutatorArmor[] = [];
+
+      for (let idx = 0; idx < inventoryArmorRaw.length; idx++) {
+        const item = inventoryArmorRaw[idx];
+        if (item.slot == ArmorSlot.ArmorSlotNone) continue;
+        if (disabledItemsSet.has(item.itemInstanceId)) continue;
+        if (!item.isExotic && config.enforceFeaturedLegendaryArmor && !item.isFeatured) continue;
+        if (item.isExotic && config.enforceFeaturedExoticArmor && !item.isFeatured) continue;
+        if (
+          item.armorSystem !== ArmorSystem.Armor3 &&
+          !item.isExotic &&
+          !config.allowLegacyLegendaryArmor
+        )
+          continue;
+        if (
+          item.armorSystem !== ArmorSystem.Armor3 &&
+          item.isExotic &&
+          !config.allowLegacyExoticArmor
+        )
+          continue;
+        if (item.source === InventoryArmorSource.Collections && !config.includeCollectionRolls)
+          continue;
+        if (item.source === InventoryArmorSource.Vendor && !config.includeVendorRolls) continue;
+        if (noExoticSelected && item.isExotic) continue;
+        if (hasSelectedExotics) {
+          if (item.isExotic && !selectedExoticHashes.has(item.hash)) continue;
+          if (!item.isExotic && selectedExoticSlots.has(item.slot)) continue;
+        }
+        if (
+          config.onlyUseMasterworkedExotics &&
+          item.rarity == TierType.Exotic &&
+          item.masterworkLevel != MAXIMUM_MASTERWORK_LEVEL
+        )
+          continue;
+        if (
+          config.onlyUseMasterworkedLegendaries &&
+          item.rarity == TierType.Superior &&
+          item.masterworkLevel != MAXIMUM_MASTERWORK_LEVEL
+        )
+          continue;
+        if (
+          !config.allowBlueArmorPieces &&
+          item.rarity != TierType.Exotic &&
+          item.rarity != TierType.Superior
+        )
+          continue;
+        if (config.ignoreSunsetArmor && item.isSunset) continue;
+        // Collection/vendor dedup
+        if (item.source !== InventoryArmorSource.Inventory) {
+          const key = `${item.slot}:${item.hash}:${item.mobility}:${item.resilience}:${item.recovery}:${item.discipline}:${item.intellect}:${item.strength}`;
+          if (inventoryItemKeys.has(key)) continue;
+        }
+
+        filteredInventory.push(item);
+        // Inline field stripping (avoids separate .map() pass)
+        permutatorItems.push({
+          id: item.id,
+          hash: item.hash,
+          slot: item.slot,
+          perk: item.perk,
+          isExotic: item.isExotic,
+          masterworkLevel: item.masterworkLevel,
+          archetypeStats: item.archetypeStats,
+          mobility: item.mobility,
+          resilience: item.resilience,
+          recovery: item.recovery,
+          discipline: item.discipline,
+          intellect: item.intellect,
+          strength: item.strength,
+          source: item.source,
+          exoticPerkHash: item.exoticPerkHash,
+          gearSetHash: item.gearSetHash ?? null,
+          tuningStat: item.tuningStat,
+          energyLevel: item.energyLevel,
+          tier: item.tier,
+          armorSystem: item.armorSystem,
+        } as unknown as IPermutatorArmor);
+      }
+
+      // Sort by total stats descending before bucketing so bucket arrays inherit the order
+      permutatorItems.sort((a, b) => totalStats(b) - totalStats(a));
+
+      // Bucket by slot — uses local array instead of this.permutatorArmorItems
+      const slotBuckets = new Map<ArmorSlot, IPermutatorArmor[]>([
+        [ArmorSlot.ArmorSlotHelmet, []],
+        [ArmorSlot.ArmorSlotGauntlet, []],
+        [ArmorSlot.ArmorSlotChest, []],
+        [ArmorSlot.ArmorSlotLegs, []],
+        [ArmorSlot.ArmorSlotClass, []],
+      ]);
+      for (const item of permutatorItems) {
+        slotBuckets.get(item.slot)?.push(item);
+      }
+
+      // Staleness check after filtering
+      if (gen !== this.indexGeneration) {
+        this.logger.debug(
+          "ArmorCalculatorService",
+          "rebuildIndex",
+          "Index generation stale after filtering, aborting"
+        );
+        return false;
+      }
+
+      // Check for empty buckets
+      if (
+        permutatorItems.length == 0 ||
+        slotBuckets.get(ArmorSlot.ArmorSlotHelmet)!.length == 0 ||
+        slotBuckets.get(ArmorSlot.ArmorSlotGauntlet)!.length == 0 ||
+        slotBuckets.get(ArmorSlot.ArmorSlotChest)!.length == 0 ||
+        slotBuckets.get(ArmorSlot.ArmorSlotLegs)!.length == 0 ||
+        slotBuckets.get(ArmorSlot.ArmorSlotClass)!.length == 0
+      ) {
+        this.logger.warn(
+          "ArmorCalculatorService",
+          "rebuildIndex",
+          "Incomplete armor items available for permutation, skipping"
+        );
+        return false;
+      }
+
+      // Store the cached index
+      this.cachedIndex = {
+        slotBuckets,
+        inventoryItems: filteredInventory,
+        selectedExotics,
+      };
+
+      this.logger.info(
+        "ArmorCalculatorService",
+        "rebuildIndex",
+        `Index built: ${permutatorItems.length} items across ${slotBuckets.size} slots`
+      );
+
+      return true;
+    } catch (error) {
+      this.logger.error("ArmorCalculatorService", "rebuildIndex", "Error building index: " + error);
+      return false;
+    } finally {
+      this.indexing = false;
+    }
   }
 
   private estimateCombinationsToBeChecked(
