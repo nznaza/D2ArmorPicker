@@ -63,7 +63,8 @@ export class ArmorCalculatorService implements OnDestroy {
   public readonly calculationProgress: Observable<number> =
     this._calculationProgress.asObservable();
 
-  private workers: Worker[];
+  private idleWorkers: Worker[] = [];
+  private busyWorkers: Set<Worker> = new Set();
   private totalPermutationCount = 0;
   private resultMaximumTiers: number[][] = [];
   private endResults: ResultDefinition[] = [];
@@ -108,8 +109,6 @@ export class ArmorCalculatorService implements OnDestroy {
     this._reachableTiers = new BehaviorSubject([0, 0, 0, 0, 0, 0]);
     this.reachableTiers = this._reachableTiers.asObservable();
 
-    this.workers = [];
-
     // Setup calculation triggers - use longer delay to ensure services are ready
     setTimeout(() => this.setupCalculationTriggers(), 100);
 
@@ -123,7 +122,7 @@ export class ArmorCalculatorService implements OnDestroy {
   ngOnDestroy() {
     this.logger.debug("ArmorCalculatorService", "ngOnDestroy", "Destroying ArmorCalculatorService");
     this.calculationSubscription?.unsubscribe();
-    this.killWorkers();
+    this.destroyAllWorkers();
     this.logger.debug(
       "ArmorCalculatorService",
       "ngOnDestroy",
@@ -242,12 +241,41 @@ export class ArmorCalculatorService implements OnDestroy {
     });
   }
 
-  private killWorkers() {
-    this.logger.debug("ArmorCalculatorService", "killWorkers", "Terminating all workers");
-    this.workers.forEach((w) => {
+  private createWorker(): Worker {
+    return new Worker(new URL("./results-builder.worker", import.meta.url));
+  }
+
+  private acquireWorker(): Worker {
+    const w = this.idleWorkers.pop() ?? this.createWorker();
+    this.busyWorkers.add(w);
+    return w;
+  }
+
+  private releaseWorker(w: Worker): void {
+    w.onmessage = null;
+    w.onerror = null;
+    this.busyWorkers.delete(w);
+    this.idleWorkers.push(w);
+  }
+
+  private killBusyWorkers() {
+    this.logger.debug(
+      "ArmorCalculatorService",
+      "killBusyWorkers",
+      `Terminating ${this.busyWorkers.size} busy workers (${this.idleWorkers.length} idle kept)`
+    );
+    for (const w of this.busyWorkers) {
       w.terminate();
-    });
-    this.workers = [];
+    }
+    this.busyWorkers.clear();
+  }
+
+  private destroyAllWorkers() {
+    this.killBusyWorkers();
+    for (const w of this.idleWorkers) {
+      w.terminate();
+    }
+    this.idleWorkers = [];
   }
 
   /**
@@ -305,7 +333,7 @@ export class ArmorCalculatorService implements OnDestroy {
     this.indexing = true;
 
     try {
-      this.killWorkers();
+      this.killBusyWorkers();
       this.clearResults();
 
       // --- DB queries ---
@@ -506,7 +534,7 @@ export class ArmorCalculatorService implements OnDestroy {
     if (this.indexing || !this.cachedIndex) return;
 
     const gen = ++this.queryGeneration;
-    this.killWorkers();
+    this.killBusyWorkers();
     this.clearResults();
 
     // Guard: no class selected
@@ -547,11 +575,13 @@ export class ArmorCalculatorService implements OnDestroy {
         itemById.set(item.id, item);
       }
 
+      // Acquire workers from pool (reuses idle workers, creates new ones as needed)
+      const queryWorkers: Worker[] = [];
       for (let n = 0; n < nthreads; n++) {
-        this.workers[n] = new Worker(new URL("./results-builder.worker", import.meta.url), {
-          name: n.toString(),
-        });
-        this.workers[n].onmessage = async (ev) => {
+        const worker = this.acquireWorker();
+        queryWorkers.push(worker);
+
+        worker.onmessage = async (ev) => {
           // Stale query check — a newer query has been started
           if (gen !== this.queryGeneration) return;
 
@@ -660,8 +690,10 @@ export class ArmorCalculatorService implements OnDestroy {
             doneWorkerCount++;
             this.totalPermutationCount += data.stats.permutationCount;
             this.resultMaximumTiers.push(data.runtime.maximumPossibleTiers);
+            // Return finished worker to idle pool for reuse
+            this.releaseWorker(worker);
           }
-          if (data.done == true && doneWorkerCount == nthreads) {
+          if (doneWorkerCount == nthreads) {
             this.status.modifyStatus((s) => (s.calculatingResults = false));
             this._calculationProgress.next(0);
 
@@ -686,16 +718,17 @@ export class ArmorCalculatorService implements OnDestroy {
               "runQuery",
               `runQuery with WebWorker took ${queryEnd - queryStart} ms`
             );
-            this.workers[n].terminate();
-          } else if (data.done == true && doneWorkerCount != nthreads) this.workers[n].terminate();
+          }
         };
-        this.workers[n].onerror = (ev) => {
-          this.workers[n].terminate();
+        worker.onerror = (ev) => {
+          // On error, terminate and remove from pool (don't reuse broken workers)
+          worker.terminate();
+          this.busyWorkers.delete(worker);
         };
 
         // Strip fields the worker never reads to reduce structured clone cost
         const workerConfig = { ...config, disabledItems: [] as string[] };
-        this.workers[n].postMessage({
+        worker.postMessage({
           type: "builderRequest",
           config: workerConfig,
           threadSplit: {
@@ -771,7 +804,7 @@ export class ArmorCalculatorService implements OnDestroy {
   cancelCalculation() {
     this.logger.info("ArmorCalculatorService", "cancelCalculation", "Cancelling calculation");
     ++this.queryGeneration;
-    this.killWorkers();
+    this.killBusyWorkers();
     this.status.modifyStatus((s) => (s.calculatingResults = false));
     this.status.modifyStatus((s) => (s.cancelledCalculation = true));
 
