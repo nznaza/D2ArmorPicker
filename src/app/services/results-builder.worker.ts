@@ -418,6 +418,33 @@ addEventListener("message", async ({ data }) => {
   legs = dedupSlot(legs);
   classItems = dedupSlot(classItems);
 
+  // Pre-bake masterwork stats into item stat fields so the hot loop
+  // only needs flat additions (no branches per item per level).
+  function prebakeStats(items: IPermutatorArmor[]): void {
+    for (const item of items) {
+      const mw = [
+        item.mobility,
+        item.resilience,
+        item.recovery,
+        item.discipline,
+        item.intellect,
+        item.strength,
+      ];
+      applyMasterworkStats(item, config, mw);
+      item.mobility = mw[0];
+      item.resilience = mw[1];
+      item.recovery = mw[2];
+      item.discipline = mw[3];
+      item.intellect = mw[4];
+      item.strength = mw[5];
+    }
+  }
+  prebakeStats(helmets);
+  prebakeStats(gauntlets);
+  prebakeStats(chests);
+  prebakeStats(legs);
+  prebakeStats(classItems);
+
   const totalItemCount =
     helmets.length + gauntlets.length + chests.length + legs.length + classItems.length;
   console.log(`Thread ${threadSplit.current} started with ${totalItemCount} items to process.`);
@@ -565,21 +592,17 @@ addEventListener("message", async ({ data }) => {
 
   // H7: precompute max stat contribution per slot (including masterwork) for lower-bound pruning.
   // maxRemaining[level][stat] = max possible stat from slots at levels > level.
-  // Level 0 = after helmet → remaining = gauntlet+chest+leg+classItem
-  // Level 3 = after leg → remaining = classItem only
-  const _mwTemp = [0, 0, 0, 0, 0, 0];
+  // Stats are pre-baked so we can read them directly.
   function computeSlotMax(items: IPermutatorArmor[]): number[] {
     const max = [0, 0, 0, 0, 0, 0];
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
-      _mwTemp[0] = it.mobility;
-      _mwTemp[1] = it.resilience;
-      _mwTemp[2] = it.recovery;
-      _mwTemp[3] = it.discipline;
-      _mwTemp[4] = it.intellect;
-      _mwTemp[5] = it.strength;
-      applyMasterworkStats(it, config, _mwTemp);
-      for (let s = 0; s < 6; s++) if (_mwTemp[s] > max[s]) max[s] = _mwTemp[s];
+      if (it.mobility > max[0]) max[0] = it.mobility;
+      if (it.resilience > max[1]) max[1] = it.resilience;
+      if (it.recovery > max[2]) max[2] = it.recovery;
+      if (it.discipline > max[3]) max[3] = it.discipline;
+      if (it.intellect > max[4]) max[4] = it.intellect;
+      if (it.strength > max[5]) max[5] = it.strength;
     }
     return max;
   }
@@ -631,7 +654,6 @@ addEventListener("message", async ({ data }) => {
   for (let hi = 0; hi < helmets.length; hi++) {
     const helmet = helmets[hi];
     addItemStats(_ps1, _psZero, helmet);
-    applyMasterworkStats(helmet, config, _ps1);
     const ac1 = isArtificeNonClass(
       helmet,
       assumeEveryLegendaryIsArtifice,
@@ -647,7 +669,6 @@ addEventListener("message", async ({ data }) => {
       const gauntlet = gauntlets[gi];
       if (helmet.isExotic && gauntlet.isExotic) continue;
       addItemStats(_ps2, _ps1, gauntlet);
-      applyMasterworkStats(gauntlet, config, _ps2);
       const ac2 =
         ac1 +
         (isArtificeNonClass(gauntlet, assumeEveryLegendaryIsArtifice, assumeEveryExoticIsArtifice)
@@ -661,7 +682,6 @@ addEventListener("message", async ({ data }) => {
         const chest = chests[ci];
         if ((helmet.isExotic || gauntlet.isExotic) && chest.isExotic) continue;
         addItemStats(_ps3, _ps2, chest);
-        applyMasterworkStats(chest, config, _ps3);
         // chest resilience bonus
         if (!chest.isExotic && addConstent1Health) _ps3[1] += 1;
         const ac3 =
@@ -677,7 +697,6 @@ addEventListener("message", async ({ data }) => {
           const leg = legs[li];
           if ((helmet.isExotic || gauntlet.isExotic || chest.isExotic) && leg.isExotic) continue;
           addItemStats(_ps4, _ps3, leg);
-          applyMasterworkStats(leg, config, _ps4);
           const ac4 =
             ac3 +
             (isArtificeNonClass(leg, assumeEveryLegendaryIsArtifice, assumeEveryExoticIsArtifice)
@@ -1032,6 +1051,7 @@ export function handlePermutation(
   assumeEveryExoticIsArtifice: boolean
 ): IPermutatorArmorSet | null {
   // H5: only add classItem stats to pre-computed outer partial sum
+  // Stats are pre-baked (raw + masterwork), so no applyMasterworkStats needed.
   const stats = _statBuffer;
   stats[0] = outerBaseStats[0] + classItem.mobility;
   stats[1] = outerBaseStats[1] + classItem.resilience;
@@ -1039,9 +1059,6 @@ export function handlePermutation(
   stats[3] = outerBaseStats[3] + classItem.discipline;
   stats[4] = outerBaseStats[4] + classItem.intellect;
   stats[5] = outerBaseStats[5] + classItem.strength;
-
-  // H5: only classItem masterwork remains to apply
-  applyMasterworkStats(classItem, config, stats);
 
   // snapshot base stats before adding constantBonus (needed for output only)
   const s0 = stats[0],

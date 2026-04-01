@@ -246,7 +246,31 @@ function callHandlePermutation(
   const assumeLegArt = !!config.assumeEveryLegendaryIsArtifice;
   const assumeExoArt = !!config.assumeEveryExoticIsArtifice;
 
-  // H5: compute outer 4-item base stats + masterwork (mirrors the inlined loop logic)
+  // Pre-bake masterwork stats into items (mirrors the worker's prebakeStats step)
+  function prebake(item: IPermutatorArmor): void {
+    const mw = [
+      item.mobility,
+      item.resilience,
+      item.recovery,
+      item.discipline,
+      item.intellect,
+      item.strength,
+    ];
+    applyMasterworkStats(item, config, mw);
+    item.mobility = mw[0];
+    item.resilience = mw[1];
+    item.recovery = mw[2];
+    item.discipline = mw[3];
+    item.intellect = mw[4];
+    item.strength = mw[5];
+  }
+  prebake(helmet);
+  prebake(gauntlet);
+  prebake(chest);
+  prebake(leg);
+  prebake(classItem);
+
+  // H5: compute outer 4-item base stats (stats are pre-baked, no applyMasterworkStats needed)
   const outerBaseStats = [
     helmet.mobility + gauntlet.mobility + chest.mobility + leg.mobility,
     helmet.resilience + gauntlet.resilience + chest.resilience + leg.resilience,
@@ -255,10 +279,6 @@ function callHandlePermutation(
     helmet.intellect + gauntlet.intellect + chest.intellect + leg.intellect,
     helmet.strength + gauntlet.strength + chest.strength + leg.strength,
   ];
-  applyMasterworkStats(helmet, config, outerBaseStats);
-  applyMasterworkStats(gauntlet, config, outerBaseStats);
-  applyMasterworkStats(chest, config, outerBaseStats);
-  applyMasterworkStats(leg, config, outerBaseStats);
   // chest resilience bonus
   if (!chest.isExotic && config.addConstent1Health) outerBaseStats[1] += 1;
 

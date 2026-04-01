@@ -788,7 +788,9 @@ export class ArmorCalculatorService implements OnDestroy {
     const chests = buckets.get(ArmorSlot.ArmorSlotChest)!;
     const legs = buckets.get(ArmorSlot.ArmorSlotLegs)!;
     const classItems = buckets.get(ArmorSlot.ArmorSlotClass)!;
-    const estimatedCalculations = this.estimateCombinationsToBeChecked(
+
+    // 1. Estimate raw permutations (with exotic constraint)
+    const rawPerms = this.estimateCombinationsToBeChecked(
       helmets,
       gauntlets,
       chests,
@@ -796,38 +798,70 @@ export class ArmorCalculatorService implements OnDestroy {
       classItems
     );
 
-    const largestArmorBucket = Math.max(
-      helmets.length,
-      gauntlets.length,
-      chests.length,
-      legs.length,
-      classItems.length
+    // 2. Estimate pruning factor from stat constraints.
+    //    Empirically calibrated: a single high constraint (maxTier) drives H7 subtree
+    //    pruning at outer loop levels. Spreading constraints across multiple stats
+    //    reduces pruning effectiveness dramatically.
+    //    Model: pruningFactor ≈ 0.7^maxTier × numConstrained^1.5
+    //    Fixed stats add upper-bound pruning on top.
+    let maxTier = 0;
+    let numConstrained = 0;
+    let fixedStatCount = 0;
+    const tierEntries = Object.values(config.minimumStatTiers);
+    for (const entry of tierEntries) {
+      const tier = entry.value || 0;
+      if (tier > 0) numConstrained++;
+      if (tier > maxTier) maxTier = tier;
+      if (entry.fixed) fixedStatCount++;
+    }
+    const pruningFactor = Math.max(
+      0.001,
+      Math.pow(0.7, maxTier) *
+        Math.pow(Math.max(1, numConstrained), 1.5) *
+        Math.pow(0.5, fixedStatCount)
     );
 
-    let calculationMultiplier = 1.0;
-    // very expensive calculations reduce the amount per thread
-    if (
-      config.tryLimitWastedStats &&
-      config.modOptimizationStrategy != ModOptimizationStrategy.None
-    ) {
-      calculationMultiplier = 0.7;
+    // 3. Estimate per-permutation cost multiplier
+    let costMultiplier = 1.0;
+    if (config.calculateTierFiveTuning) costMultiplier *= 1.3;
+    if (config.tryLimitWastedStats) costMultiplier *= 1.2;
+    if (config.modOptimizationStrategy !== ModOptimizationStrategy.None) costMultiplier *= 1.1;
+
+    // 4. Estimated effective work units (~2000 work units ≈ 1ms of compute)
+    const estimatedWork = rawPerms * pruningFactor * costMultiplier;
+
+    // 5. Map to thread count.
+    //    Worker overhead is ~100-150ms per worker (structured clone).
+    //    Parallelism only helps when compute time >> overhead.
+    //    Cap at 8 threads — beyond that, overhead dominates returns.
+    const maxThreads = Math.min(
+      Math.floor((navigator.hardwareConcurrency || 2) * 0.75),
+      8,
+      Math.max(helmets.length, gauntlets.length, chests.length, legs.length, classItems.length)
+    );
+
+    let nthreads: number;
+    if (estimatedWork < 1e6) {
+      // < ~500ms compute: 1 thread (overhead would exceed gains)
+      nthreads = 1;
+    } else if (estimatedWork < 4e6) {
+      // 500ms–2s: 2-3 threads
+      nthreads = Math.min(3, maxThreads);
+    } else {
+      // 2s+: scale up
+      nthreads = maxThreads;
     }
 
-    let minimumCalculationPerThread = calculationMultiplier * 5e4;
-    let maximumCalculationPerThread = calculationMultiplier * 2.5e5;
-
-    const nthreads = Math.max(
-      3, // Enforce a minimum of 3 threads
-      Math.min(
-        Math.max(1, Math.ceil(estimatedCalculations / minimumCalculationPerThread)),
-        Math.ceil(estimatedCalculations / maximumCalculationPerThread),
-        Math.floor((navigator.hardwareConcurrency || 2) * 0.75), // limit it to the amount of cores, and only use 75%
-        20, // limit it to a maximum of 20 threads
-        largestArmorBucket // limit it to the largest armor bucket, as we will split the work by this value
-      )
+    this.logger.debug(
+      "ArmorCalculatorService",
+      "estimateRequiredThreads",
+      `rawPerms=${rawPerms}, maxTier=${maxTier}, numConstrained=${numConstrained}, ` +
+        `pruningFactor=${pruningFactor.toFixed(6)}, costMultiplier=${costMultiplier.toFixed(2)}, ` +
+        `estimatedWork=${Math.round(estimatedWork)}, ` +
+        `threads=${nthreads}`
     );
 
-    return nthreads;
+    return Math.max(1, nthreads);
   }
 
   // Manual trigger method for testing
