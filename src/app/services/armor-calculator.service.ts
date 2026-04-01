@@ -81,6 +81,8 @@ export class ArmorCalculatorService implements OnDestroy {
   private indexing = false;
   private latestConfig: BuildConfiguration | null = null;
   private lastIndexConfig: BuildConfiguration | null = null;
+  private handlerRunning = false;
+  private pendingEmission: [unknown, unknown] | null = null;
 
   private calculationSubscription?: Subscription;
 
@@ -190,49 +192,15 @@ export class ArmorCalculatorService implements OnDestroy {
           })
         )
         .subscribe({
-          next: async ([inventory, config]) => {
-            // Only perform calculations if we're on the main page
-            if (!this.isMainPage()) {
-              this.logger.debug(
-                "ArmorCalculatorService",
-                "setupCalculationTriggers",
-                "Not on main page, skipping calculation"
-              );
+          next: ([inventory, config]) => {
+            // Serialize: RxJS doesn't await async handlers, so concurrent
+            // invocations would produce double results. Stash the latest
+            // emission and process it when the current handler finishes.
+            if (this.handlerRunning) {
+              this.pendingEmission = [inventory, config];
               return;
             }
-
-            if (!config) {
-              return;
-            }
-
-            const buildConfig = config as BuildConfiguration;
-            if (buildConfig.characterClass === DestinyClass.Unknown) return;
-
-            this.latestConfig = buildConfig;
-
-            const needsReindex =
-              this.indexFieldsChanged(this.lastIndexConfig, buildConfig) ||
-              this.cachedIndex === null;
-
-            if (needsReindex) {
-              this.logger.info(
-                "ArmorCalculatorService",
-                "setupCalculationTriggers",
-                "Index-affecting change detected, rebuilding index"
-              );
-              this.lastIndexConfig = buildConfig;
-              const success = await this.rebuildIndex(buildConfig);
-              if (success) {
-                await this.runQuery(this.latestConfig!);
-              }
-            } else {
-              this.logger.info(
-                "ArmorCalculatorService",
-                "setupCalculationTriggers",
-                "Target-only change, running query with existing index"
-              );
-              await this.runQuery(buildConfig);
-            }
+            this.handleCalculationEmission(inventory, config);
           },
           error: (error) => {
             this.logger.error(
@@ -287,6 +255,51 @@ export class ArmorCalculatorService implements OnDestroy {
    * sort, and bucketing. Stores the result in `this.cachedIndex`.
    * Returns `true` on success, `false` if stale or no usable armor.
    */
+
+  private async handleCalculationEmission(inventory: unknown, config: unknown): Promise<void> {
+    this.handlerRunning = true;
+    try {
+      if (!this.isMainPage()) return;
+      if (!config) return;
+
+      const buildConfig = config as BuildConfiguration;
+      if (buildConfig.characterClass === DestinyClass.Unknown) return;
+
+      this.latestConfig = buildConfig;
+
+      const needsReindex =
+        this.indexFieldsChanged(this.lastIndexConfig, buildConfig) || this.cachedIndex === null;
+
+      if (needsReindex) {
+        this.logger.info(
+          "ArmorCalculatorService",
+          "setupCalculationTriggers",
+          "Index-affecting change detected, rebuilding index"
+        );
+        this.lastIndexConfig = buildConfig;
+        const success = await this.rebuildIndex(buildConfig);
+        if (success) {
+          await this.runQuery(this.latestConfig!);
+        }
+      } else {
+        this.logger.info(
+          "ArmorCalculatorService",
+          "setupCalculationTriggers",
+          "Target-only change, running query with existing index"
+        );
+        await this.runQuery(buildConfig);
+      }
+    } finally {
+      this.handlerRunning = false;
+      // Process any emission that arrived while we were busy
+      if (this.pendingEmission) {
+        const [inv, cfg] = this.pendingEmission;
+        this.pendingEmission = null;
+        this.handleCalculationEmission(inv, cfg);
+      }
+    }
+  }
+
   private async rebuildIndex(config: BuildConfiguration): Promise<boolean> {
     const gen = ++this.indexGeneration;
     this.indexing = true;

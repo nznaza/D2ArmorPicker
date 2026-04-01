@@ -16,7 +16,7 @@
  */
 
 // region Imports
-import { BuildConfiguration } from "../data/buildConfiguration";
+import { BuildConfiguration, FixableSelection } from "../data/buildConfiguration";
 import { IDestinyArmor } from "../data/types/IInventoryArmor";
 import { ArmorSlot } from "../data/enum/armor-slot";
 import { FORCE_USE_ANY_EXOTIC, MAXIMUM_MASTERWORK_LEVEL } from "../data/constants";
@@ -380,11 +380,32 @@ addEventListener("message", async ({ data }) => {
 
   // H6: dedup helper — items with identical computation-relevant fields produce
   // identical results in the permutation solver. Keep only one representative.
-  // Key uses only raw intrinsic item properties so the index survives config changes.
+  // Runs per-query in the worker (online phase) so config-aware collapsing is safe.
+  // The cached index stores all items; this dedup narrows them for the current config.
+  const anyStatFixed = Object.values(config.minimumStatTiers).some(
+    (v: FixableSelection<number>) => v.fixed
+  );
+  const doesNotRequireArmorPerks = config.armorRequirements.length == 0;
   function dedupSlot(items: IPermutatorArmor[]): IPermutatorArmor[] {
     const seen = new Set<string>();
     return items.filter((item) => {
-      const key = `${item.mobility}|${item.resilience}|${item.recovery}|${item.discipline}|${item.intellect}|${item.strength}|${item.isExotic}|${item.masterworkLevel ?? 0}|${item.armorSystem}|${item.perk}|${item.gearSetHash ?? 0}|${item.tier < 5 ? -1 : (item.tuningStat ?? -1)}`;
+      const tuningPart = item.tier < 5 ? -1 : (item.tuningStat ?? -1);
+      const mwPart =
+        (item.isExotic && config.assumeExoticsMasterworked) ||
+        (!item.isExotic && config.assumeLegendariesMasterworked) ||
+        !anyStatFixed
+          ? 0
+          : (item.masterworkLevel ?? 0);
+      const perkPart = doesNotRequireArmorPerks ? 0 : item.perk;
+      const gearSetPart = doesNotRequireArmorPerks ? 0 : (item.gearSetHash ?? 0);
+      const artificePart = isArtificeNonClass(
+        item,
+        !!config.assumeEveryLegendaryIsArtifice,
+        !!config.assumeEveryExoticIsArtifice
+      )
+        ? 1
+        : 0;
+      const key = `${item.mobility}|${item.resilience}|${item.recovery}|${item.discipline}|${item.intellect}|${item.strength}|${item.isExotic}|${tuningPart}|${mwPart}|${item.armorSystem}|${perkPart}|${gearSetPart}|${artificePart}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;

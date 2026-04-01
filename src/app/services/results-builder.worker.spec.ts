@@ -15,7 +15,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getSkillTier, getWaste, handlePermutation } from "./results-builder.worker";
+import {
+  getSkillTier,
+  getWaste,
+  handlePermutation,
+  applyMasterworkStats,
+  isArtificeNonClass,
+} from "./results-builder.worker";
 import { DestinyClass, TierType } from "bungie-api-ts/destiny2";
 import { ArmorSlot } from "../data/enum/armor-slot";
 import {
@@ -237,6 +243,31 @@ function callHandlePermutation(
   const maxMajorMods = config.statModLimits?.maxMajorMods || 0;
   const maxMods = config.statModLimits?.maxMods || 0;
   const possibleIncreaseByMod = 10 * maxMajorMods + 5 * Math.max(0, maxMods - maxMajorMods);
+  const assumeLegArt = !!config.assumeEveryLegendaryIsArtifice;
+  const assumeExoArt = !!config.assumeEveryExoticIsArtifice;
+
+  // H5: compute outer 4-item base stats + masterwork (mirrors the inlined loop logic)
+  const outerBaseStats = [
+    helmet.mobility + gauntlet.mobility + chest.mobility + leg.mobility,
+    helmet.resilience + gauntlet.resilience + chest.resilience + leg.resilience,
+    helmet.recovery + gauntlet.recovery + chest.recovery + leg.recovery,
+    helmet.discipline + gauntlet.discipline + chest.discipline + leg.discipline,
+    helmet.intellect + gauntlet.intellect + chest.intellect + leg.intellect,
+    helmet.strength + gauntlet.strength + chest.strength + leg.strength,
+  ];
+  applyMasterworkStats(helmet, config, outerBaseStats);
+  applyMasterworkStats(gauntlet, config, outerBaseStats);
+  applyMasterworkStats(chest, config, outerBaseStats);
+  applyMasterworkStats(leg, config, outerBaseStats);
+  // chest resilience bonus
+  if (!chest.isExotic && config.addConstent1Health) outerBaseStats[1] += 1;
+
+  const outerArtifice =
+    (isArtificeNonClass(helmet, assumeLegArt, assumeExoArt) ? 1 : 0) +
+    (isArtificeNonClass(gauntlet, assumeLegArt, assumeExoArt) ? 1 : 0) +
+    (isArtificeNonClass(chest, assumeLegArt, assumeExoArt) ? 1 : 0) +
+    (isArtificeNonClass(leg, assumeLegArt, assumeExoArt) ? 1 : 0);
+
   return handlePermutation(
     runtime,
     config,
@@ -245,13 +276,15 @@ function callHandlePermutation(
     chest,
     leg,
     classItem,
+    outerBaseStats,
+    outerArtifice,
     constantBonus,
     doNotOutput,
     targetVals,
     targetFixed,
     possibleIncreaseByMod,
-    !!config.assumeEveryLegendaryIsArtifice,
-    !!config.assumeEveryExoticIsArtifice
+    assumeLegArt,
+    assumeExoArt
   );
 }
 
