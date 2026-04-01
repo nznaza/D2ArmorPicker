@@ -467,6 +467,224 @@ export class ArmorCalculatorService implements OnDestroy {
     }
   }
 
+  /**
+   * Run a query against the cached index: spawn workers, track progress,
+   * and aggregate results. Reads armor data from `this.cachedIndex` —
+   * does NOT recompute the index.
+   */
+  private async runQuery(config: BuildConfiguration): Promise<void> {
+    // Guard: skip while reindexing or if no index is available
+    if (this.indexing || !this.cachedIndex) return;
+
+    const gen = ++this.queryGeneration;
+    this.killWorkers();
+    this.clearResults();
+
+    // Guard: no class selected
+    if (config.characterClass == DestinyClass.Unknown) return;
+
+    try {
+      const queryStart = performance.now();
+      this.status.modifyStatus((s) => (s.calculatingResults = true));
+      this.status.modifyStatus((s) => (s.cancelledCalculation = false));
+      let doneWorkerCount = 0;
+
+      this.endResults = [];
+      this.totalPermutationCount = 0;
+      this.resultMaximumTiers = [];
+      const startTime = Date.now();
+
+      // Restore references from the cached index
+      const selectedExotics = this.cachedIndex.selectedExotics;
+      const inventoryItems = this.cachedIndex.inventoryItems;
+      const slotBuckets = this.cachedIndex.slotBuckets;
+
+      const nthreads = this.estimateRequiredThreads(config, slotBuckets);
+      this.logger.info("ArmorCalculatorService", "runQuery", "Estimated threads: " + nthreads);
+
+      // Values to calculate ETA
+      const threadCalculationAmountArr = [...Array(nthreads).keys()].map(() => 0);
+      const threadCalculationDoneArr = [...Array(nthreads).keys()].map(() => 0);
+      const threadCalculationReachableTiers: number[][] = [...Array(nthreads).keys()].map(() =>
+        Array(6).fill(0)
+      );
+      let oldProgressValue = 0;
+      let runningTotal = 0;
+      let runningDone = 0;
+      this._calculationProgress.next(0);
+
+      // Build ID→item map once before workers start for O(1) lookups during result mapping
+      const itemById = new Map<number, IInventoryArmor>();
+      for (const item of inventoryItems) {
+        itemById.set(item.id, item);
+      }
+
+      for (let n = 0; n < nthreads; n++) {
+        this.workers[n] = new Worker(new URL("./results-builder.worker", import.meta.url), {
+          name: n.toString(),
+        });
+        this.workers[n].onmessage = async (ev) => {
+          // Stale query check — a newer query has been started
+          if (gen !== this.queryGeneration) return;
+
+          let data = ev.data;
+          runningTotal += data.estimatedCalculations - threadCalculationAmountArr[n];
+          runningDone += data.checkedCalculations - threadCalculationDoneArr[n];
+          threadCalculationAmountArr[n] = data.estimatedCalculations;
+          threadCalculationDoneArr[n] = data.checkedCalculations;
+          threadCalculationReachableTiers[n] =
+            data.reachableTiers || data.runtime.maximumPossibleTiers;
+          const maxReachableTiers: number[] = [0, 0, 0, 0, 0, 0];
+          for (let t = 0; t < nthreads; t++) {
+            const arr = threadCalculationReachableTiers[t];
+            for (let s = 0; s < 6; s++) {
+              if (arr[s] > maxReachableTiers[s]) maxReachableTiers[s] = arr[s];
+            }
+          }
+          for (let s = 0; s < 6; s++) {
+            maxReachableTiers[s] = Math.min(200, maxReachableTiers[s]) / 10;
+          }
+          this._reachableTiers.next(maxReachableTiers);
+
+          if (threadCalculationDoneArr.every((v) => v > 0)) {
+            const newProgress = (runningDone / runningTotal) * 100;
+            if (newProgress > oldProgressValue + 0.25) {
+              oldProgressValue = newProgress;
+              this._calculationProgress.next(newProgress);
+            }
+          }
+          if (data.runtime == null) return;
+
+          const batchResults = data.results as IPermutatorArmorSet[];
+          for (let ri = 0; ri < batchResults.length; ri++) {
+            const armorSet = batchResults[ri];
+            const armorIds = armorSet.armor;
+            const resultItems: ResultItem[] = new Array(armorIds.length);
+            let exotic: IInventoryArmor | undefined;
+            let usesCollectionRoll = false;
+            let usesVendorRoll = false;
+
+            for (let ii = 0; ii < armorIds.length; ii++) {
+              const instance = itemById.get(armorIds[ii])!;
+              if (instance.isExotic) exotic = instance;
+              if (instance.source === InventoryArmorSource.Collections) usesCollectionRoll = true;
+              if (instance.source === InventoryArmorSource.Vendor) usesVendorRoll = true;
+              resultItems[ii] = {
+                tuningStat: instance.tuningStat,
+                energyLevel: instance.energyLevel,
+                hash: instance.hash,
+                itemInstanceId: instance.itemInstanceId,
+                name: instance.name,
+                exotic: !!instance.isExotic,
+                masterworked: instance.masterworkLevel == MAXIMUM_MASTERWORK_LEVEL,
+                archetypeStats: instance.archetypeStats,
+                armorSystem: instance.armorSystem,
+                masterworkLevel: instance.masterworkLevel,
+                slot: instance.slot,
+                perk: instance.perk,
+                transferState: 0,
+                tier: instance.tier,
+                stats: [
+                  instance.mobility,
+                  instance.resilience,
+                  instance.recovery,
+                  instance.discipline,
+                  instance.intellect,
+                  instance.strength,
+                ],
+                source: instance.source,
+                statsNoMods: [],
+              };
+            }
+
+            const usedMods = armorSet.usedMods;
+            let modCost = 0;
+            for (let mi = 0; mi < usedMods.length; mi++) {
+              modCost += STAT_MOD_VALUES[usedMods[mi]][2];
+            }
+
+            this.endResults.push({
+              loaded: false,
+              tuningStats: armorSet.tuning,
+              exotic:
+                exotic == null
+                  ? undefined
+                  : {
+                      icon: exotic.icon,
+                      watermark: exotic.watermarkIcon,
+                      name: exotic.name,
+                      hash: exotic.hash,
+                    },
+              artifice: armorSet.usedArtifice,
+              modCount: usedMods.length,
+              modCost,
+              mods: usedMods,
+              stats: armorSet.statsWithMods,
+              statsNoMods: armorSet.statsWithoutMods,
+              tiers: getSkillTier(armorSet.statsWithMods),
+              waste: getWaste(armorSet.statsWithMods),
+              items: resultItems,
+              usesCollectionRoll,
+              usesVendorRoll,
+            });
+          }
+          if (data.done == true) {
+            doneWorkerCount++;
+            this.totalPermutationCount += data.stats.permutationCount;
+            this.resultMaximumTiers.push(data.runtime.maximumPossibleTiers);
+          }
+          if (data.done == true && doneWorkerCount == nthreads) {
+            this.status.modifyStatus((s) => (s.calculatingResults = false));
+            this._calculationProgress.next(0);
+
+            this._armorResults.next({
+              results: this.endResults,
+              totalResults: this.totalPermutationCount,
+              itemCount: data.stats.itemCount,
+              totalTime: Date.now() - startTime,
+              maximumPossibleTiers: (() => {
+                const maxTiers = [0, 0, 0, 0, 0, 0];
+                for (let t = 0; t < this.resultMaximumTiers.length; t++) {
+                  const v = this.resultMaximumTiers[t];
+                  for (let k = 0; k < 6; k++) if (v[k] > maxTiers[k]) maxTiers[k] = v[k];
+                }
+                for (let k = 0; k < 6; k++) maxTiers[k] = Math.min(200, maxTiers[k]) / 10;
+                return maxTiers;
+              })(),
+            });
+            const queryEnd = performance.now();
+            this.logger.info(
+              "ArmorCalculatorService",
+              "runQuery",
+              `runQuery with WebWorker took ${queryEnd - queryStart} ms`
+            );
+            this.workers[n].terminate();
+          } else if (data.done == true && doneWorkerCount != nthreads) this.workers[n].terminate();
+        };
+        this.workers[n].onerror = (ev) => {
+          this.workers[n].terminate();
+        };
+
+        // Strip fields the worker never reads to reduce structured clone cost
+        const workerConfig = { ...config, disabledItems: [] as string[] };
+        this.workers[n].postMessage({
+          type: "builderRequest",
+          config: workerConfig,
+          threadSplit: {
+            count: nthreads,
+            current: n,
+          },
+          helmets: slotBuckets.get(ArmorSlot.ArmorSlotHelmet)!,
+          gauntlets: slotBuckets.get(ArmorSlot.ArmorSlotGauntlet)!,
+          chests: slotBuckets.get(ArmorSlot.ArmorSlotChest)!,
+          legs: slotBuckets.get(ArmorSlot.ArmorSlotLegs)!,
+          classItems: slotBuckets.get(ArmorSlot.ArmorSlotClass)!,
+        });
+      }
+    } finally {
+    }
+  }
+
   private estimateCombinationsToBeChecked(
     helmets: IPermutatorArmor[],
     gauntlets: IPermutatorArmor[],
