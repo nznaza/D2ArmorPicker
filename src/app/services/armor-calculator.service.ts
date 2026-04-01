@@ -83,6 +83,7 @@ export class ArmorCalculatorService implements OnDestroy {
   private queryGeneration = 0;
   private indexing = false;
   private latestConfig: BuildConfiguration | null = null;
+  private lastIndexConfig: BuildConfiguration | null = null;
 
   private calculationSubscription?: Subscription;
 
@@ -683,6 +684,26 @@ export class ArmorCalculatorService implements OnDestroy {
       }
     } finally {
     }
+  }
+
+  private indexFieldsChanged(a: BuildConfiguration | null, b: BuildConfiguration | null): boolean {
+    if (a === null || b === null) return true;
+    return (
+      a.characterClass !== b.characterClass ||
+      a.allowBlueArmorPieces !== b.allowBlueArmorPieces ||
+      a.allowLegacyLegendaryArmor !== b.allowLegacyLegendaryArmor ||
+      a.allowLegacyExoticArmor !== b.allowLegacyExoticArmor ||
+      a.enforceFeaturedLegendaryArmor !== b.enforceFeaturedLegendaryArmor ||
+      a.enforceFeaturedExoticArmor !== b.enforceFeaturedExoticArmor ||
+      a.ignoreSunsetArmor !== b.ignoreSunsetArmor ||
+      a.includeCollectionRolls !== b.includeCollectionRolls ||
+      a.includeVendorRolls !== b.includeVendorRolls ||
+      a.onlyUseMasterworkedExotics !== b.onlyUseMasterworkedExotics ||
+      a.onlyUseMasterworkedLegendaries !== b.onlyUseMasterworkedLegendaries ||
+      // Array comparisons — use JSON for simplicity (small arrays)
+      JSON.stringify(a.selectedExotics) !== JSON.stringify(b.selectedExotics) ||
+      JSON.stringify(a.disabledItems) !== JSON.stringify(b.disabledItems)
+    );
   }
 
   private estimateCombinationsToBeChecked(
