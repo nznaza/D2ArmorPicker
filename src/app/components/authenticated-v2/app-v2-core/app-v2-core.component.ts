@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Component, OnInit } from "@angular/core";
+import { Component, OnInit, AfterViewInit } from "@angular/core";
 import { StatusProviderService } from "../../../services/status-provider.service";
 import { Observable } from "rxjs";
 import { BreakpointObserver, Breakpoints } from "@angular/cdk/layout";
@@ -32,7 +32,7 @@ import { CharacterStatsService } from "../../../services/character-stats.service
   templateUrl: "./app-v2-core.component.html",
   styleUrls: ["./app-v2-core.component.scss"],
 })
-export class AppV2CoreComponent implements OnInit {
+export class AppV2CoreComponent implements OnInit, AfterViewInit {
   version = environment.version;
   activeLinkIndex = 0;
   computationProgress = 0;
@@ -80,11 +80,13 @@ export class AppV2CoreComponent implements OnInit {
         );
     });
 
-    this.characterStats.loadCharacterStats();
-
     this.inv.calculationProgress.subscribe((progress) => {
       this.computationProgress = progress;
     });
+  }
+
+  ngAfterViewInit(): void {
+    this.characterStats.loadCharacterStats();
   }
 
   async refreshAll(b: boolean) {

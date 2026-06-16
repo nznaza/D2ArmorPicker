@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Component, OnDestroy, OnInit } from "@angular/core";
+import { AfterViewInit, Component, OnDestroy, OnInit } from "@angular/core";
 import { Subject } from "rxjs";
 import { ConfigurationService } from "../../../../services/configuration.service";
 import { takeUntil } from "rxjs/operators";
@@ -27,7 +27,7 @@ import { InventoryService } from "../../../../services/inventory.service";
   templateUrl: "./desired-class-selection.component.html",
   styleUrls: ["./desired-class-selection.component.scss"],
 })
-export class DesiredClassSelectionComponent implements OnInit, OnDestroy {
+export class DesiredClassSelectionComponent implements OnInit, OnDestroy, AfterViewInit {
   itemCounts: (null | number)[] = [null, null, null];
   selectedClass = -1;
   public storedMaterials: {
@@ -58,9 +58,17 @@ export class DesiredClassSelectionComponent implements OnInit, OnDestroy {
         });
       }
     });
+  }
+
+  ngAfterViewInit(): void {
     this.inv.inventory.pipe(takeUntil(this.ngUnsubscribe)).subscribe(async (k) => {
       await this.loadStoredMaterials();
       await this.updateItemCount();
+    });
+
+    // Subscribe to manifest changes to detect when characters are loaded
+    this.inv.manifest.pipe(takeUntil(this.ngUnsubscribe)).subscribe(() => {
+      // This will trigger change detection when characters are loaded
     });
   }
 
