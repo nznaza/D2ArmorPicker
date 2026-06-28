@@ -26,7 +26,7 @@ import {
   SUPPORTED_SCHEMA_VERSION,
   UpdateData,
 } from "./clarity.service";
-import { LoggingProxyService } from "./logging-proxy.service";
+import { LoggerModule, NGXLogger, NgxLoggerLevel } from "ngx-logger";
 import { MatDialogModule } from "@angular/material/dialog";
 
 describe("ClarityService", () => {
@@ -36,8 +36,11 @@ describe("ClarityService", () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      imports: [HttpClientTestingModule, MatDialogModule],
-      providers: [LoggingProxyService],
+      imports: [
+        HttpClientTestingModule,
+        MatDialogModule,
+        LoggerModule.forRoot({ level: NgxLoggerLevel.OFF }),
+      ],
     });
 
     httpTestingController = TestBed.inject(HttpTestingController);
@@ -106,7 +109,7 @@ describe("ClarityService", () => {
   it("should not fetch live data the schema does not match our supported version", (done) => {
     setCachedDataWithVersion(1);
 
-    const logger = TestBed.inject(LoggingProxyService);
+    const logger = TestBed.inject(NGXLogger);
     spyOn(logger, "warn");
     service.load().then(() => {
       expect(logger.warn).toHaveBeenCalledWith(
@@ -121,13 +124,17 @@ describe("ClarityService", () => {
   });
 
   it("should fail gracefully if version fetch fails", (done) => {
-    const logger = TestBed.inject(LoggingProxyService);
+    const logger = TestBed.inject(NGXLogger);
     spyOn(logger, "warn");
     service
       .load()
       .then(() => {
+        // fetchUpdateData catches the network error internally (structured log) and returns
+        // null, so load() resolves gracefully — assert the actual warn it emits.
         expect(logger.warn).toHaveBeenCalledWith(
-          "Error loading Clarity data",
+          "ClarityService",
+          "fetchUpdateData",
+          "Failed to fetch update data",
           jasmine.any(HttpErrorResponse)
         );
         done();
@@ -139,7 +146,7 @@ describe("ClarityService", () => {
   });
 
   it("should fail gracefully if stats fetch fails", (done) => {
-    const logger = TestBed.inject(LoggingProxyService);
+    const logger = TestBed.inject(NGXLogger);
     spyOn(logger, "warn");
 
     setTimeout(() => {
@@ -150,8 +157,12 @@ describe("ClarityService", () => {
     service
       .load()
       .then(() => {
+        // fetchLiveCharacterStats catches the network error (structured log) before rethrowing;
+        // load() still resolves gracefully — assert the actual warn it emits.
         expect(logger.warn).toHaveBeenCalledWith(
-          "Error loading Clarity data",
+          "ClarityService",
+          "fetchLiveCharacterStats",
+          "Failed to fetch live character stats",
           jasmine.any(HttpErrorResponse)
         );
         done();
