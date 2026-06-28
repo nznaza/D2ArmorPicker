@@ -27,6 +27,7 @@ import { ModifierType } from "./enum/modifierType";
 import { ModOptimizationStrategy } from "./enum/mod-optimization-strategy";
 import { EventArmorType } from "./enum/event-armor-type";
 import { DestinyClass } from "bungie-api-ts/destiny2/interfaces";
+import { environment } from "src/environments/environment";
 
 export function getDefaultStatDict(
   value: number
@@ -79,7 +80,7 @@ export class BuildConfiguration {
   // New compact stat mod limits (global, not per-slot)
   statModLimits: StatModLimits = { maxMods: 5, maxMajorMods: 5 };
 
-  calculateTierFiveTuning = false;
+  calculateTierFiveTuning = !environment.production;
   putArtificeMods = true;
   useEventArmor: EventArmorType = EventArmorType.None;
   allowBlueArmorPieces = true;
@@ -115,7 +116,7 @@ export class BuildConfiguration {
       enabledMods: [],
       disabledItems: [],
       addConstent1Health: false,
-      calculateTierFiveTuning: false,
+      calculateTierFiveTuning: !environment.production,
       assumeEveryLegendaryIsArtifice: false,
       assumeEveryExoticIsArtifice: false,
       assumeClassItemIsArtifice: false,

@@ -10,8 +10,8 @@ import { GroupUserInfoCard } from "bungie-api-ts/groupv2";
 import { getMembershipDataForCurrentUser } from "bungie-api-ts/user";
 import { HttpClientService } from "./http-client.service";
 import { StatusProviderService } from "./status-provider.service";
-import { LoggingProxyService } from "./logging-proxy.service";
-import { identifyUserWithTracker } from "../app.module";
+import { NGXLogger } from "ngx-logger";
+import { identifyUserWithTracker } from "./openreplay-tracker";
 // import { H } from "highlight.run";
 
 @Injectable({
@@ -22,7 +22,7 @@ export class MembershipService implements OnDestroy {
     private http: HttpClientService,
     private status: StatusProviderService,
     private auth: AuthService,
-    private logger: LoggingProxyService
+    private logger: NGXLogger
   ) {
     this.logger.debug("MembershipService", "constructor", "Initializing MembershipService");
     this.auth.logoutEvent.subscribe((k) => this.clearCachedData());
