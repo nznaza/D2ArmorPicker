@@ -24,7 +24,7 @@ const release = ["PROD", "BETA", "CANARY", "DEV"].includes(releaseRaw) ? release
 const is_production = release === "PROD";
 const is_beta = release === "BETA";
 const is_canary = release === "CANARY";
-const is_dev = release === "DEV";
+// const is_dev = release === "DEV";
 
 const version = "2.9.10";
 
@@ -61,7 +61,7 @@ const requiredEnvKeys = [
   // Feature flags are optional; they default to disabled when not set
 ];
 
-const optionalEnvKeys = ["D2AP_SENTRY_DSN"];
+// const optionalEnvKeys = ["D2AP_SENTRY_DSN"];
 
 const hasAllRequiredEnv = requiredEnvKeys.every((k) => {
   const val = process.env[k] ?? "";
