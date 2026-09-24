@@ -800,6 +800,7 @@ export class ArmorCalculatorService implements OnDestroy {
                 hash: exotic?.hash,
               },
         artifice: armorSet.usedArtifice,
+        tuningMods: armorSet.usedTuningMods,
         modCount: armorSet.usedMods.length,
         modCost: armorSet.usedMods.reduce((p, d: StatModifier) => p + STAT_MOD_VALUES[d][2], 0),
         mods: armorSet.usedMods,
@@ -888,6 +889,7 @@ export class ArmorCalculatorService implements OnDestroy {
                 hash: exotic.hash,
               },
         artifice: armorSet.usedArtifice,
+        tuningMods: armorSet.usedTuningMods,
         modCount: armorSet.usedMods.length,
         modCost: armorSet.usedMods.reduce((p, d: StatModifier) => p + STAT_MOD_VALUES[d][2], 0),
         mods: armorSet.usedMods,
@@ -1217,6 +1219,29 @@ export class ArmorCalculatorService implements OnDestroy {
     };
   }
 
+  static convertPermutatorArmorToWorkerArmor(armor: IPermutatorArmor): IPermutatorArmor {
+    return {
+      id: armor.id,
+      hash: armor.hash,
+      slot: armor.slot,
+      isExotic: armor.isExotic,
+      perk: armor.perk,
+      masterworkLevel: armor.masterworkLevel,
+      archetypeStats: armor.archetypeStats,
+      mobility: armor.mobility,
+      resilience: armor.resilience,
+      recovery: armor.recovery,
+      discipline: armor.discipline,
+      intellect: armor.intellect,
+      strength: armor.strength,
+      gearSetHash: armor.gearSetHash ?? null,
+      gearSetPerkSelectable: armor.gearSetPerkSelectable,
+      tuningStat: armor.tuningStat,
+      armorSystem: armor.armorSystem,
+      tier: armor.tier,
+    } as IPermutatorArmor;
+  }
+
   async calculateArmorSetResults(
     config: BuildConfiguration,
     currentClass: DestinyClass,
@@ -1295,8 +1320,11 @@ export class ArmorCalculatorService implements OnDestroy {
       );
       nthreads = ArmorCalculatorService.estimateRequiredThreads(config, permutatorArmorItems);
       this.logger.info("ArmorCalculatorService", "updateResults", "Estimated threads: " + nthreads);
+      const workerItems = permutatorArmorItems.map(
+        ArmorCalculatorService.convertPermutatorArmorToWorkerArmor
+      );
       const workerItemBatches = ArmorCalculatorService.splitArmorItemsForWorkers(
-        permutatorArmorItems,
+        workerItems,
         nthreads
       );
 

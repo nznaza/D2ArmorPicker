@@ -41,6 +41,7 @@ export interface ResultDefinition {
       };
   artifice: number[];
   mods: number[];
+  tuningMods: number[];
   tuningStats: Tuning;
   stats: number[];
   statsNoMods: number[];

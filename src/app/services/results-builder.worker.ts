@@ -81,11 +81,35 @@ const armorPerkValues = new Set<number>(
   Object.values(ArmorPerkOrSlot).filter((v) => typeof v === "number") as number[]
 );
 
-type t5Improvement = {
+export type t5Improvement = {
   tuningStat: ArmorStat | null;
   archetypeStats: ArmorStat[];
   flexible: boolean;
   balancedBonus: number[];
+};
+
+type AnnotatedArmor = IPermutatorArmor & {
+  _mw: number[];
+  _tune: number[];
+  _art: number;
+  _tuneTot: number;
+  _sum: number;
+};
+
+type ArmorCombination = readonly [
+  helmet: IPermutatorArmor,
+  gauntlet: IPermutatorArmor,
+  chest: IPermutatorArmor,
+  leg: IPermutatorArmor,
+  classItem: IPermutatorArmor,
+  tuningBaseItems: readonly IPermutatorArmor[],
+  tuningVariableItem: IPermutatorArmor,
+  tuningVariableCandidates: readonly IPermutatorArmor[],
+];
+
+type TuningBaseCache = {
+  items: readonly IPermutatorArmor[];
+  accumulator: Map<number, Tuning> | null;
 };
 
 export function isFlexibleExotic(i: IPermutatorArmor): boolean {
@@ -115,6 +139,88 @@ function mapItemToTuning(i: IPermutatorArmor): t5Improvement {
     flexible: isFlexibleExotic(i),
     balancedBonus: lowestThreeBonus(i),
   };
+}
+
+function annotateArmor(pieces: IPermutatorArmor[], config: BuildConfiguration): void {
+  for (const piece of pieces) {
+    const masterworkedStats = pieceStatsWithMasterwork(piece, config);
+    const tuningReach = [0, 0, 0, 0, 0, 0];
+    const hasTuning = calculateTierFiveTuning && isT5WithTuning(piece);
+    if (hasTuning) {
+      const balancedBonus = lowestThreeBonus(piece);
+      for (let stat = 0; stat < 6; stat++) {
+        tuningReach[stat] = Math.max(
+          isFlexibleExotic(piece) || piece.tuningStat === stat ? 5 : 0,
+          balancedBonus[stat]
+        );
+      }
+    }
+
+    piece._mw = masterworkedStats;
+    piece._tune = tuningReach;
+    piece._art = pieceArtificeCapable(piece, config) ? 1 : 0;
+    piece._tuneTot = hasTuning ? 3 : 0;
+    piece._sum = masterworkedStats.reduce((sum, value) => sum + value, 0);
+  }
+}
+
+function groupCanReachTargets(
+  baseItems: readonly IPermutatorArmor[],
+  variableCandidates: readonly IPermutatorArmor[]
+): boolean {
+  if (variableCandidates.length === 0) return false;
+
+  const baseStats = [0, 0, 0, 0, 0, 0];
+  const baseTuning = [0, 0, 0, 0, 0, 0];
+  let baseArtifice = 0;
+  for (const item of baseItems as readonly AnnotatedArmor[]) {
+    baseArtifice += item._art;
+    for (let stat = 0; stat < 6; stat++) {
+      baseStats[stat] += item._mw[stat];
+      baseTuning[stat] += item._tune[stat];
+    }
+  }
+
+  const candidateReach = [0, 0, 0, 0, 0, 0];
+  const candidateMinimum = [Infinity, Infinity, Infinity, Infinity, Infinity, Infinity];
+  let candidateArtifice = 0;
+  for (const item of variableCandidates as readonly AnnotatedArmor[]) {
+    candidateArtifice = Math.max(candidateArtifice, item._art);
+    for (let stat = 0; stat < 6; stat++) {
+      candidateReach[stat] = Math.max(candidateReach[stat], item._mw[stat] + item._tune[stat]);
+      candidateMinimum[stat] = Math.min(candidateMinimum[stat], item._mw[stat]);
+    }
+  }
+
+  const sharedBudget = possibleIncreaseByMod + 3 * (baseArtifice + candidateArtifice);
+  const baseChest = baseItems.find((item) => item.slot === ArmorSlot.ArmorSlotChest);
+  const minimumHealthBonus = addConstent1Health
+    ? baseChest
+      ? baseChest.isExotic
+        ? 0
+        : 1
+      : variableCandidates.some((item) => item.isExotic)
+        ? 0
+        : 1
+    : 0;
+  let residualGap = 0;
+  for (let stat = 0; stat < 6; stat++) {
+    const constantHealth = stat === 1 ? minimumHealthBonus : 0;
+    const minimumStat =
+      enabledModBonuses[stat] + baseStats[stat] + candidateMinimum[stat] + constantHealth;
+    if (targetFixed[stat] && minimumStat > targetVals[stat]) return false;
+    if (targetVals[stat] <= 0) continue;
+    const reachWithoutSharedBudget =
+      enabledModBonuses[stat] +
+      baseStats[stat] +
+      baseTuning[stat] +
+      candidateReach[stat] +
+      constantHealth;
+    if (reachWithoutSharedBudget + sharedBudget < targetVals[stat]) return false;
+    residualGap += Math.max(0, targetVals[stat] - reachWithoutSharedBudget);
+  }
+
+  return residualGap <= sharedBudget;
 }
 
 /**
@@ -277,7 +383,7 @@ function* generateArmorCombinations(
   classItems: IPermutatorArmor[],
   yieldExoticCombinations: boolean,
   yieldAllLegendary: boolean
-) {
+): Generator<ArmorCombination> {
   const legendaryHelmets = helmets.filter((h) => !h.isExotic);
   const legendaryGauntlets = gauntlets.filter((g) => !g.isExotic);
   const legendaryChests = chests.filter((c) => !c.isExotic);
@@ -292,40 +398,68 @@ function* generateArmorCombinations(
     const exoticLegs = legs.filter((l) => l.isExotic);
     const exoticClassItems = classItems.filter((d) => d.isExotic);
 
-    for (const helmet of exoticHelmets)
-      for (const gauntlet of legendaryGauntlets)
-        for (const chest of legendaryChests)
-          for (const leg of legendaryLegs)
-            for (const classItem of legendaryClassItems)
-              yield [helmet, gauntlet, chest, leg, classItem] as const;
+    for (const gauntlet of legendaryGauntlets)
+      for (const chest of legendaryChests)
+        for (const leg of legendaryLegs)
+          for (const classItem of legendaryClassItems) {
+            const base = [gauntlet, chest, leg, classItem] as const;
+            for (const helmet of exoticHelmets)
+              yield [helmet, gauntlet, chest, leg, classItem, base, helmet, exoticHelmets] as const;
+          }
 
     for (const helmet of legendaryHelmets)
-      for (const gauntlet of exoticGauntlets)
-        for (const chest of legendaryChests)
-          for (const leg of legendaryLegs)
-            for (const classItem of legendaryClassItems)
-              yield [helmet, gauntlet, chest, leg, classItem] as const;
+      for (const chest of legendaryChests)
+        for (const leg of legendaryLegs)
+          for (const classItem of legendaryClassItems) {
+            const base = [helmet, chest, leg, classItem] as const;
+            for (const gauntlet of exoticGauntlets)
+              yield [
+                helmet,
+                gauntlet,
+                chest,
+                leg,
+                classItem,
+                base,
+                gauntlet,
+                exoticGauntlets,
+              ] as const;
+          }
 
     for (const helmet of legendaryHelmets)
       for (const gauntlet of legendaryGauntlets)
-        for (const chest of exoticChests)
-          for (const leg of legendaryLegs)
-            for (const classItem of legendaryClassItems)
-              yield [helmet, gauntlet, chest, leg, classItem] as const;
+        for (const leg of legendaryLegs)
+          for (const classItem of legendaryClassItems) {
+            const base = [helmet, gauntlet, leg, classItem] as const;
+            for (const chest of exoticChests)
+              yield [helmet, gauntlet, chest, leg, classItem, base, chest, exoticChests] as const;
+          }
 
     for (const helmet of legendaryHelmets)
       for (const gauntlet of legendaryGauntlets)
         for (const chest of legendaryChests)
-          for (const leg of exoticLegs)
-            for (const classItem of legendaryClassItems)
-              yield [helmet, gauntlet, chest, leg, classItem] as const;
+          for (const classItem of legendaryClassItems) {
+            const base = [helmet, gauntlet, chest, classItem] as const;
+            for (const leg of exoticLegs)
+              yield [helmet, gauntlet, chest, leg, classItem, base, leg, exoticLegs] as const;
+          }
 
     for (const helmet of legendaryHelmets)
       for (const gauntlet of legendaryGauntlets)
         for (const chest of legendaryChests)
-          for (const leg of legendaryLegs)
+          for (const leg of legendaryLegs) {
+            const base = [helmet, gauntlet, chest, leg] as const;
             for (const classItem of exoticClassItems)
-              yield [helmet, gauntlet, chest, leg, classItem] as const;
+              yield [
+                helmet,
+                gauntlet,
+                chest,
+                leg,
+                classItem,
+                base,
+                classItem,
+                exoticClassItems,
+              ] as const;
+          }
   }
 
   // Yield all-legendary combinations
@@ -333,9 +467,20 @@ function* generateArmorCombinations(
     for (const helmet of legendaryHelmets)
       for (const gauntlet of legendaryGauntlets)
         for (const chest of legendaryChests)
-          for (const leg of legendaryLegs)
+          for (const leg of legendaryLegs) {
+            const base = [helmet, gauntlet, chest, leg] as const;
             for (const classItem of legendaryClassItems)
-              yield [helmet, gauntlet, chest, leg, classItem] as const;
+              yield [
+                helmet,
+                gauntlet,
+                chest,
+                leg,
+                classItem,
+                base,
+                classItem,
+                legendaryClassItems,
+              ] as const;
+          }
   }
 }
 
@@ -404,6 +549,75 @@ function estimateCombinationsToBeChecked(
 
   return totalCalculations;
 }
+
+function computeNoTargetMaximumTiers(
+  slots: readonly IPermutatorArmor[][],
+  yieldExoticCombinations: boolean,
+  yieldAllLegendary: boolean
+): number[] | null {
+  if (
+    targetVals.some((target) => target > 0) ||
+    targetFixed.some(Boolean) ||
+    tryLimitWastedStats ||
+    onlyShowResultsWithNoWastedStats ||
+    requiredPerkSlotCounts.size > 0
+  ) {
+    return null;
+  }
+
+  const maxima = [0, 0, 0, 0, 0, 0];
+  let foundCombination = false;
+  for (let stat = 0; stat < 6; stat++) {
+    const legendaryReach = slots.map((slot) => {
+      let maximum = -Infinity;
+      for (const item of slot as AnnotatedArmor[]) {
+        if (item.isExotic) continue;
+        maximum = Math.max(maximum, item._mw[stat] + item._tune[stat] + 3 * item._art);
+      }
+      return maximum;
+    });
+    const exoticReach = slots.map((slot) => {
+      let maximum = -Infinity;
+      for (const item of slot as AnnotatedArmor[]) {
+        if (!item.isExotic) continue;
+        maximum = Math.max(maximum, item._mw[stat] + item._tune[stat] + 3 * item._art);
+      }
+      return maximum;
+    });
+
+    let best = -Infinity;
+    if (yieldAllLegendary && legendaryReach.every(Number.isFinite)) {
+      best = legendaryReach.reduce((sum, value) => sum + value, 0);
+      if (stat === 1 && addConstent1Health) best++;
+      foundCombination = true;
+    }
+    if (yieldExoticCombinations) {
+      for (let exoticSlot = 0; exoticSlot < slots.length; exoticSlot++) {
+        if (!Number.isFinite(exoticReach[exoticSlot])) continue;
+        let reach = exoticReach[exoticSlot];
+        let valid = true;
+        for (let slot = 0; slot < slots.length; slot++) {
+          if (slot === exoticSlot) continue;
+          if (!Number.isFinite(legendaryReach[slot])) {
+            valid = false;
+            break;
+          }
+          reach += legendaryReach[slot];
+        }
+        if (!valid) continue;
+        if (stat === 1 && addConstent1Health && exoticSlot !== 2) reach++;
+        best = Math.max(best, reach);
+        foundCombination = true;
+      }
+    }
+
+    if (Number.isFinite(best)) {
+      maxima[stat] = Math.min(200, best + enabledModBonuses[stat] + possibleIncreaseByMod);
+    }
+  }
+
+  return foundCombination ? maxima : null;
+}
 // endregion Validation and Preparation Functions
 
 // region Main Worker Event Handler
@@ -467,6 +681,12 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
   assumeExoticsMasterworked = !!config.assumeExoticsMasterworked;
   assumeLegendariesMasterworked = !!config.assumeLegendariesMasterworked;
 
+  annotateArmor(helmets, config);
+  annotateArmor(gauntlets, config);
+  annotateArmor(chests, config);
+  annotateArmor(legs, config);
+  annotateArmor(classItems, config);
+
   let results: IPermutatorArmorSet[] = [];
   let resultsLength = 0;
 
@@ -491,6 +711,13 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
 
   const yieldExoticCombinations = hasForceAnyExotic || hasSpecificExotic || noSelection;
   const yieldAllLegendary = hasForceNoExotic || noSelection;
+
+  const noTargetMaximumTiers = computeNoTargetMaximumTiers(
+    [helmets, gauntlets, chests, legs, classItems],
+    yieldExoticCombinations,
+    yieldAllLegendary
+  );
+  if (noTargetMaximumTiers) runtime.maximumPossibleTiers = noTargetMaximumTiers;
 
   let estimatedCalculations = estimateCombinationsToBeChecked(
     helmets,
@@ -533,6 +760,9 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
 
   let checkedCalculations = 0;
   let lastProgressReportTime = 0;
+  let cachedTuningBase: TuningBaseCache = { items: [], accumulator: null };
+  let cachedGroupBaseItems: readonly IPermutatorArmor[] | null = null;
+  let cachedGroupCanReachTargets = true;
 
   // define the delay; it can be 75ms if the estimated calculations are low
   // if the estimated calculations >= 1e6, then we will use 125ms
@@ -540,7 +770,16 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
 
   resultLimitReached = false;
 
-  for (let [helmet, gauntlet, chest, leg, classItem] of generateArmorCombinations(
+  for (let [
+    helmet,
+    gauntlet,
+    chest,
+    leg,
+    classItem,
+    tuningBaseItems,
+    tuningVariableItem,
+    tuningVariableCandidates,
+  ] of generateArmorCombinations(
     helmets,
     gauntlets,
     chests,
@@ -556,7 +795,10 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
       break;
     }
 
-    if (resultLimitReached && runtime.maximumPossibleTiers.every((tier) => tier >= 200)) {
+    if (
+      resultLimitReached &&
+      (noTargetMaximumTiers || runtime.maximumPossibleTiers.every((tier) => tier >= 200))
+    ) {
       console.log(
         `Thread #${threadSplit.current} reached result limit and maximum possible tiers are all 200, stopping calculation early.`
       );
@@ -564,10 +806,28 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
     }
 
     checkedCalculations++;
+    if (cachedGroupBaseItems !== tuningBaseItems) {
+      cachedGroupCanReachTargets = groupCanReachTargets(tuningBaseItems, tuningVariableCandidates);
+      cachedGroupBaseItems = tuningBaseItems;
+    }
+    if (!cachedGroupCanReachTargets) continue;
     if (!checkSlots(helmet, gauntlet, chest, leg, classItem)) continue;
 
+    if (cachedTuningBase.items !== tuningBaseItems) {
+      cachedTuningBase = { items: tuningBaseItems, accumulator: null };
+    }
+
     // Only calculate more permutations if the results limit has not been reached yet and
-    const result = handlePermutation(helmet, gauntlet, chest, leg, classItem);
+    const result = handlePermutation(
+      helmet,
+      gauntlet,
+      chest,
+      leg,
+      classItem,
+      cachedTuningBase,
+      tuningVariableItem,
+      noTargetMaximumTiers !== null
+    );
     // Only add 50k to the list if the setting is activated.
     // We will still calculate the rest so that we get accurate results for the runtime values
     if (!!result) {
@@ -718,6 +978,15 @@ export function getStatSum(
 // Tuning components are small signed values. Offset and pack all six as base-256 digits so the
 // dedup key stays exact (below Number.MAX_SAFE_INTEGER) without allocating strings.
 const TUNING_KEY_OFFSET = 64;
+const BALANCED_TUNING_MOD_HASH = 3122197216;
+const TUNING_MOD_HASHES: (number | null)[][] = [
+  [null, 3121760799, 1918710127, 3284443097, 891771298, 691392383],
+  [2125798995, null, 3310526732, 3681082702, 4088823605, 388618952],
+  [323635379, 4030660414, null, 1879022254, 957763733, 1510949672],
+  [4116389173, 455024236, 1922571986, null, 1672416975, 309000506],
+  [2244422610, 4026414261, 3554800389, 3946669007, null, 673231129],
+  [4020349587, 4164883102, 4210715468, 534630542, 311164277, null],
+];
 
 function packTuningKey(values: number[]): number {
   let key = 0;
@@ -752,33 +1021,120 @@ function tuningOptions(improvement: t5Improvement): number[][] {
   return options;
 }
 
-export function generate_tunings(possibleImprovements: t5Improvement[]): Tuning[] {
-  // Incremental deduped Minkowski sum. Deduping after each piece preserves first-seen ordering but
-  // avoids materializing the much larger full Cartesian product before deduplicating its leaves.
+function tuningOptionHash(option: number[]): number | null {
+  const positive = option.indexOf(5);
+  if (positive < 0) {
+    return option.some((value) => value !== 0) ? BALANCED_TUNING_MOD_HASH : null;
+  }
+  return TUNING_MOD_HASHES[positive][option.indexOf(-5)];
+}
+
+export function findTuningModHashes(
+  improvements: (t5Improvement | null)[],
+  target: Tuning
+): number[] | null {
+  const failedStates = new Set<string>();
+
+  function find(index: number, remaining: Tuning): (number | null)[] | null {
+    if (index === improvements.length) {
+      return remaining.every((value) => value === 0) ? [] : null;
+    }
+
+    const stateKey = `${index}:${remaining.join(",")}`;
+    if (failedStates.has(stateKey)) return null;
+    const options = improvements[index]
+      ? tuningOptions(improvements[index]!)
+      : [[0, 0, 0, 0, 0, 0]];
+    for (const option of options) {
+      const next = remaining.map((value, stat) => value - option[stat]) as Tuning;
+      const rest = find(index + 1, next);
+      if (rest !== null) {
+        const hash = tuningOptionHash(option);
+        return [hash, ...rest];
+      }
+    }
+    failedStates.add(stateKey);
+    return null;
+  }
+
+  const assignment = find(0, [...target] as Tuning);
+  return assignment?.filter((hash): hash is number => hash !== null) ?? null;
+}
+
+export function extendTuningAcc(
+  accumulated: Map<number, Tuning>,
+  improvement: t5Improvement
+): Map<number, Tuning> {
+  const next = new Map<number, Tuning>();
+  for (const current of accumulated.values()) {
+    for (const option of tuningOptions(improvement)) {
+      const combined = [
+        current[0] + option[0],
+        current[1] + option[1],
+        current[2] + option[2],
+        current[3] + option[3],
+        current[4] + option[4],
+        current[5] + option[5],
+      ] as Tuning;
+      const key = packTuningKey(combined);
+      if (!next.has(key)) next.set(key, combined);
+    }
+  }
+  return next;
+}
+
+export function buildTuningAcc(possibleImprovements: t5Improvement[]): Map<number, Tuning> {
   let accumulated = new Map<number, Tuning>();
   const zero = [0, 0, 0, 0, 0, 0] as Tuning;
   accumulated.set(packTuningKey(zero), zero);
 
   for (const improvement of possibleImprovements) {
-    const next = new Map<number, Tuning>();
-    for (const current of accumulated.values()) {
-      for (const option of tuningOptions(improvement)) {
-        const combined = [
-          current[0] + option[0],
-          current[1] + option[1],
-          current[2] + option[2],
-          current[3] + option[3],
-          current[4] + option[4],
-          current[5] + option[5],
-        ] as Tuning;
-        const key = packTuningKey(combined);
-        if (!next.has(key)) next.set(key, combined);
-      }
-    }
-    accumulated = next;
+    accumulated = extendTuningAcc(accumulated, improvement);
   }
 
+  return accumulated;
+}
+
+export function generate_tunings(possibleImprovements: t5Improvement[]): Tuning[] {
+  // Incremental deduped Minkowski sum. Deduping after each piece preserves first-seen ordering but
+  // avoids materializing the much larger full Cartesian product before deduplicating its leaves.
+  const accumulated = buildTuningAcc(possibleImprovements);
+
   return Array.from(accumulated.values());
+}
+
+export function filterTuningsForLockedStats(
+  tunings: Tuning[],
+  stats: number[],
+  fixed: boolean[],
+  targets: number[]
+): Tuning[] {
+  if (!fixed.some(Boolean)) return tunings;
+  return tunings.filter((tuning) => {
+    for (let stat = 0; stat < 6; stat++) {
+      if (fixed[stat] && tuning[stat] > targets[stat] - stats[stat]) return false;
+    }
+    return true;
+  });
+}
+
+export function filterTuningsBySharedBudget(
+  tunings: Tuning[],
+  stats: number[],
+  targets: number[],
+  sharedBudget: number
+): Tuning[] {
+  if (!targets.some((target) => target > 0)) return tunings;
+  return tunings.filter((tuning) => {
+    let totalGap = 0;
+    for (let stat = 0; stat < 6; stat++) {
+      if (targets[stat] <= 0) continue;
+      const gap = Math.max(0, targets[stat] - stats[stat] - tuning[stat]);
+      if (gap > sharedBudget) return false;
+      totalGap += gap;
+    }
+    return totalGap <= sharedBudget;
+  });
 }
 
 function pieceStatsWithMasterwork(piece: IPermutatorArmor, config: BuildConfiguration): number[] {
@@ -848,7 +1204,10 @@ export function handlePermutation(
   gauntlet: IPermutatorArmor,
   chest: IPermutatorArmor,
   leg: IPermutatorArmor,
-  classItem: IPermutatorArmor
+  classItem: IPermutatorArmor,
+  tuningBaseCache?: TuningBaseCache,
+  tuningVariableItem?: IPermutatorArmor,
+  exactNoTargetMaximum = false
 ): IPermutatorArmorSet | null {
   // Inline stat summation (without mod bonuses)
   const b0 = enabledModBonuses[0],
@@ -985,8 +1344,32 @@ export function handlePermutation(
   }
 
   let availableTunings: Tuning[] = [[0, 0, 0, 0, 0, 0]];
-  if (calculateTierFiveTuning) {
-    availableTunings = generate_tunings(t5Improvements);
+  if (calculateTierFiveTuning && !exactNoTargetMaximum) {
+    if (tuningBaseCache && tuningVariableItem) {
+      if (tuningBaseCache.accumulator === null) {
+        const baseImprovements = tuningBaseCache.items.filter(isT5WithTuning).map(mapItemToTuning);
+        tuningBaseCache.accumulator = buildTuningAcc(baseImprovements);
+      }
+      const tuningAccumulator = isT5WithTuning(tuningVariableItem)
+        ? extendTuningAcc(tuningBaseCache.accumulator, mapItemToTuning(tuningVariableItem))
+        : tuningBaseCache.accumulator;
+      availableTunings = Array.from(tuningAccumulator.values());
+    } else {
+      availableTunings = generate_tunings(t5Improvements);
+    }
+    availableTunings = filterTuningsForLockedStats(
+      availableTunings,
+      stats,
+      targetFixed,
+      targetVals
+    );
+    availableTunings = filterTuningsBySharedBudget(
+      availableTunings,
+      stats,
+      targetVals,
+      possibleIncreaseByMod + 3 * artificeCount
+    );
+    if (availableTunings.length === 0) return null;
   }
 
   // heavy work: mod precalc
@@ -1000,14 +1383,23 @@ export function handlePermutation(
   if (result === null) return null;
 
   const artificeTierBonus = 3 * artificeCount;
+  const sharedTierBudget = possibleIncreaseByMod + artificeTierBonus + 5 * t5Count;
+  let totalTargetGaps = 0;
+  for (let stat = 0; stat < 6; stat++) {
+    totalTargetGaps += Math.max(0, targetVals[stat] - stats[stat]);
+  }
   // maximumPossibleTiers only grows. Skip the expensive binary searches when this build's
   // optimistic per-stat ceilings cannot improve any currently known maximum.
-  const canImproveTiers = stats.some(
-    (value, stat) =>
-      Math.min(200, value + tuningMax[stat] + possibleIncreaseByMod + artificeTierBonus) >
-      runtime.maximumPossibleTiers[stat]
-  );
-  if (canImproveTiers) {
+  const canImproveTiers = stats.some((value, stat) => {
+    const statTargetGap = Math.max(0, targetVals[stat] - value);
+    const perStatCeiling = value + tuningMax[stat] + possibleIncreaseByMod + artificeTierBonus;
+    const sharedBudgetCeiling =
+      value + Math.max(0, sharedTierBudget - (totalTargetGaps - statTargetGap));
+    let ceiling = Math.min(200, perStatCeiling, sharedBudgetCeiling);
+    if (targetFixed[stat]) ceiling = Math.min(ceiling, targetVals[stat]);
+    return ceiling > runtime.maximumPossibleTiers[stat];
+  });
+  if (canImproveTiers && !exactNoTargetMaximum) {
     performTierAvailabilityTesting(
       stats,
       distances,
@@ -1034,6 +1426,14 @@ export function handlePermutation(
   const waste1 = getWaste(finalStats);
   if (onlyShowResultsWithNoWastedStats && waste1 > 0) return null;
 
+  const usedTuningMods = findTuningModHashes(
+    [helmet, gauntlet, chest, leg, classItem].map((item) =>
+      isT5WithTuning(item) ? mapItemToTuning(item) : null
+    ),
+    result.tuning
+  );
+  if (usedTuningMods === null) return null;
+
   return createArmorSet(
     helmet,
     gauntlet,
@@ -1042,6 +1442,7 @@ export function handlePermutation(
     classItem,
     usedArtifice,
     usedMods,
+    usedTuningMods,
     finalStats,
     statsWithoutMods,
     result.tuning
@@ -1060,11 +1461,17 @@ function performTierAvailabilityTesting(
   availableTunings: Tuning[],
   useParetoFront: boolean
 ): void {
-  // For pure lower-bound queries, a componentwise-dominated tuning can never be more feasible than
-  // its dominator. Fixed-stat and waste modes pass false because they also impose upper bounds.
-  const feasibilityTunings = useParetoFront
-    ? paretoFrontTunings(availableTunings)
-    : availableTunings;
+  let feasibilityTuningsCache: Tuning[] | null = null;
+  const feasibilityTunings = () => {
+    if (feasibilityTuningsCache === null) {
+      // For pure lower-bound queries, a componentwise-dominated tuning can never be more feasible
+      // than its dominator. Fixed-stat and waste modes retain the complete tuning set.
+      feasibilityTuningsCache = useParetoFront
+        ? paretoFrontTunings(availableTunings)
+        : availableTunings;
+    }
+    return feasibilityTuningsCache;
+  };
 
   for (let stat = 0; stat < 6; stat++) {
     let minimumTuning = 0;
@@ -1078,15 +1485,17 @@ function performTierAvailabilityTesting(
     let sortedTuningsCache: Tuning[] | null = null;
     const sortedTunings = () => {
       if (sortedTuningsCache === null) {
-        sortedTuningsCache = feasibilityTunings.slice().sort((a, b) => {
-          const aVal = a[stat];
-          const bVal = b[stat];
-          const aNeg = aVal < 0;
-          const bNeg = bVal < 0;
-          if (aNeg && bNeg) return bVal - aVal;
-          if (!aNeg && !bNeg) return aVal - bVal;
-          return aNeg ? 1 : -1;
-        });
+        sortedTuningsCache = feasibilityTunings()
+          .slice()
+          .sort((a, b) => {
+            const aVal = a[stat];
+            const bVal = b[stat];
+            const aNeg = aVal < 0;
+            const bNeg = bVal < 0;
+            if (aNeg && bNeg) return bVal - aVal;
+            if (!aNeg && !bNeg) return aVal - bVal;
+            return aNeg ? 1 : -1;
+          });
       }
       return sortedTuningsCache;
     };
@@ -1198,6 +1607,26 @@ function paretoFrontTunings(tunings: Tuning[]): Tuning[] {
   return kept;
 }
 
+export function canCoverRemainingDistance(
+  distances: number[],
+  statIndex: number,
+  tuningMax: number[],
+  availableArtificeCount: number,
+  availableMajorMods: number,
+  availableMods: number
+): boolean {
+  let remainingDistance = 0;
+  let optimisticTuning = 0;
+  for (let stat = statIndex; stat < 6; stat++) {
+    remainingDistance += distances[stat];
+    optimisticTuning += Math.max(0, tuningMax[stat]);
+  }
+  const majorMods = Math.min(availableMajorMods, availableMods);
+  const regularModPoints = 10 * majorMods + 5 * (availableMods - majorMods);
+  const maximumRemainingPoints = regularModPoints + 3 * availableArtificeCount + optimisticTuning;
+  return remainingDistance <= maximumRemainingPoints;
+}
+
 function get_mods_recursive(
   currentStats: number[],
   targetStats: number[],
@@ -1212,6 +1641,19 @@ function get_mods_recursive(
   // the entire tuning list at every node; it is recomputed only when the subset is filtered.
   tuningMax: number[]
 ): number[][] | null {
+  if (
+    !canCoverRemainingDistance(
+      distances_to_check,
+      statIdx,
+      tuningMax,
+      availableArtificeCount,
+      availableMajorMods,
+      availableMods
+    )
+  ) {
+    return null;
+  }
+
   if (statIdx > 5) {
     // Now we have a valid set of mods and tunings, but we still have to check -5 values. This will happen in innermost loop
     // statIdx is no longer useful here
@@ -1335,7 +1777,6 @@ function get_mods_precalc(
 ): StatModifierPrecalc | null {
   const totalDistance =
     distances[0] + distances[1] + distances[2] + distances[3] + distances[4] + distances[5];
-  if (totalDistance > 50 + 25) return null;
 
   if (totalDistance == 0 && optionalDistances.every((d) => d == 0)) {
     // no mods needed, return empty array
@@ -1347,6 +1788,18 @@ function get_mods_precalc(
     for (let stat = 0; stat < 6; stat++) {
       if (tuning[stat] > tuningMax[stat]) tuningMax[stat] = tuning[stat];
     }
+  }
+  if (
+    !canCoverRemainingDistance(
+      distances,
+      0,
+      tuningMax,
+      availableArtificeCount,
+      maxMajorMods,
+      maxMods
+    )
+  ) {
+    return null;
   }
 
   let pickedMods = get_mods_recursive(

@@ -128,6 +128,8 @@ export class DimService implements OnDestroy {
       mods.push(STAT_MOD_VALUES[artificemod as StatModifier][3]);
     }
 
+    mods.push(...(result.tuningMods || []));
+
     const data: LoadoutParameters = {
       statConstraints: [],
       mods,
