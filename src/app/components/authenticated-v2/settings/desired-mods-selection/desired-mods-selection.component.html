@@ -61,7 +61,7 @@
         </td>
       </ng-container>
 
-      <ng-container *ngFor="let stat of ARMORSTAT_ORDER; let i = index">
+      <ng-container *ngFor="let stat of armorStats; let i = index">
         <ng-container [matColumnDef]="ArmorStatNames[stat]">
           <th *matHeaderCellDef mat-header-cell [matTooltip]="ArmorStatNames[stat]">
             <app-stat-icon [stat]="stat"></app-stat-icon>

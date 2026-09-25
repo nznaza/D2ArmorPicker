@@ -164,7 +164,7 @@ export class StatTierSelectionComponent implements OnInit, OnChanges, OnDestroy,
    * Check if this is the sixth stat (weapon stat)
    */
   isSixthStat(): boolean {
-    return this.stat === ArmorStat.StatMelee;
+    return this.stat === ArmorStat.StatWeapon;
   }
 
   /**

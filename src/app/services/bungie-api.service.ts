@@ -142,19 +142,13 @@ export function collectInvestmentStats(
   const investmentStatsOverZero = Object.entries(investmentStats).filter(([_, value]) => value > 0);
   if (investmentStatsOverZero.length > 3) return;
   r.archetypeStats = [];
-  const stats = [
-    ArmorStat.StatWeapon,
-    ArmorStat.StatHealth,
-    ArmorStat.StatClass,
-    ArmorStat.StatGrenade,
-    ArmorStat.StatSuper,
-    ArmorStat.StatMelee,
-  ];
-  for (let i = 0; i < stats.length; i++) {
-    const stat = stats[i];
+  const stats = Object.values(ArmorStat).filter(
+    (value) => typeof value === "number"
+  ) as ArmorStat[];
+  for (let stat of stats) {
     const statHash = ArmorStatHashes[stat];
     if (investmentStatsOverZero.find(([hash, _]) => parseInt(hash) == statHash)) {
-      r.archetypeStats.push(i);
+      r.archetypeStats.push(stat);
     }
   }
 }

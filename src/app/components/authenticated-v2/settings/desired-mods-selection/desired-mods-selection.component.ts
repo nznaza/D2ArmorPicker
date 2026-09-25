@@ -19,12 +19,7 @@ import { Component, OnDestroy, OnInit } from "@angular/core";
 import { ModInformation } from "../../../../data/ModInformation";
 import { ModifierType } from "../../../../data/enum/modifierType";
 import { Modifier, ModifierValue } from "../../../../data/modifier";
-import {
-  ArmorStat,
-  ARMORSTAT_ORDER,
-  ArmorStatNames,
-  SpecialArmorStat,
-} from "../../../../data/enum/armor-stat";
+import { ArmorStat, ArmorStatNames, SpecialArmorStat } from "../../../../data/enum/armor-stat";
 import { ConfigurationService } from "../../../../services/configuration.service";
 import { BungieApiService } from "../../../../services/bungie-api.service";
 import { ModOrAbility } from "../../../../data/enum/modOrAbility";
@@ -46,13 +41,13 @@ import { LoggingProxyService } from "../../../../services/logging-proxy.service"
   ],
 })
 export class DesiredModsSelectionComponent implements OnInit, OnDestroy {
-  ARMORSTAT_ORDER = ARMORSTAT_ORDER;
+  armorStats = Object.values(ArmorStat).filter((value) => typeof value === "number") as ArmorStat[];
   ArmorStatNames = ArmorStatNames;
   ModifierType = ModifierType;
   ModOrAbility = ModOrAbility;
   dataSource: Modifier[];
   displayedColumns = ["name"].concat(
-    ARMORSTAT_ORDER.map((stat) => {
+    this.armorStats.map((stat) => {
       return ArmorStatNames[stat];
     })
   );

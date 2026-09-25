@@ -32,6 +32,7 @@ import * as lzutf8 from "lzutf8";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { Clipboard } from "@angular/cdk/clipboard";
+import { ArmorStat } from "../../../../data/enum/armor-stat";
 
 @Component({
   selector: "app-load-and-save-settings",
@@ -39,6 +40,7 @@ import { Clipboard } from "@angular/cdk/clipboard";
   styleUrls: ["./load-and-save-settings.component.css"],
 })
 export class LoadAndSaveSettingsComponent implements OnInit, OnDestroy {
+  ArmorStat = ArmorStat;
   selectedEntry: string = "";
   storedConfigs: StoredConfiguration[] = [];
   displayedColumns = [

@@ -56,6 +56,7 @@ export interface ArmorRequirementPerk {
 export type ArmorRequirement = ArmorRequirementGearSet | ArmorRequirementPerk;
 
 export class BuildConfiguration {
+  armorStatOrderVersion = 2;
   characterClass: DestinyClass = DestinyClass.Unknown;
 
   // Add constant +1 strength
@@ -112,6 +113,7 @@ export class BuildConfiguration {
 
   static buildEmptyConfiguration(): BuildConfiguration {
     return {
+      armorStatOrderVersion: 2,
       armorRequirements: [],
       enabledMods: [],
       disabledItems: [],

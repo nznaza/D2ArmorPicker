@@ -22,7 +22,6 @@ import { Injectable, OnDestroy } from "@angular/core";
 import { ConfigurationService } from "./configuration.service";
 import {
   ArmorStat,
-  ARMORSTAT_ORDER,
   ArmorStatHashes,
   STAT_MOD_VALUES,
   StatModifier,
@@ -43,7 +42,9 @@ import { LoggingProxyService } from "./logging-proxy.service";
   providedIn: "root",
 })
 export class DimService implements OnDestroy {
-  private armorStatIds = ARMORSTAT_ORDER;
+  private armorStatIds = Object.values(ArmorStat).filter(
+    (value) => typeof value === "number"
+  ) as ArmorStat[];
 
   constructor(
     private configService: ConfigurationService,

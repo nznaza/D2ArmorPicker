@@ -16,7 +16,7 @@
  */
 
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { ArmorStat, ArmorStatNames, ARMORSTAT_ORDER } from "../../../../data/enum/armor-stat";
+import { ArmorStat, ArmorStatNames } from "../../../../data/enum/armor-stat";
 import { ConfigurationService } from "../../../../services/configuration.service";
 import { EnumDictionary } from "../../../../data/types/EnumDictionary";
 import { FixableSelection, getDefaultStatDict } from "../../../../data/buildConfiguration";
@@ -44,8 +44,10 @@ export class DesiredStatSelectionComponent implements OnInit, OnDestroy {
     public config: ConfigurationService,
     private armorCalculator: ArmorCalculatorService
   ) {
-    this.stats = ARMORSTAT_ORDER.map((value) => {
-      return { name: (ArmorStatNames as any)[+value], value: +value };
+    this.stats = (
+      Object.values(ArmorStat).filter((value) => typeof value === "number") as ArmorStat[]
+    ).map((value) => {
+      return { name: ArmorStatNames[value], value };
     });
   }
 
@@ -92,7 +94,7 @@ export class DesiredStatSelectionComponent implements OnInit, OnDestroy {
 
   clearStatSelection() {
     this.config.modifyConfiguration((c) => {
-      for (let stat of ARMORSTAT_ORDER) {
+      for (let stat of this.stats.map(({ value }) => value)) {
         c.minimumStatTiers[stat] = { fixed: false, value: 0 };
       }
     });

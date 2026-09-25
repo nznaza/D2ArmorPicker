@@ -34,6 +34,25 @@ export const CHANGELOG_DATA: {
   entries: ChangelogEntry[];
 }[] = [
   {
+    version: "2.9.15",
+    date: "September 25, 2026",
+    clearManifest: false,
+    entries: [
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Armor 3.0 tuning mods are now shown in result mod summaries.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Corrected stat ordering to remove hardcoded values.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Improved Armor 3.0 tuning calculations to default to balanced tuning instead of no tuning.",
+      },
+    ],
+  },
+  {
     version: "2.9.14",
     date: "September 24, 2026",
     clearManifest: false,

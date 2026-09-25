@@ -117,7 +117,7 @@ export function isFlexibleExotic(i: IPermutatorArmor): boolean {
 }
 
 export function lowestThreeBonus(i: IPermutatorArmor): number[] {
-  const stats = [i.mobility, i.resilience, i.recovery, i.discipline, i.intellect, i.strength];
+  const stats = [i.resilience, i.strength, i.discipline, i.intellect, i.recovery, i.mobility];
   const order = stats
     .map((value, index) => [value, index])
     .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
@@ -145,12 +145,12 @@ function annotateArmor(pieces: IPermutatorArmor[], config: BuildConfiguration): 
   for (const piece of pieces) {
     const masterworkedStats = pieceStatsWithMasterwork(piece, config);
     const tuningReach = [0, 0, 0, 0, 0, 0];
-    const hasTuning = calculateTierFiveTuning && isT5WithTuning(piece);
+    const hasTuning = isT5WithTuning(piece);
     if (hasTuning) {
       const balancedBonus = lowestThreeBonus(piece);
       for (let stat = 0; stat < 6; stat++) {
         tuningReach[stat] = Math.max(
-          isFlexibleExotic(piece) || piece.tuningStat === stat ? 5 : 0,
+          calculateTierFiveTuning && (isFlexibleExotic(piece) || piece.tuningStat === stat) ? 5 : 0,
           balancedBonus[stat]
         );
       }
@@ -205,7 +205,7 @@ function groupCanReachTargets(
     : 0;
   let residualGap = 0;
   for (let stat = 0; stat < 6; stat++) {
-    const constantHealth = stat === 1 ? minimumHealthBonus : 0;
+    const constantHealth = stat === ArmorStat.StatHealth ? minimumHealthBonus : 0;
     const minimumStat =
       enabledModBonuses[stat] + baseStats[stat] + candidateMinimum[stat] + constantHealth;
     if (targetFixed[stat] && minimumStat > targetVals[stat]) return false;
@@ -339,7 +339,7 @@ function computeEnabledModBonuses(config: BuildConfiguration) {
     for (const bonus of ModInformation[mod].bonus) {
       var statId =
         bonus.stat == SpecialArmorStat.ClassAbilityRegenerationStat
-          ? [1, 0, 2][config.characterClass]
+          ? [ArmorStat.StatHealth, ArmorStat.StatWeapon, ArmorStat.StatClass][config.characterClass]
           : bonus.stat;
       enabledModBonuses[statId] += bonus.value;
     }
@@ -588,7 +588,7 @@ function computeNoTargetMaximumTiers(
     let best = -Infinity;
     if (yieldAllLegendary && legendaryReach.every(Number.isFinite)) {
       best = legendaryReach.reduce((sum, value) => sum + value, 0);
-      if (stat === 1 && addConstent1Health) best++;
+      if (stat === ArmorStat.StatHealth && addConstent1Health) best++;
       foundCombination = true;
     }
     if (yieldExoticCombinations) {
@@ -605,7 +605,7 @@ function computeNoTargetMaximumTiers(
           reach += legendaryReach[slot];
         }
         if (!valid) continue;
-        if (stat === 1 && addConstent1Health && exoticSlot !== 2) reach++;
+        if (stat === ArmorStat.StatHealth && addConstent1Health && exoticSlot !== 2) reach++;
         best = Math.max(best, reach);
         foundCombination = true;
       }
@@ -979,24 +979,57 @@ export function getStatSum(
 // dedup key stays exact (below Number.MAX_SAFE_INTEGER) without allocating strings.
 const TUNING_KEY_OFFSET = 64;
 const BALANCED_TUNING_MOD_HASH = 3122197216;
-const TUNING_MOD_HASHES: (number | null)[][] = [
-  [null, 3121760799, 1918710127, 3284443097, 891771298, 691392383],
-  [2125798995, null, 3310526732, 3681082702, 4088823605, 388618952],
-  [323635379, 4030660414, null, 1879022254, 957763733, 1510949672],
-  [4116389173, 455024236, 1922571986, null, 1672416975, 309000506],
-  [2244422610, 4026414261, 3554800389, 3946669007, null, 673231129],
-  [4020349587, 4164883102, 4210715468, 534630542, 311164277, null],
+const TUNING_HEALTH_UP_MELEE_DOWN_HASH = 388618952;
+const TUNING_HEALTH_UP_GRENADE_DOWN_HASH = 3681082702;
+const TUNING_HEALTH_UP_SUPER_DOWN_HASH = 4088823605;
+const TUNING_HEALTH_UP_CLASS_DOWN_HASH = 3310526732;
+const TUNING_HEALTH_UP_WEAPON_DOWN_HASH = 2125798995;
+const TUNING_MELEE_UP_HEALTH_DOWN_HASH = 4164883102;
+const TUNING_MELEE_UP_GRENADE_DOWN_HASH = 534630542;
+const TUNING_MELEE_UP_SUPER_DOWN_HASH = 311164277;
+const TUNING_MELEE_UP_CLASS_DOWN_HASH = 4210715468;
+const TUNING_MELEE_UP_WEAPON_DOWN_HASH = 4020349587;
+const TUNING_GRENADE_UP_HEALTH_DOWN_HASH = 455024236;
+const TUNING_GRENADE_UP_MELEE_DOWN_HASH = 309000506;
+const TUNING_GRENADE_UP_SUPER_DOWN_HASH = 1672416975;
+const TUNING_GRENADE_UP_CLASS_DOWN_HASH = 1922571986;
+const TUNING_GRENADE_UP_WEAPON_DOWN_HASH = 4116389173;
+const TUNING_SUPER_UP_HEALTH_DOWN_HASH = 4026414261;
+const TUNING_SUPER_UP_MELEE_DOWN_HASH = 673231129;
+const TUNING_SUPER_UP_GRENADE_DOWN_HASH = 3946669007;
+const TUNING_SUPER_UP_CLASS_DOWN_HASH = 3554800389;
+const TUNING_SUPER_UP_WEAPON_DOWN_HASH = 2244422610;
+const TUNING_CLASS_UP_HEALTH_DOWN_HASH = 4030660414;
+const TUNING_CLASS_UP_MELEE_DOWN_HASH = 1510949672;
+const TUNING_CLASS_UP_GRENADE_DOWN_HASH = 1879022254;
+const TUNING_CLASS_UP_SUPER_DOWN_HASH = 957763733;
+const TUNING_CLASS_UP_WEAPON_DOWN_HASH = 323635379;
+const TUNING_WEAPON_UP_HEALTH_DOWN_HASH = 3121760799;
+const TUNING_WEAPON_UP_MELEE_DOWN_HASH = 691392383;
+const TUNING_WEAPON_UP_GRENADE_DOWN_HASH = 3284443097;
+const TUNING_WEAPON_UP_SUPER_DOWN_HASH = 891771298;
+const TUNING_WEAPON_UP_CLASS_DOWN_HASH = 1918710127;
+const STAT_MODIFIERS: [StatModifier, StatModifier, StatModifier][] = [
+  [StatModifier.MINOR_HEALTH, StatModifier.MAJOR_HEALTH, StatModifier.ARTIFICE_HEALTH],
+  [StatModifier.MINOR_MELEE, StatModifier.MAJOR_MELEE, StatModifier.ARTIFICE_MELEE],
+  [StatModifier.MINOR_GRENADE, StatModifier.MAJOR_GRENADE, StatModifier.ARTIFICE_GRENADE],
+  [StatModifier.MINOR_SUPER, StatModifier.MAJOR_SUPER, StatModifier.ARTIFICE_SUPER],
+  [StatModifier.MINOR_CLASS, StatModifier.MAJOR_CLASS, StatModifier.ARTIFICE_CLASS],
+  [StatModifier.MINOR_WEAPON, StatModifier.MAJOR_WEAPON, StatModifier.ARTIFICE_WEAPON],
 ];
-
 function packTuningKey(values: number[]): number {
   let key = 0;
   for (let index = 0; index < 6; index++) key = key * 256 + values[index] + TUNING_KEY_OFFSET;
   return key;
 }
 
-function tuningOptions(improvement: t5Improvement): number[][] {
-  const options = [[0, 0, 0, 0, 0, 0]];
-  if (improvement.flexible) {
+function tuningOptions(
+  improvement: t5Improvement,
+  includeNoTuning = true,
+  includeDirectionalTunings = true
+): number[][] {
+  const options: number[][] = [];
+  if (includeDirectionalTunings && improvement.flexible) {
     // Armor 3 exotics can place +5 on any stat and -5 on any other stat.
     for (let positive = 0; positive < 6; positive++) {
       for (let negative = 0; negative < 6; negative++) {
@@ -1007,7 +1040,7 @@ function tuningOptions(improvement: t5Improvement): number[][] {
         options.push(option);
       }
     }
-  } else if (improvement.tuningStat !== null) {
+  } else if (includeDirectionalTunings && improvement.tuningStat !== null) {
     // Legendary T5 pieces always place +5 on their fixed tuning stat.
     for (let negative = 0; negative < 6; negative++) {
       if (negative === improvement.tuningStat) continue;
@@ -1018,15 +1051,104 @@ function tuningOptions(improvement: t5Improvement): number[][] {
     }
   }
   options.push(improvement.balancedBonus.slice());
+  if (includeNoTuning) options.push([0, 0, 0, 0, 0, 0]);
   return options;
 }
 
 function tuningOptionHash(option: number[]): number | null {
-  const positive = option.indexOf(5);
-  if (positive < 0) {
+  const positiveStat = option.indexOf(5) as ArmorStat;
+  if (positiveStat < 0) {
     return option.some((value) => value !== 0) ? BALANCED_TUNING_MOD_HASH : null;
   }
-  return TUNING_MOD_HASHES[positive][option.indexOf(-5)];
+  const negativeStat = option.indexOf(-5) as ArmorStat;
+
+  switch (positiveStat) {
+    case ArmorStat.StatHealth:
+      switch (negativeStat) {
+        case ArmorStat.StatMelee:
+          return TUNING_HEALTH_UP_MELEE_DOWN_HASH;
+        case ArmorStat.StatGrenade:
+          return TUNING_HEALTH_UP_GRENADE_DOWN_HASH;
+        case ArmorStat.StatSuper:
+          return TUNING_HEALTH_UP_SUPER_DOWN_HASH;
+        case ArmorStat.StatClass:
+          return TUNING_HEALTH_UP_CLASS_DOWN_HASH;
+        case ArmorStat.StatWeapon:
+          return TUNING_HEALTH_UP_WEAPON_DOWN_HASH;
+      }
+      break;
+    case ArmorStat.StatMelee:
+      switch (negativeStat) {
+        case ArmorStat.StatHealth:
+          return TUNING_MELEE_UP_HEALTH_DOWN_HASH;
+        case ArmorStat.StatGrenade:
+          return TUNING_MELEE_UP_GRENADE_DOWN_HASH;
+        case ArmorStat.StatSuper:
+          return TUNING_MELEE_UP_SUPER_DOWN_HASH;
+        case ArmorStat.StatClass:
+          return TUNING_MELEE_UP_CLASS_DOWN_HASH;
+        case ArmorStat.StatWeapon:
+          return TUNING_MELEE_UP_WEAPON_DOWN_HASH;
+      }
+      break;
+    case ArmorStat.StatGrenade:
+      switch (negativeStat) {
+        case ArmorStat.StatHealth:
+          return TUNING_GRENADE_UP_HEALTH_DOWN_HASH;
+        case ArmorStat.StatMelee:
+          return TUNING_GRENADE_UP_MELEE_DOWN_HASH;
+        case ArmorStat.StatSuper:
+          return TUNING_GRENADE_UP_SUPER_DOWN_HASH;
+        case ArmorStat.StatClass:
+          return TUNING_GRENADE_UP_CLASS_DOWN_HASH;
+        case ArmorStat.StatWeapon:
+          return TUNING_GRENADE_UP_WEAPON_DOWN_HASH;
+      }
+      break;
+    case ArmorStat.StatSuper:
+      switch (negativeStat) {
+        case ArmorStat.StatHealth:
+          return TUNING_SUPER_UP_HEALTH_DOWN_HASH;
+        case ArmorStat.StatMelee:
+          return TUNING_SUPER_UP_MELEE_DOWN_HASH;
+        case ArmorStat.StatGrenade:
+          return TUNING_SUPER_UP_GRENADE_DOWN_HASH;
+        case ArmorStat.StatClass:
+          return TUNING_SUPER_UP_CLASS_DOWN_HASH;
+        case ArmorStat.StatWeapon:
+          return TUNING_SUPER_UP_WEAPON_DOWN_HASH;
+      }
+      break;
+    case ArmorStat.StatClass:
+      switch (negativeStat) {
+        case ArmorStat.StatHealth:
+          return TUNING_CLASS_UP_HEALTH_DOWN_HASH;
+        case ArmorStat.StatMelee:
+          return TUNING_CLASS_UP_MELEE_DOWN_HASH;
+        case ArmorStat.StatGrenade:
+          return TUNING_CLASS_UP_GRENADE_DOWN_HASH;
+        case ArmorStat.StatSuper:
+          return TUNING_CLASS_UP_SUPER_DOWN_HASH;
+        case ArmorStat.StatWeapon:
+          return TUNING_CLASS_UP_WEAPON_DOWN_HASH;
+      }
+      break;
+    case ArmorStat.StatWeapon:
+      switch (negativeStat) {
+        case ArmorStat.StatHealth:
+          return TUNING_WEAPON_UP_HEALTH_DOWN_HASH;
+        case ArmorStat.StatMelee:
+          return TUNING_WEAPON_UP_MELEE_DOWN_HASH;
+        case ArmorStat.StatGrenade:
+          return TUNING_WEAPON_UP_GRENADE_DOWN_HASH;
+        case ArmorStat.StatSuper:
+          return TUNING_WEAPON_UP_SUPER_DOWN_HASH;
+        case ArmorStat.StatClass:
+          return TUNING_WEAPON_UP_CLASS_DOWN_HASH;
+      }
+  }
+
+  return null;
 }
 
 export function findTuningModHashes(
@@ -1063,11 +1185,13 @@ export function findTuningModHashes(
 
 export function extendTuningAcc(
   accumulated: Map<number, Tuning>,
-  improvement: t5Improvement
+  improvement: t5Improvement,
+  includeNoTuning = true,
+  includeDirectionalTunings = true
 ): Map<number, Tuning> {
   const next = new Map<number, Tuning>();
   for (const current of accumulated.values()) {
-    for (const option of tuningOptions(improvement)) {
+    for (const option of tuningOptions(improvement, includeNoTuning, includeDirectionalTunings)) {
       const combined = [
         current[0] + option[0],
         current[1] + option[1],
@@ -1083,22 +1207,39 @@ export function extendTuningAcc(
   return next;
 }
 
-export function buildTuningAcc(possibleImprovements: t5Improvement[]): Map<number, Tuning> {
+export function buildTuningAcc(
+  possibleImprovements: t5Improvement[],
+  includeNoTuning = true,
+  includeDirectionalTunings = true
+): Map<number, Tuning> {
   let accumulated = new Map<number, Tuning>();
   const zero = [0, 0, 0, 0, 0, 0] as Tuning;
   accumulated.set(packTuningKey(zero), zero);
 
   for (const improvement of possibleImprovements) {
-    accumulated = extendTuningAcc(accumulated, improvement);
+    accumulated = extendTuningAcc(
+      accumulated,
+      improvement,
+      includeNoTuning,
+      includeDirectionalTunings
+    );
   }
 
   return accumulated;
 }
 
-export function generate_tunings(possibleImprovements: t5Improvement[]): Tuning[] {
+export function generate_tunings(
+  possibleImprovements: t5Improvement[],
+  includeNoTuning = true,
+  includeDirectionalTunings = true
+): Tuning[] {
   // Incremental deduped Minkowski sum. Deduping after each piece preserves first-seen ordering but
   // avoids materializing the much larger full Cartesian product before deduplicating its leaves.
-  const accumulated = buildTuningAcc(possibleImprovements);
+  const accumulated = buildTuningAcc(
+    possibleImprovements,
+    includeNoTuning,
+    includeDirectionalTunings
+  );
 
   return Array.from(accumulated.values());
 }
@@ -1137,14 +1278,29 @@ export function filterTuningsBySharedBudget(
   });
 }
 
+export function prioritizeTuningsByTotalStats(tunings: Tuning[]): Tuning[] {
+  return tunings.sort(
+    (left, right) =>
+      right.reduce((sum, value) => sum + value, 0) - left.reduce((sum, value) => sum + value, 0)
+  );
+}
+
+function combineBalancedTunings(improvements: t5Improvement[]): Tuning {
+  return improvements.reduce(
+    (combined, improvement) =>
+      combined.map((value, stat) => value + improvement.balancedBonus[stat]) as Tuning,
+    [0, 0, 0, 0, 0, 0] as Tuning
+  );
+}
+
 function pieceStatsWithMasterwork(piece: IPermutatorArmor, config: BuildConfiguration): number[] {
   const stats = [
-    piece.mobility,
     piece.resilience,
-    piece.recovery,
+    piece.strength,
     piece.discipline,
     piece.intellect,
-    piece.strength,
+    piece.recovery,
+    piece.mobility,
   ];
   if (piece.armorSystem === ArmorSystem.Armor2) {
     if (
@@ -1178,10 +1334,10 @@ function pieceMixSet(piece: IPermutatorArmor, config: BuildConfiguration): numbe
   // Every stat vector this piece can contribute on its own: base + assumed masterwork + one tuning.
   // Shared build resources (regular mods and other pieces) do not distinguish same-profile pieces.
   const base = pieceStatsWithMasterwork(piece, config);
-  const options =
-    config.calculateTierFiveTuning && isT5WithTuning(piece)
-      ? tuningOptions(mapItemToTuning(piece))
-      : [[0, 0, 0, 0, 0, 0]];
+  const improvement = isT5WithTuning(piece) ? mapItemToTuning(piece) : null;
+  const options = improvement
+    ? tuningOptions(improvement, targetFixed.some(Boolean), config.calculateTierFiveTuning)
+    : [[0, 0, 0, 0, 0, 0]];
   return options.map((option) => base.map((value, stat) => value + option[stat]));
 }
 
@@ -1218,21 +1374,21 @@ export function handlePermutation(
     b5 = enabledModBonuses[5];
 
   const statsWithoutMods: number[] = [
-    helmet.mobility + gauntlet.mobility + chest.mobility + leg.mobility + classItem.mobility,
     helmet.resilience +
       gauntlet.resilience +
       chest.resilience +
       leg.resilience +
       classItem.resilience +
       (!chest.isExotic && addConstent1Health ? 1 : 0),
-    helmet.recovery + gauntlet.recovery + chest.recovery + leg.recovery + classItem.recovery,
+    helmet.strength + gauntlet.strength + chest.strength + leg.strength + classItem.strength,
     helmet.discipline +
       gauntlet.discipline +
       chest.discipline +
       leg.discipline +
       classItem.discipline,
     helmet.intellect + gauntlet.intellect + chest.intellect + leg.intellect + classItem.intellect,
-    helmet.strength + gauntlet.strength + chest.strength + leg.strength + classItem.strength,
+    helmet.recovery + gauntlet.recovery + chest.recovery + leg.recovery + classItem.recovery,
+    helmet.mobility + gauntlet.mobility + chest.mobility + leg.mobility + classItem.mobility,
   ];
 
   // Add mod bonuses to get the working stats array
@@ -1281,9 +1437,10 @@ export function handlePermutation(
     distances[0] + distances[1] + distances[2] + distances[3] + distances[4] + distances[5];
 
   if (distanceSum > 50 + 3 * artificeCount) {
-    // Even with max T5 tuning (5 per item * 5 items = 25), still too far?
+    // Even with the maximum possible tuning contribution, still too far?
     // This is a conservative pre-check; the full check follows after T5 computation.
-    if (!calculateTierFiveTuning || distanceSum > 50 + 3 * artificeCount + 25) {
+    const maximumTuningContribution = calculateTierFiveTuning ? 25 : 15;
+    if (distanceSum > 50 + 3 * artificeCount + maximumTuningContribution) {
       return null;
     }
   }
@@ -1293,23 +1450,26 @@ export function handlePermutation(
   const t5Improvements: t5Improvement[] = [];
   const tuningMax: number[] = [0, 0, 0, 0, 0, 0];
 
-  if (calculateTierFiveTuning) {
-    if (isT5WithTuning(helmet)) t5Improvements.push(mapItemToTuning(helmet));
-    if (isT5WithTuning(gauntlet)) t5Improvements.push(mapItemToTuning(gauntlet));
-    if (isT5WithTuning(chest)) t5Improvements.push(mapItemToTuning(chest));
-    if (isT5WithTuning(leg)) t5Improvements.push(mapItemToTuning(leg));
-    if (isT5WithTuning(classItem)) t5Improvements.push(mapItemToTuning(classItem));
-    t5Count = t5Improvements.length;
+  if (isT5WithTuning(helmet)) t5Improvements.push(mapItemToTuning(helmet));
+  if (isT5WithTuning(gauntlet)) t5Improvements.push(mapItemToTuning(gauntlet));
+  if (isT5WithTuning(chest)) t5Improvements.push(mapItemToTuning(chest));
+  if (isT5WithTuning(leg)) t5Improvements.push(mapItemToTuning(leg));
+  if (isT5WithTuning(classItem)) t5Improvements.push(mapItemToTuning(classItem));
+  t5Count = t5Improvements.length;
 
-    for (const t5 of t5Improvements) {
-      for (let stat = 0; stat < 6; stat++) {
+  for (const t5 of t5Improvements) {
+    for (let stat = 0; stat < 6; stat++) {
+      if (calculateTierFiveTuning) {
         tuningMax[stat] += t5.flexible || stat === t5.tuningStat ? 5 : t5.balancedBonus[stat];
+      } else {
+        tuningMax[stat] += t5.balancedBonus[stat];
       }
     }
   }
 
   // Full global bound check with T5
-  if (distanceSum > 50 + 3 * artificeCount + 5 * t5Count) {
+  const tuningPointBudget = (calculateTierFiveTuning ? 5 : 3) * t5Count;
+  if (distanceSum > 50 + 3 * artificeCount + tuningPointBudget) {
     return null;
   }
 
@@ -1344,18 +1504,31 @@ export function handlePermutation(
   }
 
   let availableTunings: Tuning[] = [[0, 0, 0, 0, 0, 0]];
-  if (calculateTierFiveTuning && !exactNoTargetMaximum) {
-    if (tuningBaseCache && tuningVariableItem) {
-      if (tuningBaseCache.accumulator === null) {
-        const baseImprovements = tuningBaseCache.items.filter(isT5WithTuning).map(mapItemToTuning);
-        tuningBaseCache.accumulator = buildTuningAcc(baseImprovements);
+  if (t5Count > 0) {
+    const includeNoTuning = targetFixed.some(Boolean);
+    if (exactNoTargetMaximum) {
+      availableTunings = [combineBalancedTunings(t5Improvements)];
+    } else if (calculateTierFiveTuning) {
+      if (tuningBaseCache && tuningVariableItem) {
+        if (tuningBaseCache.accumulator === null) {
+          const baseImprovements = tuningBaseCache.items
+            .filter(isT5WithTuning)
+            .map(mapItemToTuning);
+          tuningBaseCache.accumulator = buildTuningAcc(baseImprovements, includeNoTuning);
+        }
+        const tuningAccumulator = isT5WithTuning(tuningVariableItem)
+          ? extendTuningAcc(
+              tuningBaseCache.accumulator,
+              mapItemToTuning(tuningVariableItem),
+              includeNoTuning
+            )
+          : tuningBaseCache.accumulator;
+        availableTunings = Array.from(tuningAccumulator.values());
+      } else {
+        availableTunings = generate_tunings(t5Improvements, includeNoTuning);
       }
-      const tuningAccumulator = isT5WithTuning(tuningVariableItem)
-        ? extendTuningAcc(tuningBaseCache.accumulator, mapItemToTuning(tuningVariableItem))
-        : tuningBaseCache.accumulator;
-      availableTunings = Array.from(tuningAccumulator.values());
     } else {
-      availableTunings = generate_tunings(t5Improvements);
+      availableTunings = generate_tunings(t5Improvements, includeNoTuning, false);
     }
     availableTunings = filterTuningsForLockedStats(
       availableTunings,
@@ -1370,12 +1543,17 @@ export function handlePermutation(
       possibleIncreaseByMod + 3 * artificeCount
     );
     if (availableTunings.length === 0) return null;
+    prioritizeTuningsByTotalStats(availableTunings);
   }
 
   // heavy work: mod precalc
   let result: StatModifierPrecalc | null;
   if (distanceSum === 0 && totalOptionalDistances === 0) {
-    result = { mods: [], tuning: [0, 0, 0, 0, 0, 0], modBonus: [0, 0, 0, 0, 0, 0] };
+    result = {
+      mods: [],
+      tuning: availableTunings[0],
+      modBonus: [0, 0, 0, 0, 0, 0],
+    };
   } else {
     result = get_mods_precalc(stats, distances, optionalDistances, artificeCount, availableTunings);
   }
@@ -1383,7 +1561,7 @@ export function handlePermutation(
   if (result === null) return null;
 
   const artificeTierBonus = 3 * artificeCount;
-  const sharedTierBudget = possibleIncreaseByMod + artificeTierBonus + 5 * t5Count;
+  const sharedTierBudget = possibleIncreaseByMod + artificeTierBonus + tuningPointBudget;
   let totalTargetGaps = 0;
   for (let stat = 0; stat < 6; stat++) {
     totalTargetGaps += Math.max(0, targetVals[stat] - stats[stat]);
@@ -1411,13 +1589,13 @@ export function handlePermutation(
     );
   }
 
-  const usedArtifice = result.mods.filter((d: StatModifier) => 0 == d % 3);
-  const usedMods = result.mods.filter((d: StatModifier) => 0 != d % 3);
+  const usedArtifice = result.mods.filter((modifier) => STAT_MOD_VALUES[modifier][2] === 0);
+  const usedMods = result.mods.filter((modifier) => STAT_MOD_VALUES[modifier][2] !== 0);
 
   // Apply mods to stats for final calculation
   const finalStats = [...stats];
   for (let statModifier of result.mods) {
-    const stat = Math.floor((statModifier - 1) / 3);
+    const stat = STAT_MOD_VALUES[statModifier][0];
     finalStats[stat] += STAT_MOD_VALUES[statModifier][1];
   }
 
@@ -1821,15 +1999,15 @@ function get_mods_precalc(
   // The last entry is always the tuning
   for (let i = 0; i < pickedMods.length - 1; i++) {
     for (let n = 0; n < pickedMods[i][1]; n++) {
-      usedMods.push(1 + 3 * i);
+      usedMods.push(STAT_MODIFIERS[i][0]);
       modBonus[i] += 5;
     }
     for (let n = 0; n < pickedMods[i][2]; n++) {
-      usedMods.push(2 + 3 * i);
+      usedMods.push(STAT_MODIFIERS[i][1]);
       modBonus[i] += 10;
     }
     for (let n = 0; n < pickedMods[i][0]; n++) {
-      usedMods.push(3 + 3 * i);
+      usedMods.push(STAT_MODIFIERS[i][2]);
       modBonus[i] += 3;
     }
   }

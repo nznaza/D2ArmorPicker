@@ -1,4 +1,5 @@
 import { ArmorStat } from "../data/enum/armor-stat";
+import { Tuning } from "../data/types/IPermutatorArmorSet";
 import {
   buildTuningAcc,
   canCoverRemainingDistance,
@@ -7,6 +8,7 @@ import {
   filterTuningsForLockedStats,
   findTuningModHashes,
   generate_tunings,
+  prioritizeTuningsByTotalStats,
   t5Improvement,
 } from "./results-builder.worker";
 
@@ -27,8 +29,8 @@ describe("results builder tuning cache", () => {
 
   it("extends a cached legendary base with the same ordered tunings as a full build", () => {
     const base = [
-      legendary(0 as ArmorStat, [0, 0, 0, 1, 1, 1]),
-      legendary(3 as ArmorStat, [1, 1, 1, 0, 0, 0]),
+      legendary(ArmorStat.StatHealth, [0, 0, 0, 1, 1, 1]),
+      legendary(ArmorStat.StatSuper, [1, 1, 1, 0, 0, 0]),
     ];
     const exotic = flexibleExotic([1, 1, 1, 0, 0, 0]);
     const baseAccumulator = buildTuningAcc(base);
@@ -46,19 +48,19 @@ describe("results builder tuning cache", () => {
 
   it("returns the exact directional and balanced mod hashes for a selected tuning", () => {
     const improvements = [
-      legendary(ArmorStat.StatWeapon, [0, 1, 1, 1, 0, 0]),
-      legendary(ArmorStat.StatHealth, [1, 0, 1, 0, 1, 0]),
+      legendary(ArmorStat.StatWeapon, [1, 0, 1, 0, 1, 0]),
+      legendary(ArmorStat.StatHealth, [0, 0, 0, 1, 1, 1]),
     ];
 
-    expect(findTuningModHashes(improvements, [5, -5, 0, 0, 0, 0])).toEqual([3121760799]);
-    expect(findTuningModHashes(improvements, [1, 1, 2, 1, 1, 0])).toEqual([3122197216, 3122197216]);
+    expect(findTuningModHashes(improvements, [-5, 0, 0, 0, 0, 5])).toEqual([3121760799]);
+    expect(findTuningModHashes(improvements, [1, 0, 1, 1, 2, 1])).toEqual([3122197216, 3122197216]);
   });
 
   it("ignores untunable armor slots in the DIM mod list", () => {
     expect(
       findTuningModHashes(
-        [null, legendary(ArmorStat.StatHealth, [1, 0, 1, 0, 1, 0])],
-        [0, 5, 0, 0, 0, -5]
+        [null, legendary(ArmorStat.StatHealth, [0, 0, 0, 1, 1, 1])],
+        [5, -5, 0, 0, 0, 0]
       )
     ).toEqual([388618952]);
   });
@@ -117,6 +119,60 @@ describe("results builder tuning cache", () => {
     expect(
       filterTuningsBySharedBudget(tunings, [50, 50, 50, 50, 50, 50], [0, 0, 0, 0, 0, 0], 0)
     ).toBe(tunings);
+  });
+
+  it("selects all five balanced mods when tuning is not needed", () => {
+    const improvements = [
+      legendary(ArmorStat.StatHealth, [1, 1, 1, 0, 0, 0]),
+      legendary(ArmorStat.StatMelee, [0, 1, 1, 1, 0, 0]),
+      legendary(ArmorStat.StatGrenade, [0, 0, 1, 1, 1, 0]),
+      legendary(ArmorStat.StatSuper, [0, 0, 0, 1, 1, 1]),
+      legendary(ArmorStat.StatClass, [1, 0, 0, 0, 1, 1]),
+    ];
+
+    const tuning = prioritizeTuningsByTotalStats(generate_tunings(improvements, false))[0];
+
+    expect(findTuningModHashes(improvements, tuning)).toEqual([
+      3122197216, 3122197216, 3122197216, 3122197216, 3122197216,
+    ]);
+  });
+
+  it("uses balanced mods as the default when directional tuning is disabled", () => {
+    const improvements = [
+      legendary(ArmorStat.StatHealth, [1, 1, 1, 0, 0, 0]),
+      legendary(ArmorStat.StatMelee, [0, 0, 1, 1, 1, 0]),
+      legendary(ArmorStat.StatGrenade, [0, 0, 0, 1, 1, 1]),
+    ];
+
+    const tunings = generate_tunings(improvements, false, false);
+    const tuning = tunings[0];
+
+    expect(tunings.length).toBe(1);
+    expect(tuning).toEqual([1, 1, 2, 2, 2, 1]);
+    expect(findTuningModHashes(improvements, tuning)).toEqual([3122197216, 3122197216, 3122197216]);
+  });
+
+  it("only includes no-tuning choices for exact constraints", () => {
+    const improvement = legendary(ArmorStat.StatHealth, [1, 1, 1, 0, 0, 0]);
+
+    expect(generate_tunings([improvement], false)).not.toContain([0, 0, 0, 0, 0, 0]);
+    expect(generate_tunings([improvement], true)).toContain([0, 0, 0, 0, 0, 0]);
+  });
+
+  it("prioritizes balanced mods on T5 slots not needed for directional tuning", () => {
+    const noUnusedTunings: Tuning = [5, -5, 0, 0, 0, 0];
+    const twoUnusedBalancedTunings: Tuning = [5, -5, 1, 2, 2, 1];
+    const tunings = [noUnusedTunings, twoUnusedBalancedTunings];
+    const improvements = [
+      legendary(ArmorStat.StatHealth, [1, 1, 1, 0, 0, 0]),
+      legendary(ArmorStat.StatMelee, [0, 0, 1, 1, 1, 0]),
+      legendary(ArmorStat.StatGrenade, [0, 0, 0, 1, 1, 1]),
+    ];
+
+    expect(prioritizeTuningsByTotalStats(tunings)[0]).toBe(twoUnusedBalancedTunings);
+    expect(findTuningModHashes(improvements, twoUnusedBalancedTunings)).toEqual([
+      388618952, 3122197216, 3122197216,
+    ]);
   });
 
   it("rejects recursion branches that cannot cover their remaining distance", () => {

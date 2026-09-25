@@ -127,60 +127,60 @@
   <!-- Position Column -->
   <ng-container matColumnDef="mobility">
     <th *matHeaderCellDef mat-header-cell>
-      <app-stat-icon [stat]="0"></app-stat-icon>
+      <app-stat-icon [stat]="ArmorStat.StatWeapon"></app-stat-icon>
     </th>
     <td *matCellDef="let element" mat-cell>
-      {{ element.configuration.minimumStatTiers[0].value * 10 }}
+      {{ element.configuration.minimumStatTiers[ArmorStat.StatWeapon].value * 10 }}
     </td>
   </ng-container>
 
   <!-- Position Column -->
   <ng-container matColumnDef="resilience">
     <th *matHeaderCellDef mat-header-cell>
-      <app-stat-icon [stat]="1"></app-stat-icon>
+      <app-stat-icon [stat]="ArmorStat.StatHealth"></app-stat-icon>
     </th>
     <td *matCellDef="let element" mat-cell>
-      {{ element.configuration.minimumStatTiers[1].value * 10 }}
+      {{ element.configuration.minimumStatTiers[ArmorStat.StatHealth].value * 10 }}
     </td>
   </ng-container>
 
   <!-- Position Column -->
   <ng-container matColumnDef="recovery">
     <th *matHeaderCellDef mat-header-cell>
-      <app-stat-icon [stat]="2"></app-stat-icon>
+      <app-stat-icon [stat]="ArmorStat.StatClass"></app-stat-icon>
     </th>
     <td *matCellDef="let element" mat-cell>
-      {{ element.configuration.minimumStatTiers[2].value * 10 }}
+      {{ element.configuration.minimumStatTiers[ArmorStat.StatClass].value * 10 }}
     </td>
   </ng-container>
 
   <!-- Position Column -->
   <ng-container matColumnDef="discipline">
     <th *matHeaderCellDef mat-header-cell>
-      <app-stat-icon [stat]="3"></app-stat-icon>
+      <app-stat-icon [stat]="ArmorStat.StatGrenade"></app-stat-icon>
     </th>
     <td *matCellDef="let element" mat-cell>
-      {{ element.configuration.minimumStatTiers[3].value * 10 }}
+      {{ element.configuration.minimumStatTiers[ArmorStat.StatGrenade].value * 10 }}
     </td>
   </ng-container>
 
   <!-- Position Column -->
   <ng-container matColumnDef="intellect">
     <th *matHeaderCellDef mat-header-cell>
-      <app-stat-icon [stat]="4"></app-stat-icon>
+      <app-stat-icon [stat]="ArmorStat.StatSuper"></app-stat-icon>
     </th>
     <td *matCellDef="let element" mat-cell>
-      {{ element.configuration.minimumStatTiers[4].value * 10 }}
+      {{ element.configuration.minimumStatTiers[ArmorStat.StatSuper].value * 10 }}
     </td>
   </ng-container>
 
   <!-- Position Column -->
   <ng-container matColumnDef="strength">
     <th *matHeaderCellDef mat-header-cell>
-      <app-stat-icon [stat]="5"></app-stat-icon>
+      <app-stat-icon [stat]="ArmorStat.StatMelee"></app-stat-icon>
     </th>
     <td *matCellDef="let element" mat-cell>
-      {{ element.configuration.minimumStatTiers[5].value * 10 }}
+      {{ element.configuration.minimumStatTiers[ArmorStat.StatMelee].value * 10 }}
     </td>
   </ng-container>
 

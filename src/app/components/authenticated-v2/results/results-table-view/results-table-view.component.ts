@@ -169,7 +169,7 @@ export class ResultsTableViewComponent implements OnInit, AfterViewInit, OnChang
         case "Total":
           return data.stats.reduce((sum, stat) => sum + stat, 0);
         case "Mods":
-          return +100 * data.modCount + data.modCost;
+          return +100 * (data.modCount + data.tuningMods.length) + data.modCost;
       }
       return 0;
     };

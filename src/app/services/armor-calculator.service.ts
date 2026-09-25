@@ -504,12 +504,12 @@ export class ArmorCalculatorService implements OnDestroy {
     config: BuildConfiguration
   ): number[] {
     const stats = [
-      piece.mobility,
       piece.resilience,
-      piece.recovery,
+      piece.strength,
       piece.discipline,
       piece.intellect,
-      piece.strength,
+      piece.recovery,
+      piece.mobility,
     ];
     if (piece.armorSystem === ArmorSystem.Armor2) {
       if (
@@ -567,12 +567,12 @@ export class ArmorCalculatorService implements OnDestroy {
     }
 
     const stats = [
-      piece.mobility,
       piece.resilience,
-      piece.recovery,
+      piece.strength,
       piece.discipline,
       piece.intellect,
-      piece.strength,
+      piece.recovery,
+      piece.mobility,
     ];
     const lowest = stats
       .map((value, index) => ({ value, index }))
@@ -825,12 +825,12 @@ export class ArmorCalculatorService implements OnDestroy {
             transferState: 0, // TRANSFER_NONE
             tier: instance.tier,
             stats: [
-              instance.mobility,
               instance.resilience,
-              instance.recovery,
+              instance.strength,
               instance.discipline,
               instance.intellect,
-              instance.strength,
+              instance.recovery,
+              instance.mobility,
             ],
             source: instance.source,
             statsNoMods: [],
@@ -914,12 +914,12 @@ export class ArmorCalculatorService implements OnDestroy {
             transferState: 0,
             tier: instance.tier,
             stats: [
-              instance.mobility,
               instance.resilience,
-              instance.recovery,
+              instance.strength,
               instance.discipline,
               instance.intellect,
-              instance.strength,
+              instance.recovery,
+              instance.mobility,
             ],
             source: instance.source,
             statsNoMods: [],

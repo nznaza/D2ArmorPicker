@@ -74,7 +74,7 @@ export interface ResultItem {
   masterworked: boolean;
   armorSystem: number; // 2 = Armor 2.0, 3 = Armor 3.0
   masterworkLevel: number; // 0-5, 5 = full masterwork
-  archetypeStats: ArmorStat[]; // [Mobility, Resilience, Recovery, Discipline, Intellect, Strength]
+  archetypeStats: ArmorStat[]; // [Health, Melee, Grenade, Super, Class, Weapon]
   stats: number[];
   slot: ArmorSlot;
   perk: ArmorPerkOrSlot;

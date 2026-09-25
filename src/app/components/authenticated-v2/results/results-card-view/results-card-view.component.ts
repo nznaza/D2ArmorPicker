@@ -25,7 +25,6 @@ import {
   ArmorStatNames,
   ArmorStatIconUrls,
   StatModifier,
-  ARMORSTAT_ORDER,
 } from "../../../../data/enum/armor-stat";
 import { ModInformation } from "src/app/data/ModInformation";
 import { DimService } from "../../../../services/dim.service";
@@ -38,7 +37,7 @@ import { ArmorSystem } from "src/app/data/types/IManifestArmor";
   styleUrls: ["./results-card-view.component.scss"],
 })
 export class ResultsCardViewComponent implements OnChanges, OnDestroy {
-  STAT_ORDER = ARMORSTAT_ORDER;
+  STAT_ORDER = Object.values(ArmorStat).filter((value) => typeof value === "number") as ArmorStat[];
   ArmorStatNames = ArmorStatNames;
   @Input() results: ResultDefinition[] = [];
 
@@ -247,7 +246,7 @@ export class ResultsCardViewComponent implements OnChanges, OnDestroy {
   getModSortValue(result: ResultDefinition): number {
     // Use the same sorting logic as results.component.ts:
     // Primary sort by mod count (weighted by 100), then by mod cost
-    return +100 * result.modCount + result.modCost;
+    return +100 * (result.modCount + result.tuningMods.length) + result.modCost;
   }
 
   getStatIcon(statIndex: number): string {

@@ -157,6 +157,7 @@
               <app-table-mod-display
                 [mods]="result.mods"
                 [artifice]="result.artifice"
+                [tuningMods]="result.tuningMods"
                 class="mods-display">
               </app-table-mod-display>
             </div>
@@ -202,7 +203,10 @@
 
               <div class="mods-section-expanded">
                 <h4>Required Mods</h4>
-                <app-table-mod-display [mods]="result.mods" [artifice]="result.artifice">
+                <app-table-mod-display
+                  [mods]="result.mods"
+                  [artifice]="result.artifice"
+                  [tuningMods]="result.tuningMods">
                 </app-table-mod-display>
               </div>
 

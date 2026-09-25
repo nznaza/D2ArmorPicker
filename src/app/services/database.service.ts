@@ -45,7 +45,19 @@ export class DatabaseService extends D2APDatabase implements OnDestroy {
       this.clearManifestInfo();
     }
 
-    this.version(this.verno).upgrade(async (tx) => {
+    this.version(this.verno).upgrade(async (transaction) => {
+      const oldToNewStat = [5, 0, 4, 2, 3, 1];
+      await transaction
+        .table("inventoryArmor")
+        .toCollection()
+        .modify((item) => {
+          if (item.tuningStat !== null && item.tuningStat !== undefined) {
+            item.tuningStat = oldToNewStat[item.tuningStat];
+          }
+          if (Array.isArray(item.archetypeStats)) {
+            item.archetypeStats = item.archetypeStats.map((stat: number) => oldToNewStat[stat]);
+          }
+        });
       this.clearManifestInfo();
     });
 

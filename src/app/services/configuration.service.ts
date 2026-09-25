@@ -23,7 +23,6 @@ import { ModOrAbility } from "../data/enum/modOrAbility";
 import * as lzutf8 from "lzutf8";
 import { CompressionOptions, DecompressionOptions } from "lzutf8";
 import { environment } from "../../environments/environment";
-import { EnumDictionary } from "../data/types/EnumDictionary";
 import { ArmorStat } from "../data/enum/armor-stat";
 // import { ArmorSlot } from "../data/enum/armor-slot";
 import { ModInformation } from "../data/ModInformation";
@@ -124,17 +123,37 @@ export class ConfigurationService implements OnDestroy {
   }
 
   checkAndFixOldSavedConfigurations(c: StoredConfiguration) {
+    const minimumStatTiers = c.configuration.minimumStatTiers;
+    const legacyMinimumStatTiers = (c.configuration as any).minimumStatTier as
+      | Record<number, number>
+      | undefined;
+    const requiresArmorStatOrderMigration = c.configuration.armorStatOrderVersion !== 2;
+
     c.configuration = Object.assign(BuildConfiguration.buildEmptyConfiguration(), c.configuration);
-    if (c.configuration.hasOwnProperty("minimumStatTier")) {
-      let tiers = (c.configuration as any).minimumStatTier as EnumDictionary<ArmorStat, number>;
-      c.configuration.minimumStatTiers[ArmorStat.StatWeapon].value = tiers[ArmorStat.StatWeapon];
-      c.configuration.minimumStatTiers[ArmorStat.StatHealth].value = tiers[ArmorStat.StatHealth];
-      c.configuration.minimumStatTiers[ArmorStat.StatClass].value = tiers[ArmorStat.StatClass];
-      c.configuration.minimumStatTiers[ArmorStat.StatGrenade].value = tiers[ArmorStat.StatGrenade];
-      c.configuration.minimumStatTiers[ArmorStat.StatSuper].value = tiers[ArmorStat.StatSuper];
-      c.configuration.minimumStatTiers[ArmorStat.StatMelee].value = tiers[ArmorStat.StatMelee];
+
+    if (requiresArmorStatOrderMigration && minimumStatTiers) {
+      c.configuration.minimumStatTiers = {
+        [ArmorStat.StatHealth]: minimumStatTiers[1],
+        [ArmorStat.StatMelee]: minimumStatTiers[5],
+        [ArmorStat.StatGrenade]: minimumStatTiers[3],
+        [ArmorStat.StatSuper]: minimumStatTiers[4],
+        [ArmorStat.StatClass]: minimumStatTiers[2],
+        [ArmorStat.StatWeapon]: minimumStatTiers[0],
+      };
+    }
+
+    if (legacyMinimumStatTiers) {
+      c.configuration.minimumStatTiers = {
+        [ArmorStat.StatHealth]: { fixed: false, value: legacyMinimumStatTiers[1] },
+        [ArmorStat.StatMelee]: { fixed: false, value: legacyMinimumStatTiers[5] },
+        [ArmorStat.StatGrenade]: { fixed: false, value: legacyMinimumStatTiers[3] },
+        [ArmorStat.StatSuper]: { fixed: false, value: legacyMinimumStatTiers[4] },
+        [ArmorStat.StatClass]: { fixed: false, value: legacyMinimumStatTiers[2] },
+        [ArmorStat.StatWeapon]: { fixed: false, value: legacyMinimumStatTiers[0] },
+      };
       delete (c.configuration as any).minimumStatTier;
     }
+    c.configuration.armorStatOrderVersion = 2;
 
     if (c.configuration.hasOwnProperty("selectedExoticHash")) {
       c.configuration.selectedExotics = [(c.configuration as any).selectedExoticHash];
