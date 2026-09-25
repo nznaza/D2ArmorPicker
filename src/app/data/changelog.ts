@@ -34,6 +34,33 @@ export const CHANGELOG_DATA: {
   entries: ChangelogEntry[];
 }[] = [
   {
+    version: "2.9.14",
+    date: "September 24, 2026",
+    clearManifest: false,
+    entries: [
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Added support for Monument of Triumph Armor 3.0 exotics, including Tier 5 and flexible tuning.",
+      },
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Added an event armor selector for Festival of the Lost and Guardian Games armor.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Armor 3.0 items are now detected from their manifest socket data for more reliable armor and tuning support.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Tuning mods are now included when opening a loadout in DIM.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Improved armor calculation performance and results with additional caching and pruning. (Thanks Mijago)",
+      },
+    ],
+  },
+  {
     version: "2.9.13",
     date: "March, 2026",
     clearManifest: false,

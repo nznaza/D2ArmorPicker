@@ -441,6 +441,231 @@ export class ArmorCalculatorService implements OnDestroy {
     return nthreads;
   }
 
+  private static splitArmorItemsForWorkers(
+    items: IPermutatorArmor[],
+    workerCount: number
+  ): IPermutatorArmor[][] {
+    if (workerCount <= 1) return [items];
+
+    const slotBuckets = [
+      items.filter((item) => item.slot === ArmorSlot.ArmorSlotHelmet),
+      items.filter((item) => item.slot === ArmorSlot.ArmorSlotGauntlet),
+      items.filter((item) => item.slot === ArmorSlot.ArmorSlotChest),
+      items.filter((item) => item.slot === ArmorSlot.ArmorSlotLegs),
+      items.filter((item) => item.slot === ArmorSlot.ArmorSlotClass),
+    ];
+    let splitSlotIndex = 0;
+    for (let slotIndex = 1; slotIndex < slotBuckets.length; slotIndex++) {
+      if (slotBuckets[slotIndex].length > slotBuckets[splitSlotIndex].length) {
+        splitSlotIndex = slotIndex;
+      }
+    }
+
+    // Keep exotic and legendary pieces evenly distributed while preserving deterministic order.
+    const splitBucket = slotBuckets[splitSlotIndex];
+    const exotics = splitBucket
+      .filter((item) => item.isExotic)
+      .sort((a, b) => (a.masterworkLevel ?? 0) - (b.masterworkLevel ?? 0));
+    const legendaries = splitBucket
+      .filter((item) => !item.isExotic)
+      .sort((a, b) => (a.masterworkLevel ?? 0) - (b.masterworkLevel ?? 0));
+    const splitBatches: IPermutatorArmor[][] = Array.from({ length: workerCount }, () => []);
+    exotics.forEach((item, index) => splitBatches[index % workerCount].push(item));
+    legendaries.forEach((item, index) => splitBatches[index % workerCount].push(item));
+
+    // Every worker receives all unsplit slots and one disjoint partition of the largest slot.
+    return splitBatches.map((batch) =>
+      slotBuckets.flatMap((slot, slotIndex) => (slotIndex === splitSlotIndex ? batch : slot))
+    );
+  }
+
+  private static pruneDominatedArmorItems(
+    items: IPermutatorArmor[],
+    config: BuildConfiguration
+  ): IPermutatorArmor[] {
+    // Prune the complete slot pools before partitioning. Every worker therefore uses the same
+    // Pareto-reduced inventory, and dominated pieces cannot inflate the largest split bucket.
+    return [
+      ArmorSlot.ArmorSlotHelmet,
+      ArmorSlot.ArmorSlotGauntlet,
+      ArmorSlot.ArmorSlotChest,
+      ArmorSlot.ArmorSlotLegs,
+      ArmorSlot.ArmorSlotClass,
+    ].flatMap((slot) =>
+      ArmorCalculatorService.pruneDominatedPerSlot(
+        items.filter((item) => item.slot === slot),
+        config
+      )
+    );
+  }
+
+  private static pieceStatsWithMasterwork(
+    piece: IPermutatorArmor,
+    config: BuildConfiguration
+  ): number[] {
+    const stats = [
+      piece.mobility,
+      piece.resilience,
+      piece.recovery,
+      piece.discipline,
+      piece.intellect,
+      piece.strength,
+    ];
+    if (piece.armorSystem === ArmorSystem.Armor2) {
+      if (
+        piece.masterworkLevel === MAXIMUM_MASTERWORK_LEVEL ||
+        (piece.isExotic ? config.assumeExoticsMasterworked : config.assumeLegendariesMasterworked)
+      ) {
+        for (let stat = 0; stat < 6; stat++) stats[stat] += 2;
+      }
+    } else if (piece.armorSystem === ArmorSystem.Armor3) {
+      let multiplier = piece.masterworkLevel;
+      if (
+        piece.isExotic ? config.assumeExoticsMasterworked : config.assumeLegendariesMasterworked
+      ) {
+        multiplier = MAXIMUM_MASTERWORK_LEVEL;
+      }
+      for (let stat = 0; stat < 6; stat++) {
+        if (!piece.archetypeStats.includes(stat)) stats[stat] += multiplier;
+      }
+    }
+    return stats;
+  }
+
+  private static pieceArtificeCapable(
+    piece: IPermutatorArmor,
+    config: BuildConfiguration
+  ): boolean {
+    if (piece.perk === ArmorPerkOrSlot.SlotArtifice) return true;
+    if (piece.armorSystem !== ArmorSystem.Armor2) return false;
+    if (piece.slot === ArmorSlot.ArmorSlotClass && config.assumeClassItemIsArtifice) return true;
+    return piece.isExotic
+      ? config.assumeEveryExoticIsArtifice
+      : config.assumeEveryLegendaryIsArtifice;
+  }
+
+  private static pieceTuningOptions(piece: IPermutatorArmor): number[][] {
+    const options = [[0, 0, 0, 0, 0, 0]];
+    if (piece.isExotic && piece.armorSystem === ArmorSystem.Armor3) {
+      for (let positive = 0; positive < 6; positive++) {
+        for (let negative = 0; negative < 6; negative++) {
+          if (positive === negative) continue;
+          const option = [0, 0, 0, 0, 0, 0];
+          option[positive] = 5;
+          option[negative] = -5;
+          options.push(option);
+        }
+      }
+    } else if (piece.tuningStat !== null) {
+      for (let negative = 0; negative < 6; negative++) {
+        if (negative === piece.tuningStat) continue;
+        const option = [0, 0, 0, 0, 0, 0];
+        option[piece.tuningStat] = 5;
+        option[negative] = -5;
+        options.push(option);
+      }
+    }
+
+    const stats = [
+      piece.mobility,
+      piece.resilience,
+      piece.recovery,
+      piece.discipline,
+      piece.intellect,
+      piece.strength,
+    ];
+    const lowest = stats
+      .map((value, index) => ({ value, index }))
+      .sort((a, b) => a.value - b.value || a.index - b.index)
+      .slice(0, 3);
+    const balanced = [0, 0, 0, 0, 0, 0];
+    for (const stat of lowest) balanced[stat.index] = 1;
+    options.push(balanced);
+    return options;
+  }
+
+  private static pieceMixSet(piece: IPermutatorArmor, config: BuildConfiguration): number[][] {
+    const base = ArmorCalculatorService.pieceStatsWithMasterwork(piece, config);
+    const canTune =
+      config.calculateTierFiveTuning &&
+      piece.armorSystem === ArmorSystem.Armor3 &&
+      (!!piece.isExotic ||
+        (piece.tier >= 5 && piece.tuningStat !== undefined && piece.tuningStat !== null));
+    const options = canTune
+      ? ArmorCalculatorService.pieceTuningOptions(piece)
+      : [[0, 0, 0, 0, 0, 0]];
+    return options.map((option) => base.map((value, stat) => value + option[stat]));
+  }
+
+  private static pieceProfileKey(piece: IPermutatorArmor, config: BuildConfiguration): string {
+    // Compare pieces only when all non-stat capabilities match. In particular, selectable gear-set
+    // pieces cannot dominate fixed-set pieces even when their raw stats are higher.
+    const identity = piece.isExotic ? `E|${piece.hash}` : "L";
+    return [
+      identity,
+      piece.perk,
+      piece.gearSetHash ?? "none",
+      piece.gearSetPerkSelectable ? "selectable" : "fixed",
+      piece.armorSystem,
+      piece.tier >= 5 ? "T5" : "low",
+      ArmorCalculatorService.pieceArtificeCapable(piece, config) ? "artifice" : "standard",
+    ].join("|");
+  }
+
+  private static mixSetCovers(dominator: number[][], candidate: number[][]): boolean {
+    // Every tuning mix of the candidate must be matched or beaten componentwise by the dominator.
+    return candidate.every((candidateMix) =>
+      dominator.some((dominatorMix) =>
+        dominatorMix.every((value, stat) => value >= candidateMix[stat])
+      )
+    );
+  }
+
+  private static pruneDominatedPerSlot(
+    pieces: IPermutatorArmor[],
+    config: BuildConfiguration
+  ): IPermutatorArmor[] {
+    // Raw-stat dominance is valid only when higher is strictly better. Exact locks and waste
+    // constraints introduce upper bounds, so pruning is disabled for those configurations.
+    const moreIsBetter =
+      !Object.values(config.minimumStatTiers).some((selection) => selection.fixed) &&
+      !config.tryLimitWastedStats &&
+      !config.onlyShowResultsWithNoWastedStats;
+    if (!moreIsBetter || pieces.length < 2) return pieces;
+
+    const groups = new Map<string, number[]>();
+    for (let index = 0; index < pieces.length; index++) {
+      const key = ArmorCalculatorService.pieceProfileKey(pieces[index], config);
+      const group = groups.get(key);
+      if (group) group.push(index);
+      else groups.set(key, [index]);
+    }
+
+    const pruned = new Array<boolean>(pieces.length).fill(false);
+    const mixCache = new Array<number[][] | undefined>(pieces.length);
+    const mixes = (index: number) =>
+      mixCache[index] ??
+      (mixCache[index] = ArmorCalculatorService.pieceMixSet(pieces[index], config));
+
+    for (const group of groups.values()) {
+      for (const candidate of group) {
+        for (const dominator of group) {
+          if (candidate === dominator || pruned[dominator]) continue;
+          if (!ArmorCalculatorService.mixSetCovers(mixes(dominator), mixes(candidate))) continue;
+          if (
+            !ArmorCalculatorService.mixSetCovers(mixes(candidate), mixes(dominator)) ||
+            dominator < candidate
+          ) {
+            pruned[candidate] = true;
+            break;
+          }
+        }
+      }
+    }
+
+    return pieces.filter((_, index) => !pruned[index]);
+  }
+
   private processWorkerMessage(
     data: WorkerMessageData,
     workerIndex: number,
@@ -575,6 +800,7 @@ export class ArmorCalculatorService implements OnDestroy {
                 hash: exotic?.hash,
               },
         artifice: armorSet.usedArtifice,
+        tuningMods: armorSet.usedTuningMods,
         modCount: armorSet.usedMods.length,
         modCost: armorSet.usedMods.reduce((p, d: StatModifier) => p + STAT_MOD_VALUES[d][2], 0),
         mods: armorSet.usedMods,
@@ -663,6 +889,7 @@ export class ArmorCalculatorService implements OnDestroy {
                 hash: exotic.hash,
               },
         artifice: armorSet.usedArtifice,
+        tuningMods: armorSet.usedTuningMods,
         modCount: armorSet.usedMods.length,
         modCost: armorSet.usedMods.reduce((p, d: StatModifier) => p + STAT_MOD_VALUES[d][2], 0),
         mods: armorSet.usedMods,
@@ -965,7 +1192,7 @@ export class ArmorCalculatorService implements OnDestroy {
   static convertInventoryArmorToPermutatorArmor(armor: IInventoryArmor): IPermutatorArmor {
     return {
       id: armor.id,
-      // hash: armor.hash,
+      hash: armor.hash,
       slot: armor.slot,
       clazz: armor.clazz,
       perk: armor.perk,
@@ -990,6 +1217,29 @@ export class ArmorCalculatorService implements OnDestroy {
       tier: armor.tier,
       armorSystem: armor.armorSystem,
     };
+  }
+
+  static convertPermutatorArmorToWorkerArmor(armor: IPermutatorArmor): IPermutatorArmor {
+    return {
+      id: armor.id,
+      hash: armor.hash,
+      slot: armor.slot,
+      isExotic: armor.isExotic,
+      perk: armor.perk,
+      masterworkLevel: armor.masterworkLevel,
+      archetypeStats: armor.archetypeStats,
+      mobility: armor.mobility,
+      resilience: armor.resilience,
+      recovery: armor.recovery,
+      discipline: armor.discipline,
+      intellect: armor.intellect,
+      strength: armor.strength,
+      gearSetHash: armor.gearSetHash ?? null,
+      gearSetPerkSelectable: armor.gearSetPerkSelectable,
+      tuningStat: armor.tuningStat,
+      armorSystem: armor.armorSystem,
+      tier: armor.tier,
+    } as IPermutatorArmor;
   }
 
   async calculateArmorSetResults(
@@ -1064,8 +1314,19 @@ export class ArmorCalculatorService implements OnDestroy {
         this.status.modifyStatus((s) => (s.calculatingResults = false));
         return;
       }
+      permutatorArmorItems = ArmorCalculatorService.pruneDominatedArmorItems(
+        permutatorArmorItems,
+        config
+      );
       nthreads = ArmorCalculatorService.estimateRequiredThreads(config, permutatorArmorItems);
       this.logger.info("ArmorCalculatorService", "updateResults", "Estimated threads: " + nthreads);
+      const workerItems = permutatorArmorItems.map(
+        ArmorCalculatorService.convertPermutatorArmorToWorkerArmor
+      );
+      const workerItemBatches = ArmorCalculatorService.splitArmorItemsForWorkers(
+        workerItems,
+        nthreads
+      );
 
       // Initialize static thread tracking arrays
       ArmorCalculatorService.emittedPossibleCombinations = false;
@@ -1109,7 +1370,7 @@ export class ArmorCalculatorService implements OnDestroy {
             count: nthreads,
             current: n,
           },
-          items: permutatorArmorItems,
+          items: workerItemBatches[n],
           selectedExotics: ArmorCalculatorService.selectedExotics,
         });
       }
