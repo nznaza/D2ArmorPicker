@@ -54,6 +54,8 @@ type info = {
   results: ResultDefinition[];
   savedResults: number;
   totalPermutations: number;
+  resultLimitReached: boolean;
+  stoppedEarlyAtMaxTier: boolean;
   maximumPossibleTiers: number[];
   itemCount: number;
   totalTime: number | null;
@@ -66,6 +68,7 @@ interface WorkerMessageData {
   computedPermutations: number;
   reachableTiers?: number[]; // Available in progress messages
   resultLimitReached?: boolean; // Indicates this worker hit its local result cap
+  stoppedEarlyAtMaxTier?: boolean;
 
   // Runtime data (available when results are sent)
   runtime?: {
@@ -131,6 +134,7 @@ export class ArmorCalculatorService implements OnDestroy {
   private static lastProgressUpdateTime = 0;
   private static emittedPossibleCombinations = false;
   private static allThreadsResultLimitReached = false;
+  private static stoppedEarlyAtMaxTier = false;
 
   // Cancellation handling
   private static cancellationRequested = false;
@@ -318,6 +322,8 @@ export class ArmorCalculatorService implements OnDestroy {
         results: ArmorCalculatorService.endResults,
         savedResults: 0,
         totalPermutations: 0,
+        resultLimitReached: false,
+        stoppedEarlyAtMaxTier: false,
         totalTime: 0,
         itemCount: 0,
         maximumPossibleTiers: [0, 0, 0, 0, 0, 0],
@@ -469,13 +475,18 @@ export class ArmorCalculatorService implements OnDestroy {
       }
     }
 
-    // Keep exotic and legendary pieces evenly distributed while preserving the high-first order.
+    // Walk the already sorted bucket once so every worker keeps high-first item order. Separate
+    // rarity cursors keep both groups balanced without assigning both strongest pieces to worker 0.
     const splitBucket = slotBuckets[splitSlotIndex];
-    const exotics = splitBucket.filter((item) => item.isExotic);
-    const legendaries = splitBucket.filter((item) => !item.isExotic);
     const splitBatches: IPermutatorArmor[][] = Array.from({ length: workerCount }, () => []);
-    exotics.forEach((item, index) => splitBatches[index % workerCount].push(item));
-    legendaries.forEach((item, index) => splitBatches[index % workerCount].push(item));
+    let nextExoticWorker = 0;
+    let nextLegendaryWorker = 1 % workerCount;
+    splitBucket.forEach((item) => {
+      const workerIndex = item.isExotic ? nextExoticWorker : nextLegendaryWorker;
+      splitBatches[workerIndex].push(item);
+      if (item.isExotic) nextExoticWorker = (nextExoticWorker + 1) % workerCount;
+      else nextLegendaryWorker = (nextLegendaryWorker + 1) % workerCount;
+    });
 
     // Every worker receives all unsplit slots and one disjoint partition of the largest slot.
     return splitBatches.map((batch) =>
@@ -692,6 +703,9 @@ export class ArmorCalculatorService implements OnDestroy {
     if (data.resultLimitReached) {
       ArmorCalculatorService.threadResultLimitReachedArr[workerIndex] = true;
     }
+    if (data.stoppedEarlyAtMaxTier) {
+      ArmorCalculatorService.stoppedEarlyAtMaxTier = true;
+    }
 
     // Aggregate per-stat maximum tiers across all workers (each worker can max different stats)
     const globalMaxTiers = ArmorCalculatorService.threadCalculationReachableTiers
@@ -750,13 +764,6 @@ export class ArmorCalculatorService implements OnDestroy {
     // Process results data (only available when runtime is present - partial/final results messages)
     if (data.runtime == null) return;
 
-    // Add partial results to the collection
-    const partialResults = data.results ?? [];
-    ArmorCalculatorService.results.push(...partialResults);
-    if (partialResults.length > 0 && !data.done) {
-      this.processIntermediateResults(inventoryArmorItems);
-    }
-
     // When every worker has hit its local result limit,
     if (
       !ArmorCalculatorService.allThreadsResultLimitReached &&
@@ -771,6 +778,13 @@ export class ArmorCalculatorService implements OnDestroy {
           sumTotal
       );
       ArmorCalculatorService.allThreadsResultLimitReached = true;
+    }
+
+    // Add partial results to the collection
+    const partialResults = data.results ?? [];
+    ArmorCalculatorService.results.push(...partialResults);
+    if (partialResults.length > 0 && !data.done) {
+      this.processIntermediateResults(inventoryArmorItems);
     }
 
     // Handle completion of individual worker threads
@@ -860,6 +874,8 @@ export class ArmorCalculatorService implements OnDestroy {
       results: ArmorCalculatorService.endResults,
       savedResults: ArmorCalculatorService.savedResultsCount, // Total amount of results, differs from the real amount if the memory save setting is active
       totalPermutations: ArmorCalculatorService.totalPermutationsCount,
+      resultLimitReached: ArmorCalculatorService.allThreadsResultLimitReached,
+      stoppedEarlyAtMaxTier: ArmorCalculatorService.stoppedEarlyAtMaxTier,
       itemCount: inventoryArmorItems.length,
       totalTime: performance.now() - ArmorCalculatorService.updateResultsStart,
       maximumPossibleTiers: ArmorCalculatorService.resultMaximumTiers
@@ -951,6 +967,8 @@ export class ArmorCalculatorService implements OnDestroy {
       results: ArmorCalculatorService.endResults,
       savedResults: ArmorCalculatorService.results.length,
       totalPermutations: ArmorCalculatorService.totalPermutationsCount,
+      resultLimitReached: ArmorCalculatorService.allThreadsResultLimitReached,
+      stoppedEarlyAtMaxTier: ArmorCalculatorService.stoppedEarlyAtMaxTier,
       itemCount: inventoryArmorItems.length,
       totalTime: null,
       maximumPossibleTiers: ArmorCalculatorService.globalMaximumPossibleTiers.map(
@@ -1407,6 +1425,8 @@ export class ArmorCalculatorService implements OnDestroy {
         results: [],
         savedResults: 0,
         totalPermutations: 0,
+        resultLimitReached: false,
+        stoppedEarlyAtMaxTier: false,
         itemCount: inventoryArmorItems.length,
         totalTime: null,
         maximumPossibleTiers: [0, 0, 0, 0, 0, 0],
@@ -1486,6 +1506,7 @@ export class ArmorCalculatorService implements OnDestroy {
         () => false
       );
       ArmorCalculatorService.allThreadsResultLimitReached = false;
+      ArmorCalculatorService.stoppedEarlyAtMaxTier = false;
 
       this._calculationProgress.next(0);
 

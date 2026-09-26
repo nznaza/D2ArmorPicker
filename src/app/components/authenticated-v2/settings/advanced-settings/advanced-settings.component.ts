@@ -19,7 +19,7 @@ import { Component, OnDestroy, OnInit } from "@angular/core";
 import { ConfigurationService } from "../../../../services/configuration.service";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
-import { environment } from "../../../../../environments/environment";
+// import { environment } from "../../../../../environments/environment";
 import { EventArmorType } from "../../../../data/enum/event-armor-type";
 
 interface AdvancedSettingFieldBase {
@@ -28,12 +28,12 @@ interface AdvancedSettingFieldBase {
   help: string | undefined;
   disabled: boolean;
   impactsResultCount: boolean;
-  onToggle: (v: boolean) => void;
 }
 
 interface BooleanSettingField extends AdvancedSettingFieldBase {
   type: "boolean";
   value: boolean;
+  onToggle: (v: boolean) => void;
 }
 
 interface DropdownSettingField extends AdvancedSettingFieldBase {
@@ -44,7 +44,17 @@ interface DropdownSettingField extends AdvancedSettingFieldBase {
   isEnabled?: boolean;
 }
 
-type AdvancedSettingField = BooleanSettingField | DropdownSettingField;
+interface SliderSettingField extends AdvancedSettingFieldBase {
+  type: "slider";
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  displayWith: (value: number) => string;
+  onChange: (value: number) => void;
+}
+
+type AdvancedSettingField = BooleanSettingField | DropdownSettingField | SliderSettingField;
 
 @Component({
   selector: "app-advanced-settings",
@@ -76,7 +86,6 @@ export class AdvancedSettingsComponent implements OnInit, OnDestroy {
             disabled: false,
             impactsResultCount: true,
             help: "Restrict builds to specific event armor where supported.",
-            onToggle: () => {},
           },
         ],
         Masterwork: [
@@ -173,52 +182,58 @@ export class AdvancedSettingsComponent implements OnInit, OnDestroy {
             description: "Use Tier 5 tuning for armor pieces.",
           },
           {
-            name: "Use security features to prevent app crashes (resets on reload).",
-            type: "boolean",
-            onToggle: (v: boolean) =>
-              this.config.modifyConfiguration((c) => (c.limitParsedResults = v)),
-            value: c.limitParsedResults,
+            name: "Maximum results (Unlimited resets to default on reload)",
+            type: "slider",
+            value: c.parsedResultLimit === 0 ? 11 : c.parsedResultLimit / 10_000,
+            min: 1,
+            max: 11,
+            step: 1,
+            displayWith: (value: number) => (value === 11 ? "Unlimited" : `${value * 10}K`),
+            onChange: (value: number) =>
+              this.config.modifyConfiguration(
+                (config) => (config.parsedResultLimit = value === 11 ? 0 : value * 10_000)
+              ),
             disabled: false,
             impactsResultCount: true,
-            help: "Only parse the first 30,000 results. Deactivating this may crash your browser. The results will still be limited to 1,000,000 entries. Note that you will not miss any significant results by leaving this enabled.",
-            description: "Use security features to prevent app crashes (resets on reload).",
+            help: "Limits how many results are retained to reduce calculation time and prevent Out-Of-Memory crashes. Unlimited may crash your browser. You will not miss the most significant results with a set limit.",
+            description: "Maximum number of results retained.",
           },
-          {
-            name: "High-Speed mode: Only check one class item for each permutation",
-            type: "boolean",
-            onToggle: (v: boolean) =>
-              this.config.modifyConfiguration((c) => (c.earlyAbortClassItems = v)),
-            value: c.earlyAbortClassItems,
-            disabled: false,
-            impactsResultCount: true,
-            help: "This will speed up the calculation by aborting early if no valid class item is found for a permutation.",
-            description: "High-Speed mode: Only check one class item for each permutation",
-          },
+          //   {
+          //     name: "High-Speed mode: Only check one class item for each permutation",
+          //     type: "boolean",
+          //     onToggle: (v: boolean) =>
+          //       this.config.modifyConfiguration((c) => (c.earlyAbortClassItems = v)),
+          //     value: c.earlyAbortClassItems,
+          //     disabled: false,
+          //     impactsResultCount: true,
+          //     help: "This will speed up the calculation by compressing the number of class items checked for each permutation.",
+          //     description: "High-Speed mode: Only check one class item for each permutation",
+          //   },
         ],
-        "Wasted Stats": [
-          {
-            name: "Try to optimize wasted stats (slower)",
-            type: "boolean",
-            onToggle: (v: boolean) =>
-              this.config.modifyConfiguration((c) => (c.tryLimitWastedStats = v)),
-            value: c.tryLimitWastedStats,
-            disabled: false,
-            impactsResultCount: false,
-            help: "The tool will try to add minor stat mods to minimize wasted stats. This only works for combinations that fulfill your desired stat combination with enough mods so at least one mod slot is still open.",
-            description: "Try to optimize wasted stats (slower)",
-          },
-          {
-            name: "Only show builds with no wasted stats",
-            type: "boolean",
-            onToggle: (v: boolean) =>
-              this.config.modifyConfiguration((c) => (c.onlyShowResultsWithNoWastedStats = v)),
-            value: environment.featureFlags.enableZeroWaste && c.onlyShowResultsWithNoWastedStats,
-            disabled: !environment.featureFlags.enableZeroWaste,
-            impactsResultCount: true,
-            help: "Only show builds with zero wasted stats - this means, its highly likely that you won't get any results.",
-            description: "Only show builds with no wasted stats",
-          },
-        ],
+        // "Wasted Stats": [
+        //   {
+        //     name: "Try to optimize wasted stats (slower)",
+        //     type: "boolean",
+        //     onToggle: (v: boolean) =>
+        //       this.config.modifyConfiguration((c) => (c.tryLimitWastedStats = v)),
+        //     value: c.tryLimitWastedStats,
+        //     disabled: false,
+        //     impactsResultCount: false,
+        //     help: "The tool will try to add minor stat mods to minimize wasted stats. This only works for combinations that fulfill your desired stat combination with enough mods so at least one mod slot is still open.",
+        //     description: "Try to optimize wasted stats (slower)",
+        //   },
+        //   {
+        //     name: "Only show builds with no wasted stats",
+        //     type: "boolean",
+        //     onToggle: (v: boolean) =>
+        //       this.config.modifyConfiguration((c) => (c.onlyShowResultsWithNoWastedStats = v)),
+        //     value: environment.featureFlags.enableZeroWaste && c.onlyShowResultsWithNoWastedStats,
+        //     disabled: !environment.featureFlags.enableZeroWaste,
+        //     impactsResultCount: true,
+        //     help: "Only show builds with zero wasted stats - this means, its highly likely that you won't get any results.",
+        //     description: "Only show builds with no wasted stats",
+        //   },
+        // ],
         "Data-Science": [
           {
             name: "Add a constant +1 resilience to the results with non-exotic chests (resets on reload).",

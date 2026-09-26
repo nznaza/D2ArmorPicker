@@ -99,7 +99,7 @@ export class BuildConfiguration {
   onlyUseMasterworkedExotics = false;
   onlyUseMasterworkedLegendaries = false;
   modOptimizationStrategy: ModOptimizationStrategy = ModOptimizationStrategy.None;
-  limitParsedResults = true; // Limits the amount of results that are parsed. This looses some results, but solves memory issues
+  parsedResultLimit = 30_000; // Zero disables the limit and resets to 30,000 on reload.
   earlyAbortClassItems = true; // High-Speed setting
   tryLimitWastedStats = false;
   onlyShowResultsWithNoWastedStats = false;
@@ -136,7 +136,7 @@ export class BuildConfiguration {
       allowLegacyExoticArmor: true,
       assumeLegendariesMasterworked: true,
       assumeExoticsMasterworked: true,
-      limitParsedResults: true,
+      parsedResultLimit: 30_000,
       earlyAbortClassItems: true,
       modOptimizationStrategy: ModOptimizationStrategy.None,
       tryLimitWastedStats: false,

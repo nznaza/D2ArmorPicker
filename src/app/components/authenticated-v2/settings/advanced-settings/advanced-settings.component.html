@@ -84,6 +84,45 @@
         report_problem
       </mat-icon>
     </div>
+
+    <!-- Result limit slider -->
+    <div *ngIf="f.type === 'slider'" class="slider-setting">
+      <div class="slider-header">
+        <label
+          >{{ f.name }}: <strong>{{ f.displayWith(f.value) }}</strong></label
+        >
+        <mat-icon
+          inline
+          aria-hidden="false"
+          aria-label="Help"
+          *ngIf="f.help"
+          matTooltip="{{ f.help }}"
+          #tooltip="matTooltip">
+          help
+        </mat-icon>
+        <mat-icon
+          inline
+          aria-hidden="false"
+          aria-label="Warning"
+          *ngIf="f.impactsResultCount"
+          class="report-problem-icon"
+          matTooltip="This setting impacts the number of results retained and may affect browser memory usage."
+          #tooltip="matTooltip">
+          report_problem
+        </mat-icon>
+      </div>
+      <mat-slider
+        class="result-limit-slider"
+        [min]="f.min"
+        [max]="f.max"
+        [step]="f.step"
+        [displayWith]="f.displayWith"
+        [disabled]="f.disabled"
+        discrete
+        showTickMarks>
+        <input matSliderThumb [value]="f.value" (valueChange)="f.onChange($event)" />
+      </mat-slider>
+    </div>
   </div>
   <div class="category-spacer"></div>
 </div>

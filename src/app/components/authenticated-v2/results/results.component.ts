@@ -116,6 +116,8 @@ export class ResultsComponent implements OnInit, OnDestroy {
   itemCount: number = 0;
   savedResults: number = 0;
   totalPermutations: number = 0;
+  resultLimitReached: boolean = false;
+  stoppedEarlyAtMaxTier: boolean = false;
   totalPossibleCombinations: number = 0;
   parsedResults: number = 0;
   viewMode: "table" | "cards" = "table";
@@ -216,6 +218,8 @@ export class ResultsComponent implements OnInit, OnDestroy {
         this.totalTime = value.totalTime;
         this.savedResults = value.savedResults;
         this.totalPermutations = value.totalPermutations;
+        this.resultLimitReached = value.resultLimitReached;
+        this.stoppedEarlyAtMaxTier = value.stoppedEarlyAtMaxTier;
         this.parsedResults = this._results.length;
       });
   }

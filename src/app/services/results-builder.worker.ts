@@ -755,6 +755,7 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
   }
 
   let checkedCalculations = 0;
+  let stoppedEarlyAtMaxTier = false;
   let lastProgressReportTime = 0;
   let cachedTuningBase: TuningBaseCache = { items: [], accumulator: null };
   let cachedGroupBaseItems: readonly IPermutatorArmor[] | null = null;
@@ -795,6 +796,7 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
       resultLimitReached &&
       (noTargetMaximumTiers || runtime.maximumPossibleTiers.every((tier) => tier >= 200))
     ) {
+      stoppedEarlyAtMaxTier = runtime.maximumPossibleTiers.every((tier) => tier >= 200);
       console.log(
         `Thread #${threadSplit.current} reached result limit and maximum possible tiers are all 200, stopping calculation early.`
       );
@@ -853,7 +855,9 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
           bestResultSent = true;
         }
 
-        resultLimitReached = config.limitParsedResults && listedResults >= 3e4 / threadSplit.count;
+        resultLimitReached =
+          config.parsedResultLimit > 0 &&
+          listedResults >= config.parsedResultLimit / threadSplit.count;
         if (resultLimitReached) {
           console.log(
             `Thread #${threadSplit.current} reached result limit of ${listedResults} results`
@@ -917,6 +921,7 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
     estimatedCalculations,
     computedPermutations: computedResults,
     resultLimitReached,
+    stoppedEarlyAtMaxTier,
     stats: {
       savedResults: resultsSent,
       computedPermutations: computedResults,

@@ -66,3 +66,21 @@
   font-size: 14px;
   font-weight: 500;
 }
+
+.slider-setting {
+  display: flex;
+  flex-direction: column;
+  max-width: 520px;
+  margin-bottom: 8px;
+}
+
+.slider-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.result-limit-slider {
+  width: 100%;
+}

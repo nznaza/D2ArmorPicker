@@ -167,8 +167,11 @@ export class ConfigurationService implements OnDestroy {
       );
     }
 
-    // Always reset risky mods on reload
-    c.configuration.limitParsedResults = true;
+    // Reset the risky unlimited option on reload, but preserve finite limits.
+    if (c.configuration.parsedResultLimit === 0) {
+      c.configuration.parsedResultLimit = 30_000;
+    }
+    delete (c.configuration as any).limitParsedResults;
     c.configuration.addConstent1Health = false;
 
     // Migrate legacy event armor setting values

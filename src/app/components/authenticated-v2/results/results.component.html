@@ -32,7 +32,7 @@
             <span class="info-stat-value">{{ this.savedResults | number }}</span>
             <mat-icon
               #tooltip="matTooltip"
-              *ngIf="this.totalPermutations !== this.savedResults"
+              *ngIf="this.resultLimitReached"
               class="report-problem-icon"
               matTooltip="Note: To speed up the whole process and prevent Out-Of-Memory crashes, only {{
                 this.savedResults | number
@@ -44,7 +44,23 @@
         </div>
         <div class="info-stat-card">
           <span class="info-stat-label">Combinations calculated</span>
-          <span class="info-stat-value">{{ this.totalPermutations | number }}</span>
+          <div class="info-stat-value-container">
+            <span class="info-stat-value">{{ this.totalPermutations | number }}</span>
+            <mat-icon
+              #tooltip="matTooltip"
+              *ngIf="this.stoppedEarlyAtMaxTier"
+              class="report-problem-icon"
+              matTooltip="The calculation stopped early because the maximum possible stat value of 200 was found for every stat. The remaining combinations did not need to be checked."
+              >report_problem
+            </mat-icon>
+            <mat-icon
+              #tooltip="matTooltip"
+              *ngIf="this.cancelledCalculation"
+              class="report-problem-icon"
+              matTooltip="The calculation was cancelled before all combinations were checked, so this count is incomplete."
+              >report_problem
+            </mat-icon>
+          </div>
         </div>
         <!-- <div class="info-stat-card">
           <span class="info-stat-label">Combinations possible</span>
