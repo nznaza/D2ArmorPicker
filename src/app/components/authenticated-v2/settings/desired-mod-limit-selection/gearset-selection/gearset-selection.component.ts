@@ -83,38 +83,50 @@ export class GearsetSelectionComponent implements OnInit, OnDestroy {
 
     // Check if the current character class has gear sets available
     const currentClass = this.config.readonlyConfigurationSnapshot.characterClass;
+    const itemsGearSetSelectable = await this.db.inventoryArmor
+      .where({
+        clazz: currentClass,
+        gearSetPerkSelectable: true,
+      })
+      .toArray();
+    const gearSets = await Promise.all(
+      this.gearSets.map(async (gearSet) => {
+        const itemsGearSet = await this.db.inventoryArmor
+          .where({
+            clazz: currentClass,
+            gearSetHash: gearSet.hash,
+          })
+          .toArray();
+        const uniqueSlots = new Set(
+          [...itemsGearSet, ...itemsGearSetSelectable].map((item) => item.slot)
+        );
+        const twoPieceAvailable = uniqueSlots.size >= 2;
+        const fourPieceAvailable = uniqueSlots.size >= 4;
 
-    for (const gearSet of this.gearSets) {
-      // Get all inventory items for this class and gear set
-      const itemsGearSet = await this.db.inventoryArmor
-        .where({
-          clazz: currentClass,
-          gearSetHash: gearSet.hash,
-        })
-        .toArray();
-      const itemsGearSetSelectable = await this.db.inventoryArmor
-        .where({
-          clazz: currentClass,
-          gearSetPerkSelectable: true,
-        })
-        .toArray();
+        return {
+          ...gearSet,
+          twoPieceBonus: {
+            ...gearSet.twoPieceBonus,
+            available: twoPieceAvailable,
+            enabled: twoPieceAvailable && gearSet.twoPieceBonus.enabled,
+          },
+          fourPieceBonus: {
+            ...gearSet.fourPieceBonus,
+            available: fourPieceAvailable,
+            enabled: fourPieceAvailable && gearSet.fourPieceBonus.enabled,
+          },
+        };
+      })
+    );
 
-      const allItems = [...itemsGearSet, ...itemsGearSetSelectable];
-      const uniqueItemsMap = new Map<string, (typeof allItems)[0]>();
+    gearSets.sort((a, b) => {
+      const rank = (gearSet: GearSet) =>
+        gearSet.fourPieceBonus.available ? 0 : gearSet.twoPieceBonus.available ? 1 : 2;
 
-      allItems.forEach((item) => {
-        uniqueItemsMap.set(item.itemInstanceId, item);
-      });
-      const items = Array.from(uniqueItemsMap.values());
+      return rank(a) - rank(b) || a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    });
+    this.gearSets = gearSets;
 
-      // Count how many unique slots are represented by these items
-      const uniqueSlots = new Set(items.map((item) => item.slot));
-      gearSet.twoPieceBonus.available = uniqueSlots.size >= 2;
-      gearSet.fourPieceBonus.available = uniqueSlots.size >= 4;
-
-      if (!gearSet.twoPieceBonus.available) gearSet.twoPieceBonus.enabled = false;
-      if (!gearSet.fourPieceBonus.available) gearSet.fourPieceBonus.enabled = false;
-    }
     this.updateConfiguration();
   }
 
