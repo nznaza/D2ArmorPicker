@@ -34,6 +34,29 @@ export const CHANGELOG_DATA: {
   entries: ChangelogEntry[];
 }[] = [
   {
+    version: "2.9.16",
+    date: "September 26, 2026",
+    clearManifest: false,
+    entries: [
+      {
+        type: ChangelogEntryType.ADD,
+        text: "Active armor gear set bonuses are now shown and sortable in the table and card result views.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Results, checked permutations, and elapsed time now update while armor calculations are still running.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Improved result default ordering.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Fixed stats locked to zero incorrectly rejecting builds that can reach the target with negative tuning.",
+      },
+    ],
+  },
+  {
     version: "2.9.15",
     date: "September 25, 2026",
     clearManifest: false,

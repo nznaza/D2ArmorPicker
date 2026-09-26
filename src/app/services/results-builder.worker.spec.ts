@@ -83,6 +83,22 @@ describe("results builder tuning cache", () => {
     ).toEqual([tunings[0], tunings[2], tunings[3]]);
   });
 
+  it("keeps a negative tuning that satisfies a stat locked to zero", () => {
+    const tunings = [
+      [0, 0, 0, 0, 0, 0],
+      [-5, 5, 0, 0, 0, 0],
+    ] as any;
+
+    expect(
+      filterTuningsForLockedStats(
+        tunings,
+        [5, 70, 50, 50, 50, 50],
+        [true, false, false, false, false, false],
+        [0, 0, 0, 0, 0, 0]
+      )
+    ).toEqual([tunings[1]]);
+  });
+
   it("returns the original tuning array when no stats are locked", () => {
     const tunings = [[5, -5, 0, 0, 0, 0]] as any;
     expect(

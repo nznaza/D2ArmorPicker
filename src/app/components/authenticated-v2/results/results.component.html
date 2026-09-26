@@ -52,7 +52,13 @@
         </div> -->
         <div class="info-stat-card">
           <span class="info-stat-label">Time required</span>
-          <span class="info-stat-value">{{ this.totalTime | number }}ms</span>
+          <div class="info-stat-value-container">
+            <span class="info-stat-value">{{ this.totalTime | number }}ms</span>
+            <mat-spinner
+              *ngIf="isCalculatingPermutations"
+              diameter="16"
+              aria-label="Calculation still in progress"></mat-spinner>
+          </div>
         </div>
         <div class="view-mode-toggle">
           <mat-button-toggle-group

@@ -38,6 +38,13 @@ import { ConfigurationService } from "../../../../services/configuration.service
 import { ResultDefinition } from "../results.component";
 import { ArmorStat } from "../../../../data/enum/armor-stat";
 import { BuildConfiguration } from "../../../../data/buildConfiguration";
+import { ItemIconServiceService } from "../../../../services/item-icon-service.service";
+import { DestinySandboxPerkDefinition } from "bungie-api-ts/destiny2";
+
+interface GearsetBonusDisplay {
+  perk: DestinySandboxPerkDefinition;
+  requiredSetCount: number;
+}
 
 @Component({
   selector: "app-results-table-view",
@@ -65,6 +72,7 @@ export class ResultsTableViewComponent implements OnInit, AfterViewInit, OnChang
   expandedElementId: string | null = null; // Use ID instead of object reference
   shownColumns = [
     "exotic",
+    "gearsetBonuses",
     "health",
     "melee",
     "grenade",
@@ -79,6 +87,9 @@ export class ResultsTableViewComponent implements OnInit, AfterViewInit, OnChang
   // Performance optimizations
   private totalStatsCache = new Map<string, number>();
   private displayedResults: ResultDefinition[] = [];
+  private gearsetBonuses = new Map<ResultDefinition, GearsetBonusDisplay[]>();
+  private gearsetRequirementCounts = new Map<number, number>();
+  private gearsetBonusLoadId = 0;
   showAllResults = false;
 
   // View / initialization state
@@ -89,6 +100,7 @@ export class ResultsTableViewComponent implements OnInit, AfterViewInit, OnChang
 
   constructor(
     public configService: ConfigurationService,
+    private itemIconService: ItemIconServiceService,
     private logger: LoggingProxyService,
     private cdr: ChangeDetectorRef
   ) {
@@ -170,14 +182,50 @@ export class ResultsTableViewComponent implements OnInit, AfterViewInit, OnChang
           return data.stats.reduce((sum, stat) => sum + stat, 0);
         case "Mods":
           return +100 * (data.modCount + data.tuningMods.length) + data.modCost;
+        case "GearsetBonuses":
+          return this.getGearsetBonusRank(data);
       }
       return 0;
     };
   }
 
+  private getGearsetCounts(result: ResultDefinition): Map<number, number> {
+    const gearsetCounts = new Map<number, number>();
+    result.items.forEach((item) => {
+      if (item.gearSetHash != null) {
+        gearsetCounts.set(item.gearSetHash, (gearsetCounts.get(item.gearSetHash) ?? 0) + 1);
+      }
+    });
+    this.gearsetRequirementCounts.forEach((count, hash) => {
+      gearsetCounts.set(hash, Math.max(count, gearsetCounts.get(hash) ?? 0));
+    });
+    return gearsetCounts;
+  }
+
+  private getGearsetBonusRank(result: ResultDefinition): number {
+    const activeSetCounts = Array.from(this.getGearsetCounts(result).values()).filter(
+      (count) => count >= 2
+    );
+    if (activeSetCounts.some((count) => count >= 4)) return 3;
+    if (activeSetCounts.length >= 2) return 2;
+    if (activeSetCounts.length === 1) return 1;
+    return 0;
+  }
+
   private updateShownColumns(config: BuildConfiguration): void {
+    this.gearsetRequirementCounts.clear();
+    config.armorRequirements.forEach((requirement) => {
+      if ("gearSetHash" in requirement) {
+        this.gearsetRequirementCounts.set(
+          requirement.gearSetHash,
+          (this.gearsetRequirementCounts.get(requirement.gearSetHash) ?? 0) + 1
+        );
+      }
+    });
+
     let columns = [
       "exotic",
+      "gearsetBonuses",
       "health",
       "melee",
       "grenade",
@@ -192,6 +240,10 @@ export class ResultsTableViewComponent implements OnInit, AfterViewInit, OnChang
     }
     columns.push("dropdown");
     this.shownColumns = columns;
+
+    if (this.results.length > 0) {
+      void this.loadGearsetBonuses();
+    }
   }
 
   private async updateTableData(): Promise<void> {
@@ -211,6 +263,7 @@ export class ResultsTableViewComponent implements OnInit, AfterViewInit, OnChang
     this.displayedResults = this.results;
 
     this.tableDataSource.data = this.displayedResults;
+    await this.loadGearsetBonuses();
 
     // Reconnect paginator and sort if they're available
     if (this.paginator) {
@@ -235,6 +288,53 @@ export class ResultsTableViewComponent implements OnInit, AfterViewInit, OnChang
     );
 
     // Force change detection to update the UI immediately
+    this.cdr.markForCheck();
+  }
+
+  getGearsetBonuses(element: ResultDefinition): GearsetBonusDisplay[] {
+    return this.gearsetBonuses.get(element) ?? [];
+  }
+
+  private async loadGearsetBonuses(): Promise<void> {
+    const loadId = ++this.gearsetBonusLoadId;
+    const results = this.results;
+    const requestsByResult = new Map<ResultDefinition, { hash: number; amount: number }[]>();
+    const uniqueRequests = new Map<string, { hash: number; amount: number }>();
+
+    results.forEach((result) => {
+      const gearsetCounts = this.getGearsetCounts(result);
+
+      const requests: { hash: number; amount: number }[] = [];
+      gearsetCounts.forEach((count, hash) => {
+        if (count >= 4) requests.push({ hash, amount: 4 });
+        else if (count >= 2) requests.push({ hash, amount: 2 });
+      });
+      requests.forEach((request) =>
+        uniqueRequests.set(`${request.hash}-${request.amount}`, request)
+      );
+      requestsByResult.set(result, requests);
+    });
+
+    const perks = new Map<string, DestinySandboxPerkDefinition>();
+    await Promise.all(
+      Array.from(uniqueRequests.entries()).map(async ([key, request]) => {
+        const perk = await this.itemIconService.getGearsetPerkCached(request.hash, request.amount);
+        if (perk) perks.set(key, perk);
+      })
+    );
+
+    if (loadId !== this.gearsetBonusLoadId) return;
+
+    this.gearsetBonuses.clear();
+    requestsByResult.forEach((requests, result) => {
+      this.gearsetBonuses.set(
+        result,
+        requests.flatMap((request) => {
+          const perk = perks.get(`${request.hash}-${request.amount}`);
+          return perk ? [{ perk, requiredSetCount: request.amount }] : [];
+        })
+      );
+    });
     this.cdr.markForCheck();
   }
 

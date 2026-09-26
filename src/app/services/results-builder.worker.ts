@@ -182,13 +182,11 @@ function groupCanReachTargets(
   }
 
   const candidateReach = [0, 0, 0, 0, 0, 0];
-  const candidateMinimum = [Infinity, Infinity, Infinity, Infinity, Infinity, Infinity];
   let candidateArtifice = 0;
   for (const item of variableCandidates as readonly AnnotatedArmor[]) {
     candidateArtifice = Math.max(candidateArtifice, item._art);
     for (let stat = 0; stat < 6; stat++) {
       candidateReach[stat] = Math.max(candidateReach[stat], item._mw[stat] + item._tune[stat]);
-      candidateMinimum[stat] = Math.min(candidateMinimum[stat], item._mw[stat]);
     }
   }
 
@@ -206,9 +204,6 @@ function groupCanReachTargets(
   let residualGap = 0;
   for (let stat = 0; stat < 6; stat++) {
     const constantHealth = stat === ArmorStat.StatHealth ? minimumHealthBonus : 0;
-    const minimumStat =
-      enabledModBonuses[stat] + baseStats[stat] + candidateMinimum[stat] + constantHealth;
-    if (targetFixed[stat] && minimumStat > targetVals[stat]) return false;
     if (targetVals[stat] <= 0) continue;
     const reachWithoutSharedBudget =
       enabledModBonuses[stat] +
@@ -747,6 +742,7 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
       done: true,
       checkedCalculations: estimatedCalculations,
       estimatedCalculations,
+      computedPermutations: 0,
       resultLimitReached: false,
       stats: {
         savedResults: 0,
@@ -765,8 +761,8 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
   let cachedGroupCanReachTargets = true;
 
   // define the delay; it can be 75ms if the estimated calculations are low
-  // if the estimated calculations >= 1e6, then we will use 125ms
-  let progressBarDelay = estimatedCalculations >= 1e6 ? 125 : 75;
+  // if the estimated calculations >= 1e6, then we will use 250ms
+  let progressBarDelay = estimatedCalculations >= 1e6 ? 250 : 75;
 
   resultLimitReached = false;
 
@@ -879,6 +875,7 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
         done: false,
         checkedCalculations,
         estimatedCalculations,
+        computedPermutations: computedResults,
         resultLimitReached,
       });
       results = [];
@@ -889,6 +886,7 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
       postMessage({
         checkedCalculations,
         estimatedCalculations,
+        computedPermutations: computedResults,
         reachableTiers: runtime.maximumPossibleTiers,
       });
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -917,6 +915,7 @@ async function handleArmorBuilderRequest(data: any): Promise<void> {
     done: true,
     checkedCalculations,
     estimatedCalculations,
+    computedPermutations: computedResults,
     resultLimitReached,
     stats: {
       savedResults: resultsSent,
@@ -1408,11 +1407,6 @@ export function handlePermutation(
   if (applyMWAndCheckArtifice(leg, stats)) artificeCount++;
   if (applyMWAndCheckArtifice(classItem, stats)) artificeCount++;
 
-  // Early abort: fixed tiers exceeded
-  for (let n = 0; n < 6; n++) {
-    if (targetFixed[n] && stats[n] > targetVals[n]) return null;
-  }
-
   // Distances to target (using array literal for V8 SMI optimization)
   const distances: number[] = [
     Math.max(0, targetVals[0] - stats[0]),
@@ -1530,21 +1524,16 @@ export function handlePermutation(
     } else {
       availableTunings = generate_tunings(t5Improvements, includeNoTuning, false);
     }
-    availableTunings = filterTuningsForLockedStats(
-      availableTunings,
-      stats,
-      targetFixed,
-      targetVals
-    );
-    availableTunings = filterTuningsBySharedBudget(
-      availableTunings,
-      stats,
-      targetVals,
-      possibleIncreaseByMod + 3 * artificeCount
-    );
-    if (availableTunings.length === 0) return null;
-    prioritizeTuningsByTotalStats(availableTunings);
   }
+  availableTunings = filterTuningsForLockedStats(availableTunings, stats, targetFixed, targetVals);
+  availableTunings = filterTuningsBySharedBudget(
+    availableTunings,
+    stats,
+    targetVals,
+    possibleIncreaseByMod + 3 * artificeCount
+  );
+  if (availableTunings.length === 0) return null;
+  prioritizeTuningsByTotalStats(availableTunings);
 
   // heavy work: mod precalc
   let result: StatModifierPrecalc | null;

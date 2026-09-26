@@ -159,6 +159,35 @@
     </td>
   </ng-container>
 
+  <!-- Gearset Bonuses Column -->
+  <ng-container matColumnDef="gearsetBonuses">
+    <th
+      *matHeaderCellDef
+      mat-header-cell
+      mat-sort-header="GearsetBonuses"
+      start="desc"
+      style="text-align: center">
+      Gearset(s)
+    </th>
+    <td *matCellDef="let element" mat-cell>
+      <div class="gearset-bonuses">
+        <span
+          *ngFor="let bonus of getGearsetBonuses(element)"
+          [gearsetTooltip]="bonus.perk"
+          class="gearset-bonus">
+          <img
+            *ngIf="bonus.perk.displayProperties.hasIcon"
+            [alt]="bonus.perk.displayProperties.name"
+            [src]="'https://bungie.net/' + bonus.perk.displayProperties.icon"
+            class="gearset-bonus-icon"
+            loading="lazy" />
+          <span class="gearset-bonus-count">{{ bonus.requiredSetCount }}</span>
+        </span>
+        <span *ngIf="getGearsetBonuses(element).length === 0">-</span>
+      </div>
+    </td>
+  </ng-container>
+
   <!-- Vendor/Collection Column -->
   <ng-container matColumnDef="source">
     <th *matHeaderCellDef mat-header-cell>Sources</th>

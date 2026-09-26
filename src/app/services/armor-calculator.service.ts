@@ -22,7 +22,7 @@ import { DatabaseService } from "./database.service";
 import { IManifestArmor } from "../data/types/IManifestArmor";
 import { BehaviorSubject, Observable, Subject } from "rxjs";
 import { BuildConfiguration } from "../data/buildConfiguration";
-import { ArmorPerkOrSlot, STAT_MOD_VALUES, StatModifier } from "../data/enum/armor-stat";
+import { ArmorPerkOrSlot, ArmorStat, STAT_MOD_VALUES, StatModifier } from "../data/enum/armor-stat";
 import { StatusProviderService } from "./status-provider.service";
 import { ConfigurationService } from "./configuration.service";
 import { UserInformationService } from "./user-information.service";
@@ -63,6 +63,7 @@ interface WorkerMessageData {
   // Progress update properties
   checkedCalculations: number;
   estimatedCalculations: number;
+  computedPermutations: number;
   reachableTiers?: number[]; // Available in progress messages
   resultLimitReached?: boolean; // Indicates this worker hit its local result cap
 
@@ -98,6 +99,12 @@ export class ArmorCalculatorService implements OnDestroy {
   private _totalPossibleCombinations: BehaviorSubject<number> = new BehaviorSubject<number>(0);
   public readonly totalPossibleCombinations: Observable<number> =
     this._totalPossibleCombinations.asObservable();
+  private _computedPermutations: BehaviorSubject<number> = new BehaviorSubject<number>(0);
+  public readonly computedPermutations: Observable<number> =
+    this._computedPermutations.asObservable();
+  private _calculationElapsedTime: BehaviorSubject<number> = new BehaviorSubject<number>(0);
+  public readonly calculationElapsedTime: Observable<number> =
+    this._calculationElapsedTime.asObservable();
 
   private calculationSubscription?: Subscription;
 
@@ -113,6 +120,7 @@ export class ArmorCalculatorService implements OnDestroy {
   // Static thread tracking arrays
   private static threadCalculationAmountArr: number[] = [];
   private static threadCalculationDoneArr: number[] = [];
+  private static threadComputedPermutationsArr: number[] = [];
   private static threadCalculationReachableTiers: number[][] = [];
   private static threadResultLimitReachedArr: boolean[] = [];
   private static globalMaximumPossibleTiers: number[] = [0, 0, 0, 0, 0, 0];
@@ -461,14 +469,10 @@ export class ArmorCalculatorService implements OnDestroy {
       }
     }
 
-    // Keep exotic and legendary pieces evenly distributed while preserving deterministic order.
+    // Keep exotic and legendary pieces evenly distributed while preserving the high-first order.
     const splitBucket = slotBuckets[splitSlotIndex];
-    const exotics = splitBucket
-      .filter((item) => item.isExotic)
-      .sort((a, b) => (a.masterworkLevel ?? 0) - (b.masterworkLevel ?? 0));
-    const legendaries = splitBucket
-      .filter((item) => !item.isExotic)
-      .sort((a, b) => (a.masterworkLevel ?? 0) - (b.masterworkLevel ?? 0));
+    const exotics = splitBucket.filter((item) => item.isExotic);
+    const legendaries = splitBucket.filter((item) => !item.isExotic);
     const splitBatches: IPermutatorArmor[][] = Array.from({ length: workerCount }, () => []);
     exotics.forEach((item, index) => splitBatches[index % workerCount].push(item));
     legendaries.forEach((item, index) => splitBatches[index % workerCount].push(item));
@@ -675,6 +679,13 @@ export class ArmorCalculatorService implements OnDestroy {
     // Update calculation progress tracking (available in all message types)
     ArmorCalculatorService.threadCalculationDoneArr[workerIndex] = data.checkedCalculations;
     ArmorCalculatorService.threadCalculationAmountArr[workerIndex] = data.estimatedCalculations;
+    ArmorCalculatorService.threadComputedPermutationsArr[workerIndex] = data.computedPermutations;
+    ArmorCalculatorService.totalPermutationsCount =
+      ArmorCalculatorService.threadComputedPermutationsArr.reduce((sum, count) => sum + count, 0);
+    this._computedPermutations.next(ArmorCalculatorService.totalPermutationsCount);
+    this._calculationElapsedTime.next(
+      performance.now() - ArmorCalculatorService.updateResultsStart
+    );
     ArmorCalculatorService.threadCalculationReachableTiers[workerIndex] = data.reachableTiers ||
       data.runtime?.maximumPossibleTiers || [0, 0, 0, 0, 0, 0];
 
@@ -740,7 +751,11 @@ export class ArmorCalculatorService implements OnDestroy {
     if (data.runtime == null) return;
 
     // Add partial results to the collection
-    ArmorCalculatorService.results.push(...(data.results as IPermutatorArmorSet[]));
+    const partialResults = data.results ?? [];
+    ArmorCalculatorService.results.push(...partialResults);
+    if (partialResults.length > 0 && !data.done) {
+      this.processIntermediateResults(inventoryArmorItems);
+    }
 
     // When every worker has hit its local result limit,
     if (
@@ -755,8 +770,6 @@ export class ArmorCalculatorService implements OnDestroy {
           " calculations done out of estimated " +
           sumTotal
       );
-      this.processIntermediateResults(inventoryArmorItems);
-
       ArmorCalculatorService.allThreadsResultLimitReached = true;
     }
 
@@ -764,7 +777,6 @@ export class ArmorCalculatorService implements OnDestroy {
     if (data.done == true) {
       ArmorCalculatorService.doneWorkerCount++;
       ArmorCalculatorService.savedResultsCount += data.stats!.savedResults; // stats only available when done=true
-      ArmorCalculatorService.totalPermutationsCount += data.stats!.computedPermutations;
       ArmorCalculatorService.resultMaximumTiers.push(data.runtime.maximumPossibleTiers);
     }
 
@@ -781,6 +793,7 @@ export class ArmorCalculatorService implements OnDestroy {
     this._calculationProgress.next(0);
 
     ArmorCalculatorService.endResults = [];
+    ArmorCalculatorService.sortArmorSets(ArmorCalculatorService.results, inventoryArmorItems);
 
     for (let armorSet of ArmorCalculatorService.results) {
       let items = armorSet.armor.map((x) =>
@@ -814,6 +827,7 @@ export class ArmorCalculatorService implements OnDestroy {
             energyLevel: instance.energyLevel,
             hash: instance.hash,
             itemInstanceId: instance.itemInstanceId,
+            gearSetHash: instance.gearSetHash,
             name: instance.name,
             exotic: !!instance.isExotic,
             masterworked: instance.masterworkLevel == MAXIMUM_MASTERWORK_LEVEL,
@@ -870,6 +884,7 @@ export class ArmorCalculatorService implements OnDestroy {
     // Do not toggle calculatingResults or reset progress; workers are still running.
 
     ArmorCalculatorService.endResults = [];
+    ArmorCalculatorService.sortArmorSets(ArmorCalculatorService.results, inventoryArmorItems);
 
     for (let armorSet of ArmorCalculatorService.results) {
       const items = armorSet.armor.map((x) =>
@@ -903,6 +918,7 @@ export class ArmorCalculatorService implements OnDestroy {
             energyLevel: instance.energyLevel,
             hash: instance.hash,
             itemInstanceId: instance.itemInstanceId,
+            gearSetHash: instance.gearSetHash,
             name: instance.name,
             exotic: !!instance.isExotic,
             masterworked: instance.masterworkLevel == MAXIMUM_MASTERWORK_LEVEL,
@@ -1242,6 +1258,96 @@ export class ArmorCalculatorService implements OnDestroy {
     } as IPermutatorArmor;
   }
 
+  private static getArmorStats(armor: IPermutatorArmor): number[] {
+    return [
+      armor.resilience,
+      armor.strength,
+      armor.discipline,
+      armor.intellect,
+      armor.recovery,
+      armor.mobility,
+    ];
+  }
+
+  private static sumStats(stats: number[]): number {
+    return stats.reduce((sum, stat) => sum + stat, 0);
+  }
+
+  private static gearSetRank(
+    armorSet: IPermutatorArmorSet,
+    inventoryById: Map<number, IInventoryArmor>
+  ): number {
+    const gearSetCounts = new Map<number, number>();
+    let selectableItems = 0;
+
+    for (const itemId of armorSet.armor) {
+      const item = inventoryById.get(itemId);
+      if (item?.gearSetPerkSelectable) selectableItems++;
+      if (item?.gearSetHash != null) {
+        gearSetCounts.set(item.gearSetHash, (gearSetCounts.get(item.gearSetHash) ?? 0) + 1);
+      }
+    }
+
+    const counts = Array.from(gearSetCounts.values());
+    if (Math.max(0, ...counts) + selectableItems >= 4) return 3;
+
+    const pairDeficits = [...counts.map((count) => Math.max(0, 2 - count)), 2, 2].sort(
+      (a, b) => a - b
+    );
+    if (pairDeficits[0] + pairDeficits[1] <= selectableItems) return 2;
+    if (pairDeficits[0] <= selectableItems) return 1;
+    return 0;
+  }
+
+  private static sortArmorSets(
+    armorSets: IPermutatorArmorSet[],
+    inventoryArmorItems: IInventoryArmor[]
+  ): void {
+    const inventoryById = new Map(inventoryArmorItems.map((item) => [item.id, item]));
+    const gearSetRanks = new Map(
+      armorSets.map((armorSet) => [
+        armorSet,
+        ArmorCalculatorService.gearSetRank(armorSet, inventoryById),
+      ])
+    );
+    const masterworkedItemCounts = new Map(
+      armorSets.map((armorSet) => [
+        armorSet,
+        armorSet.armor.filter(
+          (itemId) => inventoryById.get(itemId)?.masterworkLevel === MAXIMUM_MASTERWORK_LEVEL
+        ).length,
+      ])
+    );
+    armorSets.sort((a, b) =>
+      ArmorCalculatorService.compareArmorSets(a, b, gearSetRanks, masterworkedItemCounts)
+    );
+  }
+
+  private static compareArmorSets(
+    a: IPermutatorArmorSet,
+    b: IPermutatorArmorSet,
+    gearSetRanks: Map<IPermutatorArmorSet, number>,
+    masterworkedItemCounts: Map<IPermutatorArmorSet, number>
+  ): number {
+    const totalStatsDiff =
+      ArmorCalculatorService.sumStats(b.statsWithMods) -
+      ArmorCalculatorService.sumStats(a.statsWithMods);
+    if (totalStatsDiff !== 0) return totalStatsDiff;
+
+    const modCountDiff = a.usedMods.length - b.usedMods.length;
+    if (modCountDiff !== 0) return modCountDiff;
+
+    const modCost = (armorSet: IPermutatorArmorSet) =>
+      armorSet.usedMods.reduce((sum, mod) => sum + STAT_MOD_VALUES[mod][2], 0);
+    const modCostDiff = modCost(a) - modCost(b);
+    if (modCostDiff !== 0) return modCostDiff;
+
+    const gearSetRankDiff = (gearSetRanks.get(b) ?? 0) - (gearSetRanks.get(a) ?? 0);
+    if (gearSetRankDiff !== 0) return gearSetRankDiff;
+
+    return (masterworkedItemCounts.get(b) ?? 0) - (masterworkedItemCounts.get(a) ?? 0);
+  }
+
   async calculateArmorSetResults(
     config: BuildConfiguration,
     currentClass: DestinyClass,
@@ -1274,6 +1380,8 @@ export class ArmorCalculatorService implements OnDestroy {
       ArmorCalculatorService.results = [];
       ArmorCalculatorService.savedResultsCount = 0;
       ArmorCalculatorService.totalPermutationsCount = 0;
+      this._computedPermutations.next(0);
+      this._calculationElapsedTime.next(0);
       ArmorCalculatorService.resultMaximumTiers = [];
 
       // Reset progress and worker state
@@ -1294,6 +1402,15 @@ export class ArmorCalculatorService implements OnDestroy {
 
       let inventoryArmorItems: IInventoryArmor[] =
         await this.filterAndPrepareInventoryItems(config);
+
+      this._armorResults.next({
+        results: [],
+        savedResults: 0,
+        totalPermutations: 0,
+        itemCount: inventoryArmorItems.length,
+        totalTime: null,
+        maximumPossibleTiers: [0, 0, 0, 0, 0, 0],
+      });
 
       let permutatorArmorItems: IPermutatorArmor[] = inventoryArmorItems.map((armor) =>
         ArmorCalculatorService.convertInventoryArmorToPermutatorArmor(armor)
@@ -1323,6 +1440,32 @@ export class ArmorCalculatorService implements OnDestroy {
       const workerItems = permutatorArmorItems.map(
         ArmorCalculatorService.convertPermutatorArmorToWorkerArmor
       );
+      // Pre-sort higher values first: total stats, masterwork, selected stats, then gear set.
+      const selectedStats = Object.values(ArmorStat).filter(
+        (stat): stat is ArmorStat =>
+          typeof stat === "number" && config.minimumStatTiers[stat].value > 0
+      );
+      workerItems.sort((a, b) => {
+        const aStats = ArmorCalculatorService.getArmorStats(a);
+        const bStats = ArmorCalculatorService.getArmorStats(b);
+        const totalDiff =
+          ArmorCalculatorService.sumStats(bStats) - ArmorCalculatorService.sumStats(aStats);
+        if (totalDiff !== 0) return totalDiff;
+
+        const masterworkDiff = (b.masterworkLevel ?? 0) - (a.masterworkLevel ?? 0);
+        if (masterworkDiff !== 0) return masterworkDiff;
+
+        const selectedStatsDiff = selectedStats.reduce(
+          (sum, stat) => sum + bStats[stat] - aStats[stat],
+          0
+        );
+        if (selectedStatsDiff !== 0) return selectedStatsDiff;
+
+        const aHasGearSet = a.gearSetHash != null || a.gearSetPerkSelectable;
+        const bHasGearSet = b.gearSetHash != null || b.gearSetPerkSelectable;
+        return Number(bHasGearSet) - Number(aHasGearSet);
+      });
+
       const workerItemBatches = ArmorCalculatorService.splitArmorItemsForWorkers(
         workerItems,
         nthreads
@@ -1332,6 +1475,9 @@ export class ArmorCalculatorService implements OnDestroy {
       ArmorCalculatorService.emittedPossibleCombinations = false;
       ArmorCalculatorService.threadCalculationAmountArr = [...Array(nthreads).keys()].map(() => 0);
       ArmorCalculatorService.threadCalculationDoneArr = [...Array(nthreads).keys()].map(() => 0);
+      ArmorCalculatorService.threadComputedPermutationsArr = [...Array(nthreads).keys()].map(
+        () => 0
+      );
       ArmorCalculatorService.threadCalculationReachableTiers = [...Array(nthreads).keys()].map(() =>
         Array(6).fill(0)
       );

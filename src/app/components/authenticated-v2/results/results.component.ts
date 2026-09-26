@@ -67,6 +67,7 @@ export interface ResultItem {
   energyLevel: number;
   hash: number;
   itemInstanceId: string;
+  gearSetHash: number | null;
   tier: number; // 0 = exotic, 1-5 = legendary
   name: string;
   exotic: boolean;
@@ -162,6 +163,22 @@ export class ResultsComponent implements OnInit, OnDestroy {
       .subscribe((value) => {
         this.ngZone.run(() => {
           this.totalPossibleCombinations = value;
+        });
+      });
+
+    this.armorCalculator.computedPermutations
+      .pipe(takeUntil(this.ngUnsubscribe))
+      .subscribe((value) => {
+        this.ngZone.run(() => {
+          this.totalPermutations = value;
+        });
+      });
+
+    this.armorCalculator.calculationElapsedTime
+      .pipe(takeUntil(this.ngUnsubscribe))
+      .subscribe((value) => {
+        this.ngZone.run(() => {
+          this.totalTime = value;
         });
       });
     //
