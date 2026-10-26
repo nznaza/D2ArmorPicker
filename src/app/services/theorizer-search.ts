@@ -24,8 +24,9 @@ import {
   constrainT5ArchetypeCounts,
   constrainT5TertiaryCounts,
   createT5OptimizationModel,
+  deferT5ExoticTuning,
   excludeT5Arrangement,
-  excludeT5Pattern,
+  excludeT5Coverage,
   partitionT5Builds,
   solveT5Optimization,
   t5BoundsCanReach,
@@ -34,7 +35,9 @@ import {
   t5RollStats,
   t5StatBounds,
   t5TuningStat,
+  t5BalancedStats,
 } from "./theorizer-model";
+import { Tuning } from "../data/types/IPermutatorArmorSet";
 
 // Discovery only needs a feasible arrangement; accept up to one extra stat mod over the minimum.
 const DISCOVERY_MIP_ABS_GAP = 1.5;
@@ -437,6 +440,57 @@ export function missingT5Gearsets(
   return [...required].filter(([, count]) => count > 0).map(([hash, count]) => ({ hash, count }));
 }
 
+const BALANCED_TUNING = 3122197216;
+
+/** When every missing directional tuning is one family, the exotic carries one of them instead. */
+function moveUniformTuningToExotic(
+  pieces: readonly T5Candidate[],
+  pattern: T5Solution,
+  config: BuildConfiguration
+): Pick<T5Solution, "tuningMods" | "result"> {
+  const unchanged = { tuningMods: pattern.tuningMods, result: pattern.result };
+  const exotic = pieces.findIndex((piece) => piece.isExotic);
+  if (exotic < 0 || t5TuningStat(pattern.tuningMods[exotic]) !== null) return unchanged;
+  const tuned = pieces
+    .map((_, slot) => slot)
+    .filter(
+      (slot) =>
+        !pieces[slot].instanceId &&
+        !pieces[slot].isExotic &&
+        t5TuningStat(pattern.tuningMods[slot]) !== null
+    );
+  const families = new Set(tuned.map((slot) => t5TuningStat(pattern.tuningMods[slot])));
+  if (families.size !== 1) return unchanged;
+  const donor = tuned[0];
+  const lost =
+    pattern.tuningMods[exotic] === BALANCED_TUNING
+      ? t5BalancedStats(pieces[exotic])
+      : Array<number>(6).fill(0);
+  const gained = t5BalancedStats(pieces[donor]);
+  const delta = gained.map((value, stat) => value - lost[stat]);
+  const stats = pattern.result.statsWithMods.map((value, stat) => value + delta[stat]);
+  const valid = stats.every((value, stat) => {
+    const target = config.minimumStatTiers[stat as ArmorStat];
+    return (
+      (target.fixed ? value === target.value * 10 : value >= target.value * 10) &&
+      (!config.onlyShowResultsWithNoWastedStats || value <= 200)
+    );
+  });
+  if (!valid) return unchanged;
+  const tuningMods = [...pattern.tuningMods];
+  tuningMods[exotic] = pattern.tuningMods[donor];
+  tuningMods[donor] = BALANCED_TUNING;
+  return {
+    tuningMods,
+    result: {
+      ...pattern.result,
+      statsWithMods: stats,
+      tuning: pattern.result.tuning.map((value, stat) => value + delta[stat]) as Tuning,
+      usedTuningMods: tuningMods.filter((hash): hash is number => hash !== null),
+    },
+  };
+}
+
 export function matchT5Pattern(
   pattern: T5Solution,
   domains: readonly Map<string, T5Candidate[]>[],
@@ -469,6 +523,7 @@ export function matchT5Pattern(
     if (slot === 5) {
       const assigned = assignT5Gearsets(picked, config);
       if (!assigned) return;
+      const { tuningMods, result } = moveUniformTuningToExotic(assigned, pattern, config);
       const missingRolls: NonNullable<T5Solution["missingRolls"]> = [];
       const missingPieces: T5Candidate[] = [];
       const missingTunings: (number | null)[] = [];
@@ -476,8 +531,8 @@ export function matchT5Pattern(
         if (assigned[index].instanceId) continue;
         const piece = assigned[index];
         missingPieces.push(piece);
-        missingTunings.push(pattern.tuningMods[index]);
-        const tuning = t5TuningStat(pattern.tuningMods[index]);
+        missingTunings.push(tuningMods[index]);
+        const tuning = t5TuningStat(tuningMods[index]);
         const existing = missingRolls.find(
           (roll) =>
             roll.archetype === piece.archetype &&
@@ -494,12 +549,34 @@ export function matchT5Pattern(
           });
         if (!piece.isExotic) piece.gearSetHash = null;
       }
-      const missingRequirements = {
+      const missingRequirements: NonNullable<T5Solution["missingRequirements"]> = {
         ...t5ArrangementFromPieces(missingPieces, missingTunings),
         gearsets: missingT5Gearsets(assigned, config),
       };
+      // The exotic accepts any family, so missing legendaries pick first and it takes the rest.
+      const exotic = assigned.findIndex((piece) => piece.isExotic);
+      const exoticFamily = exotic >= 0 ? t5TuningStat(tuningMods[exotic]) : null;
+      const picks = missingPieces.filter((piece) => !piece.isExotic).length;
+      const otherFamilies = missingPieces.some(
+        (piece, index) =>
+          !piece.isExotic && ![null, exoticFamily].includes(t5TuningStat(missingTunings[index]))
+      );
+      if (exoticFamily !== null && picks > 0 && otherFamilies) {
+        if (assigned[exotic].instanceId) {
+          const entry = missingRequirements.tunings.find((tuning) => tuning.stat === exoticFamily);
+          if (entry) entry.count++;
+          else
+            missingRequirements.tunings = [
+              ...missingRequirements.tunings,
+              { stat: exoticFamily, count: 1 },
+            ].sort((first, second) => (first.stat ?? 6) - (second.stat ?? 6));
+        }
+        missingRequirements.tuningChoices = picks;
+      }
       const matched = {
         ...pattern,
+        tuningMods,
+        result,
         pieces: assigned,
         covered,
         owned,
@@ -673,16 +750,30 @@ export function inventoryFitT5(
     return { covered: 0, owned: 0, proven: true, pieces: [], feasible: false };
   const problem = createT5OptimizationModel(domains, request.config);
   constrainT5Arrangement(problem, arrangement);
+  deferT5ExoticTuning(problem);
   problem.model.options = { ...problem.model.options, timeout: 500 };
   const solved = solveT5Optimization(problem);
   const witness = t5OptimizationSolution(problem, solved);
+  const build = witness
+    ? matchT5Pattern(witness, prepared.domains, request.config, request.achievableOnly)
+    : null;
+  if (build) {
+    build.key = build.patternKey = t5CoverageKey(build.pieces);
+    build.arrangementKey = arrangement.key;
+  }
   return {
-    covered: witness?.covered ?? 0,
-    owned: witness?.owned ?? 0,
+    covered: build?.covered ?? witness?.covered ?? 0,
+    owned: build?.owned ?? witness?.owned ?? 0,
     proven: solved["optimal"] === true,
-    pieces: witness?.pieces.filter((piece) => piece.instanceId) ?? [],
+    pieces: (build ?? witness)?.pieces.filter((piece) => piece.instanceId) ?? [],
     feasible: !!witness,
+    build: build ?? undefined,
   };
+}
+
+/** Builds are distinct by owned pieces; missing pieces' rolls float within the arrangement. */
+export function t5CoverageKey(pieces: readonly T5Candidate[]): string {
+  return JSON.stringify(pieces.map((piece) => piece.instanceId ?? null));
 }
 
 export function t5FitCoverageUpperBound(
@@ -940,7 +1031,10 @@ export function* searchT5(
           problem.model.variables[roll.name]["score"] =
             (problem.model.variables[roll.name]["score"] ?? 0) - TERTIARY_WEIGHT;
   }
-  if (!arrangeOnly) problem.model.constraints["covered"] = { min: 3 };
+  if (!arrangeOnly) {
+    problem.model.constraints["covered"] = { min: 3 };
+    deferT5ExoticTuning(problem);
+  }
   if (request.arrangement) constrainT5Arrangement(problem, request.arrangement);
   if (request.task?.tertiaries) constrainT5TertiaryCounts(problem, request.task.tertiaries, true);
   if (!arrangeOnly && request.buildPartition) partitionT5Builds(problem, request.buildPartition);
@@ -1079,11 +1173,13 @@ export function* searchT5(
     const newArrangement = !visitedGroups.has(arrangementKey);
     visitedGroups.add(arrangementKey);
     checked = visitedGroups.size;
-    const solution = retainedPatterns.has(patternKey)
-      ? null
-      : matchT5Pattern(pattern, domains, config, request.achievableOnly);
-    retainedPatterns.add(patternKey);
-    if (solution && solution.covered >= 3) {
+    const solution = matchT5Pattern(pattern, domains, config, request.achievableOnly);
+    excludeT5Coverage(problem, solved, patternIndex++);
+    const coverageKey = solution ? t5CoverageKey(solution.pieces) : "";
+    if (solution && solution.covered >= 3 && !retainedPatterns.has(coverageKey)) {
+      retainedPatterns.add(coverageKey);
+      solution.key = coverageKey;
+      solution.patternKey = coverageKey;
       if (request.arrangement) solution.arrangementKey = request.arrangement.key;
       feasible++;
       results.push(solution);
@@ -1092,7 +1188,6 @@ export function* searchT5(
         results.length = limit;
       }
     }
-    excludeT5Pattern(problem, solved, patternIndex++);
     if (newArrangement || feasible === 1 || Date.now() - lastUpdate >= 250) {
       results.sort(compareT5Solutions);
       yield {

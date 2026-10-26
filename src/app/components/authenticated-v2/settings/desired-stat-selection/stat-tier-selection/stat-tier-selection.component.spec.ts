@@ -1,10 +1,37 @@
 import { CommonModule } from "@angular/common";
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ElementRef, NO_ERRORS_SCHEMA } from "@angular/core";
 import { fakeAsync, TestBed, tick } from "@angular/core/testing";
 import { LoggingProxyService } from "../../../../../services/logging-proxy.service";
 import { StatTierSelectionComponent } from "./stat-tier-selection.component";
 
 describe("theorizer stat tier selection", () => {
+  it("focuses numeric edits once without using unsupported caret selection", () => {
+    const logger = jasmine.createSpyObj<LoggingProxyService>("LoggingProxyService", ["debug"]);
+    const component = new StatTierSelectionComponent(logger);
+    const input = document.createElement("input");
+    input.type = "number";
+    input.value = "100";
+    component.valueInput = new ElementRef(input);
+    const focus = spyOn(input, "focus");
+    const select = spyOn(input, "select").and.callThrough();
+    const setSelectionRange = spyOn(input, "setSelectionRange").and.callThrough();
+
+    component.startValueEdit();
+    expect(() => component.ngAfterViewChecked()).not.toThrow();
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(() => component.ngAfterViewChecked()).not.toThrow();
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(setSelectionRange).not.toHaveBeenCalled();
+
+    component.cancelValueEdit();
+    component.startValueEdit();
+    component.ngAfterViewChecked();
+    expect(focus).toHaveBeenCalledTimes(2);
+    expect(select).toHaveBeenCalledTimes(2);
+  });
+
   it("renders maximum animation steps without mouse events or manual change detection", fakeAsync(() => {
     TestBed.configureTestingModule({
       declarations: [StatTierSelectionComponent],

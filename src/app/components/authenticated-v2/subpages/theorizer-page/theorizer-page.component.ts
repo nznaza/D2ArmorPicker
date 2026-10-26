@@ -37,7 +37,7 @@ import { STAT_REACHABILITY } from "../../../../services/stat-reachability";
 import { calculateCPUConcurrency } from "../../../../data/commonFunctions";
 import { T5SavedRunsService } from "../../../../services/theorizer-saved-runs.service";
 import type { ArmorPoolItemView } from "../../../../services/armor-calculator.service";
-import { eligibleT5Inventory, t5ItemStats } from "../../../../services/theorizer-search";
+import { eligibleT5Inventory } from "../../../../services/theorizer-search";
 import { UserInformationService } from "../../../../services/user-information.service";
 
 @Component({
@@ -405,16 +405,21 @@ export class TheorizerPageComponent implements OnInit, OnDestroy {
     return piece.gearSetHash === null ? "Any gearset" : this.gearsetName(piece.gearSetHash);
   }
 
-  baseStatsSummary(piece: T5Candidate): string {
-    const values = t5ItemStats(piece);
-    return this.stats
-      .filter((stat) => values[stat] !== 0)
-      .map((stat) => `${values[stat]} ${ArmorStatNames[stat]}`)
-      .join(" / ");
-  }
-
   gearsetName(hash: number): string {
     return this.setNames.get(hash) || String(hash);
+  }
+
+  missingSlotNames(solution: T5Solution): string {
+    return solution.pieces
+      .map((piece, slot) =>
+        piece.instanceId
+          ? ""
+          : piece.isExotic
+            ? `${this.slots[slot]} (${piece.name})`
+            : this.slots[slot]
+      )
+      .filter(Boolean)
+      .join(", ");
   }
 
   tuningName(hash: number | null): string {
@@ -434,8 +439,12 @@ export class TheorizerPageComponent implements OnInit, OnDestroy {
       .join(" + ");
   }
 
-  modSummary(solution: T5Solution): string {
-    return this.modAllocationSummary(solution.result);
+  modBonus(solution: T5Solution, stat: number): number {
+    return [...solution.result.usedMods, ...solution.result.usedArtifice].reduce(
+      (sum, modifier) =>
+        STAT_MOD_VALUES[modifier][0] === stat ? sum + STAT_MOD_VALUES[modifier][1] : sum,
+      0
+    );
   }
 
   anyTertiaryCount(arrangement: T5Arrangement): number {

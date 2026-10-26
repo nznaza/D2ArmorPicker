@@ -260,28 +260,44 @@
                     >chevron_right</mat-icon
                   >
                   <div class="result-summary">
-                    <div class="tertiary-counts"
-                      ><span *ngFor="let tertiary of arrangement.tertiaries"
-                        >{{ tertiary.count }} x
-                        {{ tertiary.stat === null ? "perk-defined" : statNames[tertiary.stat] }}
-                        tertiary</span
-                      ><span *ngIf="anyTertiaryCount(arrangement) as wild"
-                        >{{ wild }} x any tertiary</span
-                      ></div
-                    >
-                    <div class="tertiary-counts"
-                      ><span *ngFor="let tuning of arrangement.tunings"
-                        >{{ tuning.count }} x
-                        {{
-                          tuning.stat === null
-                            ? "any tuning family"
-                            : statNames[tuning.stat] + " tuning family"
-                        }}</span
-                      ></div
-                    >
-                    <div *ngIf="arrangement.modAllocation as mods" class="tertiary-counts"
-                      >Feasible stat mods: {{ modAllocationSummary(mods) }}</div
-                    >
+                    <div class="base-arrangement">
+                      <!-- <div>
+                        <h4>Base arrangement</h4>
+                        <div class="tertiary-counts"
+                          ><strong *ngFor="let archetype of arrangement.archetypes"
+                            >{{ archetype.count }} x {{ archetype.name }}</strong
+                          ></div
+                        >
+                      </div> -->
+                      <div>
+                        <h4>Tertiary requirements</h4>
+                        <div class="tertiary-counts"
+                          ><strong *ngFor="let tertiary of arrangement.tertiaries"
+                            >{{ tertiary.count }} x
+                            {{
+                              tertiary.stat === null ? "perk-defined" : statNames[tertiary.stat]
+                            }}</strong
+                          ><strong *ngIf="anyTertiaryCount(arrangement) as wild"
+                            >{{ wild }} x Any</strong
+                          ></div
+                        >
+                      </div>
+                      <div>
+                        <h4>Tuning-family requirements</h4>
+                        <div class="tertiary-counts"
+                          ><strong *ngFor="let tuning of arrangement.tunings"
+                            >{{ tuning.count }} x
+                            {{
+                              tuning.stat === null ? "Any family" : statNames[tuning.stat]
+                            }}</strong
+                          ></div
+                        >
+                      </div>
+                      <div *ngIf="arrangement.modAllocation as mods">
+                        <h4>Used Stat Mods</h4>
+                        <div class="tertiary-counts">{{ modAllocationSummary(mods) }}</div>
+                      </div>
+                    </div>
                     <div class="coverage">
                       <span *ngIf="arrangement.inventoryMatch as match"
                         >Inventory fit: {{ match.covered }}/5 covered · {{ match.owned }} owned{{
@@ -303,87 +319,6 @@
                   </div>
                 </summary>
                 <div class="arrangement-content">
-                  <section class="base-arrangement" aria-label="Base archetype arrangement">
-                    <h3>Base arrangement</h3>
-                    <ul>
-                      <li *ngFor="let archetype of arrangement.archetypes">
-                        <strong>{{ archetype.count }} x {{ archetype.name }}</strong>
-                        <span *ngIf="archetype.primary !== null && archetype.secondary !== null"
-                          >30 {{ statNames[archetype.primary] }} / 25
-                          {{ statNames[archetype.secondary] }}</span
-                        >
-                      </li>
-                    </ul>
-                    <h4>Floating tertiary requirements</h4>
-                    <div class="tertiary-counts"
-                      ><strong *ngFor="let tertiary of arrangement.tertiaries"
-                        >{{ tertiary.count }} x
-                        {{
-                          tertiary.stat === null ? "perk-defined" : statNames[tertiary.stat]
-                        }}</strong
-                      ><strong *ngIf="anyTertiaryCount(arrangement) as wild"
-                        >{{ wild }} x Any</strong
-                      ></div
-                    >
-                    <h4>Floating tuning-family requirements</h4>
-                    <div class="tertiary-counts"
-                      ><strong *ngFor="let tuning of arrangement.tunings"
-                        >{{ tuning.count }} x
-                        {{ tuning.stat === null ? "Any family" : statNames[tuning.stat] }}</strong
-                      ></div
-                    >
-                    <h4 *ngIf="arrangement.modAllocation">Feasible stat mods</h4>
-                    <div *ngIf="arrangement.modAllocation as mods" class="tertiary-counts">{{
-                      modAllocationSummary(mods)
-                    }}</div>
-                    <section *ngIf="arrangement.inventoryMatch as match" class="inventory-fit">
-                      <h4>Available armor matches</h4>
-                      <p
-                        >{{ match.covered }}/5 covered · {{ match.owned }} owned ·
-                        {{ 5 - match.covered }} missing{{
-                          match.proven ? "" : " · provisional fit"
-                        }}</p
-                      >
-                      <ul>
-                        <li *ngFor="let piece of match.pieces">
-                          <strong>{{ slots[piece.slot - 1] }}: {{ piece.name }}</strong>
-                          <div
-                            >{{ piece.archetype }} ·
-                            {{
-                              piece.tertiary === null
-                                ? "Perk-defined stats"
-                                : statNames[piece.tertiary] + " tertiary"
-                            }}</div
-                          >
-                          <div>Base stats: {{ baseStatsSummary(piece) }}</div>
-                          <div
-                            >{{
-                              piece.isExotic
-                                ? "Flexible tuning family"
-                                : piece.tuningStat === null
-                                  ? "No directional tuning family"
-                                  : statNames[piece.tuningStat] + " tuning family"
-                            }}
-                            ·
-                            {{
-                              piece.gearSetPerkSelectable
-                                ? "Selectable gearset"
-                                : piece.gearSetHash === null
-                                  ? "No gearset"
-                                  : gearsetName(piece.gearSetHash)
-                            }}</div
-                          >
-                          <div *ngIf="piece.isExotic && spiritNames(piece)">{{
-                            spiritNames(piece)
-                          }}</div>
-                          <div
-                            >Masterwork {{ piece.masterworkLevel }} ·
-                            {{ sources[piece.source] }}</div
-                          >
-                        </li>
-                      </ul>
-                    </section>
-                  </section>
                   <section
                     class="arrangement-builds"
                     aria-label="Concrete builds for this arrangement">
@@ -433,126 +368,112 @@
                     <p *ngIf="arrangement.buildState === 'error'" role="alert">{{
                       arrangement.buildError
                     }}</p>
-                    <details
+                    <div
                       *ngFor="let solution of visibleBuilds(arrangement); trackBy: trackResult"
                       class="generation-build">
-                      <summary class="build-summary">
-                        <mat-icon class="build-disclosure" aria-hidden="true"
-                          >chevron_right</mat-icon
+                      <div class="result-summary">
+                        <div class="coverage"
+                          ><strong>{{ solution.covered }}/5 covered</strong
+                          ><span>{{
+                            solution === arrangement.inventoryMatch?.build
+                              ? arrangement.inventoryMatch?.proven
+                                ? "Best Armor match"
+                                : "Best Armor match (provisional)"
+                              : ""
+                          }}</span></div
                         >
-                        <div class="result-summary">
-                          <div class="coverage"
-                            ><strong>{{ solution.covered }}/5 covered</strong
-                            ><span
-                              >{{ 5 - solution.covered }} missing · {{ solution.owned }} owned</span
-                            ></div
+                        <div class="stat-summary">
+                          <span
+                            *ngFor="let stat of stats"
+                            [matTooltip]="statNames[stat] + ' (mods in blue, tuning in green/red)'"
+                            ><app-stat-icon [stat]="stat"></app-stat-icon
+                            >{{ solution.result.statsWithMods[stat] }}
+                            <small *ngIf="modBonus(solution, stat) as mods" class="stat-mods"
+                              >+{{ mods }}</small
+                            >
+                            <small
+                              *ngIf="solution.result.tuning[stat] as tuning"
+                              [class.stat-tuning-up]="tuning > 0"
+                              [class.stat-tuning-down]="tuning < 0"
+                              >{{ tuning > 0 ? "+" : "" }}{{ tuning }}</small
+                            ></span
                           >
-                          <div class="archetype-summary">
-                            <span *ngFor="let piece of solution.pieces; let slot = index"
-                              ><small>{{ slots[slot] }}</small
-                              >{{ piece.archetype }}</span
-                            >
-                          </div>
-                          <div class="stat-summary">
-                            <span *ngFor="let stat of stats" [matTooltip]="statNames[stat]"
-                              ><app-stat-icon [stat]="stat"></app-stat-icon
-                              >{{ solution.result.statsWithMods[stat] }}</span
-                            >
-                          </div>
                         </div>
-                      </summary>
-                      <div class="build-content">
-                        <section
-                          *ngIf="solution.missingRequirements as missing"
-                          class="missing-rolls">
-                          <ng-container *ngIf="missing.archetypes.length">
-                            <h3>Missing rolls</h3>
-                            <h4>Archetypes</h4>
-                            <div class="tertiary-counts"
-                              ><strong *ngFor="let archetype of missing.archetypes"
-                                >{{ archetype.count }} x {{ archetype.name }}</strong
-                              ></div
+                        <div class="piece-summary">
+                          <ng-container *ngFor="let piece of solution.pieces; let slot = index">
+                            <div *ngIf="piece.instanceId" class="summary-card owned">
+                              <small>{{ slots[slot] }} · {{ sources[piece.source] }}</small>
+                              <div class="summary-card-title">
+                                <img
+                                  *ngIf="piece.icon"
+                                  [src]="'https://www.bungie.net' + piece.icon"
+                                  [alt]="piece.name"
+                                  loading="lazy"
+                                  width="32"
+                                  height="32" />
+                                <strong>{{ piece.name }}</strong>
+                              </div>
+                              <span>{{ piece.archetype }}</span>
+                              <span *ngIf="piece.tertiary !== null"
+                                >{{ statNames[piece.tertiary] }} tertiary</span
+                              >
+                              <span>{{
+                                piece.isExotic && solution.missingRequirements?.tuningChoices
+                                  ? "Any remaining tuning"
+                                  : tuningName(solution.tuningMods[slot])
+                              }}</span>
+                              <span *ngIf="!piece.isExotic">{{ gearset(piece) }}</span>
+                              <span *ngIf="piece.isExotic && spiritNames(piece)">{{
+                                spiritNames(piece)
+                              }}</span>
+                              <span>Masterwork {{ piece.masterworkLevel }}</span>
+                            </div>
+                          </ng-container>
+                          <div
+                            *ngIf="solution.covered < 5 && solution.missingRequirements as missing"
+                            [style.grid-column]="'span ' + (5 - solution.covered)"
+                            class="summary-card missing">
+                            <small>Missing: {{ missingSlotNames(solution) }}</small>
+                            <strong
+                              ><span *ngFor="let archetype of missing.archetypes"
+                                >{{ archetype.count }} x {{ archetype.name }}</span
+                              ></strong
                             >
-                            <h4>Floating tertiaries</h4>
-                            <div class="tertiary-counts"
-                              ><span *ngFor="let tertiary of missing.tertiaries"
+                            <span *ngIf="missing.tertiaries.length"
+                              >Tertiary:
+                              <span *ngFor="let tertiary of missing.tertiaries"
                                 >{{ tertiary.count }} x
                                 {{
                                   tertiary.stat === null ? "perk-defined" : statNames[tertiary.stat]
                                 }}</span
-                              ></div
+                              ></span
                             >
-                            <h4>Floating tuning families</h4>
-                            <div class="tertiary-counts"
-                              ><span *ngFor="let tuning of missing.tunings"
+                            <span
+                              >Tuning{{
+                                missing.tuningChoices
+                                  ? " (pick " + missing.tuningChoices + ")"
+                                  : ""
+                              }}:
+                              <span *ngFor="let tuning of missing.tunings"
                                 >{{ tuning.count }} x
                                 {{
                                   tuning.stat === null ? "Any family" : statNames[tuning.stat]
                                 }}</span
-                              ></div
+                              ></span
                             >
-                            <ng-container *ngIf="missing.gearsets?.length">
-                              <h4>Remaining gearset requirements</h4>
-                              <div class="tertiary-counts"
-                                ><span *ngFor="let gearset of missing.gearsets"
-                                  >{{ gearset.count }} x {{ gearsetName(gearset.hash) }}</span
-                                ></div
-                              >
-                            </ng-container>
-                          </ng-container>
-                        </section>
-                        <div class="piece-grid">
-                          <ng-container *ngFor="let piece of solution.pieces; let slot = index">
-                            <article *ngIf="piece.instanceId" class="piece">
-                              <h3
-                                >{{ slots[slot] }}
-                                <mat-icon
-                                  [matTooltip]="
-                                    piece.instanceId ? sources[piece.source] : 'Missing piece'
-                                  "
-                                  >{{
-                                    piece.instanceId ? "check_circle" : "add_circle_outline"
-                                  }}</mat-icon
-                                ></h3
-                              >
-                              <img
-                                *ngIf="piece.icon"
-                                [src]="'https://www.bungie.net' + piece.icon"
-                                [alt]="piece.name"
-                                loading="lazy"
-                                width="48"
-                                height="48" />
-                              <strong>{{ piece.name }}</strong>
-                              <span>{{ piece.archetype }}</span>
-                              <span *ngIf="piece.tertiary !== null"
-                                >Tertiary: {{ statNames[piece.tertiary] }}</span
-                              >
-                              <span>{{ tuningName(solution.tuningMods[slot]) }}</span>
-                              <span *ngIf="!piece.isExotic">{{ gearset(piece) }}</span>
-                              <span
-                                >Masterwork {{ piece.masterworkLevel
-                                }}{{ piece.instanceId ? "" : " (planned)" }}</span
-                              >
-                              <span *ngIf="piece.isExotic && spiritNames(piece)">{{
-                                spiritNames(piece)
-                              }}</span>
-                              <strong>{{
-                                piece.instanceId ? sources[piece.source] : "Missing"
-                              }}</strong>
-                            </article>
-                          </ng-container>
+                            <span *ngIf="missing.gearsets?.length"
+                              >Gearset:
+                              <span *ngFor="let gearset of missing.gearsets"
+                                >{{ gearset.count }} x {{ gearsetName(gearset.hash) }}</span
+                              ></span
+                            >
+                            <small *ngIf="missing.tuningChoices"
+                              >The exotic takes the remaining tuning.</small
+                            >
+                          </div>
                         </div>
-                        <dl class="solution-details">
-                          <dt>Stat mods</dt><dd>{{ modSummary(solution) }}</dd> <dt>Tuning total</dt
-                          ><dd
-                            ><span *ngFor="let stat of stats"
-                              >{{ statNames[stat] }} {{ solution.result.tuning[stat] > 0 ? "+" : ""
-                              }}{{ solution.result.tuning[stat] }}
-                            </span></dd
-                          >
-                        </dl>
                       </div>
-                    </details>
+                    </div>
                     <mat-paginator
                       *ngIf="arrangement.builds.length > buildPageSize"
                       [length]="arrangement.builds.length"

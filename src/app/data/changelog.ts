@@ -58,6 +58,30 @@ export const CHANGELOG_DATA: {
         type: ChangelogEntryType.ADD,
         text: "Firefox users now see a dismissible notice that Enhanced Tracking Protection can hide the real CPU core count, which lowers the automatic worker count.",
       },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Armor theorizer build calculation now keeps one build per combination of owned pieces, so it finishes instead of exhausting its budget on permutations of missing pieces.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Armor theorizer inventory matches now show their full build right away; Calculate builds adds the remaining combinations.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Exotics take a tuning only after missing pieces, unless all remaining tunings share one family; missing tuning families float with the exotic taking the rest.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Redesigned armor theorizer arrangements and builds: requirements in one row, builds as a single card with stats (mods and tuning highlighted), owned pieces and a combined missing-pieces card.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Starting the armor theorizer sends less data to its workers, reducing main-thread stalls.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Editing a stat target value focuses the input once instead of moving the caret on every change.",
+      },
     ],
   },
   {

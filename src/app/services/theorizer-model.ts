@@ -387,7 +387,7 @@ export function t5RollStats(item: T5Candidate, config: BuildConfiguration): numb
   return base.map((value, stat) => value + (item.archetypeStats.includes(stat) ? 0 : masterwork));
 }
 
-function balancedStats(item: T5Candidate): number[] {
+export function t5BalancedStats(item: T5Candidate): number[] {
   // An unknown tertiary leaves the other four non-archetype stats as the worst case.
   if (item.anyTertiary)
     return [0, 1, 2, 3, 4, 5].map((stat) => (item.archetypeStats.includes(stat) ? 0 : 1));
@@ -506,7 +506,7 @@ export function createT5OptimizationModel(
           item.source === InventoryArmorSource.Postmaster);
       const key = JSON.stringify([
         t5RollStats(item, config),
-        balancedStats(item),
+        t5BalancedStats(item),
         item.isExotic,
         item.perk,
         item.gearSetHash,
@@ -524,7 +524,9 @@ export function createT5OptimizationModel(
         const name = `roll_${slot}_${index}_${Number(balanced)}`;
         const base = t5RollStats(item, config);
         if (slot === 2 && !item.isExotic && config.addConstent1Health) base[0]++;
-        const stats = base.map((value, stat) => value + (balanced ? balancedStats(item)[stat] : 0));
+        const stats = base.map(
+          (value, stat) => value + (balanced ? t5BalancedStats(item)[stat] : 0)
+        );
         const owned =
           !!item.instanceId &&
           (item.source === InventoryArmorSource.Inventory ||
@@ -578,17 +580,14 @@ export function partitionT5Builds(
   problem: T5OptimizationModel,
   partition: { index: number; count: number }
 ): void {
+  // Missing pieces share one key so each owned-piece combination lives in exactly one partition.
   const signature = (roll: RollVariable) =>
-    `${roll.item.archetype}:${roll.item.tertiary}:${Number(roll.balanced)}`;
-  let multiplier = 1;
-  for (const slot of [0, 1, 2]) {
+    roll.item.instanceId ? roll.name.slice(0, roll.name.lastIndexOf("_")) : "missing";
+  for (let slot = 0; slot < 5; slot++) {
     const rolls = problem.rolls.filter((roll) => roll.slot === slot);
-    const keys = [...new Set(rolls.map(signature))];
-    for (const roll of rolls) {
-      problem.model.variables[roll.name]["buildPartition"] =
-        multiplier * keys.indexOf(signature(roll));
-    }
-    multiplier *= keys.length;
+    const keys = ["missing", ...new Set(rolls.map(signature))];
+    for (const roll of rolls)
+      problem.model.variables[roll.name]["buildPartition"] = keys.indexOf(signature(roll));
   }
   problem.model.constraints["buildPartition"] = { equal: partition.index };
   problem.model.variables["buildPartitionIndex"] = { buildPartition: -partition.count };
@@ -615,6 +614,43 @@ export function excludeT5Pattern(
     }
   }
   problem.model.constraints[constraint] = { max: selected - 1 };
+}
+
+/** Excludes every pattern using the same owned rolls in the same slots, however the missing pieces are rolled. */
+export function excludeT5Coverage(
+  problem: T5OptimizationModel,
+  solved: SolveResult,
+  index: number
+): void {
+  const constraint = `coverage_${index}`;
+  const chosen = new Map<number, RollVariable>();
+  for (const roll of problem.rolls)
+    if (Number(solved[roll.name] ?? 0) > 0.5) chosen.set(roll.slot, roll);
+  for (const roll of problem.rolls) {
+    const picked = chosen.get(roll.slot);
+    if (!picked) continue;
+    if (picked.item.instanceId ? roll.item === picked.item : !roll.item.instanceId)
+      problem.model.variables[roll.name][constraint] = 1;
+  }
+  problem.model.constraints[constraint] = { max: chosen.size - 1 };
+}
+
+/** Exotics accept any tuning family, so they only take a directional tuning nothing else can. */
+export function deferT5ExoticTuning(problem: T5OptimizationModel): void {
+  for (let slot = 0; slot < 5; slot++) {
+    const exotic = problem.rolls.filter(
+      (roll) => roll.slot === slot && roll.item.isExotic && !roll.balanced
+    );
+    if (!exotic.length) continue;
+    const constraint = `exotic_tuning_${slot}`;
+    const penalty = `exotic_tuned_${slot}`;
+    problem.model.constraints[constraint] = { max: 1 };
+    for (const roll of exotic) problem.model.variables[roll.name][constraint] = 1;
+    for (let stat = 0; stat < 6; stat++)
+      problem.model.variables[`up_${slot}_${stat}`][constraint] = 1;
+    problem.model.variables[penalty] = { [constraint]: -1, score: -0.01 };
+    problem.model.binaries![penalty] = 1;
+  }
 }
 
 export function t5TuningStat(hash: number | null): ArmorStat | null {
@@ -727,7 +763,7 @@ export function t5OptimizationSolution(
       statsWithoutMods[stat] += base[stat];
     }
     if (roll.balanced) {
-      balancedStats(roll.item).forEach((value, stat) => {
+      t5BalancedStats(roll.item).forEach((value, stat) => {
         tuning[stat] += value;
       });
       tuningMods.push(3122197216);
@@ -810,7 +846,7 @@ export function t5StatBounds(
     choices.map((item) => {
       const values = t5RollStats(item, config);
       if (slot === 2 && !item.isExotic && config.addConstent1Health) values[0]++;
-      return { item, values, balanced: balancedStats(item) };
+      return { item, values, balanced: t5BalancedStats(item) };
     })
   );
   for (let mask = 1; mask < 64; mask++) {

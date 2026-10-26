@@ -147,6 +147,8 @@ export interface T5Solution {
   }[];
   missingRequirements?: Pick<T5Arrangement, "archetypes" | "tertiaries" | "tunings"> & {
     gearsets?: { hash: number; count: number }[];
+    /** Missing legendaries choose this many of `tunings`; the exotic takes what is left. */
+    tuningChoices?: number;
   };
 }
 
@@ -172,6 +174,8 @@ export interface T5Arrangement {
     proven: boolean;
     pieces: T5Candidate[];
     feasible: boolean;
+    /** The concrete build behind this fit, shown before builds are calculated. */
+    build?: T5Solution;
   };
 }
 
@@ -262,6 +266,11 @@ export function groupT5Arrangements(
       owned: base.inventoryMatch?.owned ?? 0,
     });
     seen.set(base.key, new Set());
+    const build = base.inventoryMatch?.build;
+    if (build) {
+      groups.get(base.key)!.builds.push(build);
+      seen.get(base.key)!.add(build.patternKey ?? build.key);
+    }
   }
   for (const solution of solutions) {
     const base = t5ArrangementFromPieces(solution.pieces, solution.tuningMods, solution.result);

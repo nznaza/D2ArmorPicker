@@ -104,17 +104,11 @@ export class StatTierSelectionComponent implements OnInit, OnChanges, OnDestroy,
   }
 
   ngAfterViewChecked() {
-    if (this.editingValue && this.valueInput) {
-      this.valueInput.nativeElement.focus();
+    if (this.editingValue && this.valueInput && this.shouldSelectText) {
+      this.shouldSelectText = false;
       const inputElem = this.valueInput.nativeElement;
-
-      if (this.shouldSelectText) {
-        inputElem.select();
-        this.shouldSelectText = false;
-      } else {
-        const valueLength = inputElem.value.length;
-        inputElem.setSelectionRange(valueLength, valueLength);
-      }
+      inputElem.focus();
+      inputElem.select();
     }
   }
 

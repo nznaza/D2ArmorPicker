@@ -27,6 +27,15 @@ import {
 } from "./theorizer-search";
 import { calculateCPUConcurrency } from "../data/commonFunctions";
 import { TheorizerStatLimits } from "./theorizer-stat-limits";
+import { ArmorSystem } from "../data/types/IManifestArmor";
+
+// Every worker gets a structured clone on the main thread; the theorizer only uses this class's Armor 3.0.
+function theorizerArmor<T extends { clazz: number; armorSystem: ArmorSystem }>(
+  items: readonly T[],
+  clazz: number
+): T[] {
+  return items.filter((item) => item.clazz === clazz && item.armorSystem === ArmorSystem.Armor3);
+}
 
 function arrangementSettingsKey(config: BuildConfiguration): string {
   return JSON.stringify({
@@ -322,7 +331,12 @@ export class T5TheorizerService implements OnDestroy {
         this.db.manifestArmor.toArray(),
       ]);
       if (request !== this.fitRefreshRequest || !this.cachedRequest) return;
-      this.cachedRequest = { ...this.cachedRequest, config, inventory, manifest };
+      this.cachedRequest = {
+        ...this.cachedRequest,
+        config,
+        inventory: theorizerArmor(inventory, config.characterClass),
+        manifest: theorizerArmor(manifest, config.characterClass),
+      };
       this.fitRefreshPending = false;
       this.startInventoryMatching();
     } catch (error) {
@@ -387,8 +401,8 @@ export class T5TheorizerService implements OnDestroy {
         if (!manifest.length) throw new Error("The armor manifest is not loaded yet.");
         this.cachedRequest = {
           config,
-          inventory,
-          manifest,
+          inventory: theorizerArmor(inventory, config.characterClass),
+          manifest: theorizerArmor(manifest, config.characterClass),
           ...run.options,
           wasmUrl: new URL("assets/highs.wasm", document.baseURI).href,
           stage: "arrangements",
@@ -467,8 +481,8 @@ export class T5TheorizerService implements OnDestroy {
       const latestConfig = structuredClone(this.config.currentConfiguration);
       const request: T5SearchRequest = {
         config: latestConfig,
-        inventory,
-        manifest,
+        inventory: theorizerArmor(inventory, latestConfig.characterClass),
+        manifest: theorizerArmor(manifest, latestConfig.characterClass),
         achievableOnly,
         stage: "arrangements",
         timeLimitMs,

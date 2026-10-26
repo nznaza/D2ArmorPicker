@@ -6,12 +6,14 @@ import {
   canAssignT5Tertiaries,
   createT5ArchetypeCountTasks,
   createT5TertiaryTasks,
+  groupT5Arrangements,
   T5_ARCHETYPES,
   T5Candidate,
   T5SearchRequest,
   T5Solution,
   t5ArrangementFromPieces,
   t5BaseStats,
+  t5TuningFamily,
 } from "../data/theorizer";
 import { InventoryArmorSource, IInventoryArmor } from "../data/types/IInventoryArmor";
 import { ArmorSystem } from "../data/types/IManifestArmor";
@@ -358,11 +360,10 @@ describe("T5 theorizer search", () => {
     const input = request();
     input.skipMaxima = true;
     input.timeLimitMs = 10000;
-    input.inventory = [
-      item(2, ArmorStat.StatClass),
-      item(3, ArmorStat.StatClass),
-      item(4, ArmorStat.StatClass),
-    ];
+    input.inventory = [2, 3, 4].flatMap((slot) => [
+      item(slot, ArmorStat.StatClass),
+      { ...item(slot, ArmorStat.StatHealth), itemInstanceId: `health-${slot}` },
+    ]);
     input.arrangement = t5ArrangementFromPieces(
       [
         ArmorStat.StatClass,
@@ -389,6 +390,56 @@ describe("T5 theorizer search", () => {
     }
     expect(busy).toBeGreaterThan(1);
     expect([...keys].sort()).toEqual(full.results.map((result) => result.key).sort());
+  });
+
+  it("keeps one build per owned-piece combination and tunes the flexible exotic last", () => {
+    const input = request();
+    input.skipMaxima = true;
+    input.timeLimitMs = 10000;
+    input.config.calculateTierFiveTuning = true;
+    input.config.selectedExotics = [];
+    input.inventory = [
+      item(0, ArmorStat.StatClass, true),
+      item(1, ArmorStat.StatClass),
+      item(2, ArmorStat.StatClass),
+    ];
+    input.arrangement = {
+      ...t5ArrangementFromPieces(
+        Array.from(
+          { length: 5 },
+          () => ({ archetype: "Grenedier", tertiary: ArmorStat.StatClass }) as T5Candidate
+        )
+      ),
+      tunings: [
+        { stat: ArmorStat.StatWeapon, count: 1 },
+        { stat: null, count: 4 },
+      ],
+    };
+    const final = [...searchT5(input)].pop()!;
+    expect(final.complete).toBeTrue();
+    expect(final.results.length).toBe(1);
+    const [build] = final.results;
+    expect(build.covered).toBe(3);
+    expect(build.result.tuning[ArmorStat.StatWeapon]).toBeGreaterThanOrEqual(5);
+    // A lone remaining family moves onto the exotic instead of being a missing roll.
+    expect(t5TuningFamily(build.tuningMods[0])).toBe(ArmorStat.StatWeapon);
+    expect(build.missingRequirements!.tunings).toEqual([{ stat: null, count: 2 }]);
+    expect(build.missingRequirements!.tuningChoices).toBeUndefined();
+
+    input.arrangement = {
+      ...input.arrangement,
+      tunings: [
+        { stat: ArmorStat.StatClass, count: 1 },
+        { stat: ArmorStat.StatWeapon, count: 2 },
+        { stat: null, count: 2 },
+      ],
+    };
+    const [forced] = [...searchT5(input)].pop()!.results;
+    expect(forced.missingRequirements!.tuningChoices).toBe(2);
+    expect(forced.missingRequirements!.tunings).toEqual([
+      { stat: ArmorStat.StatClass, count: 1 },
+      { stat: ArmorStat.StatWeapon, count: 2 },
+    ]);
   });
 
   it("exposes the same eligible inventory to the armor pool and calculation domains", () => {
@@ -501,6 +552,14 @@ describe("T5 theorizer search", () => {
       "instance-0",
       "instance-1",
       "instance-2",
+    ]);
+    expect(match.build!.covered).toBe(3);
+    expect(match.build!.arrangementKey).toBe(arrangement.key);
+    expect(match.build!.missingRequirements!.archetypes).toEqual([
+      jasmine.objectContaining({ name: "Grenedier", count: 2 }),
+    ]);
+    expect(groupT5Arrangements([], [{ ...arrangement, inventoryMatch: match }])[0].builds).toEqual([
+      match.build!,
     ]);
     expect(arrangement.builds).toEqual([]);
   });
@@ -634,6 +693,7 @@ describe("T5 theorizer search", () => {
     input.inventory = [
       item(0, ArmorStat.StatHealth),
       item(1, ArmorStat.StatClass),
+      { ...item(1, ArmorStat.StatMelee), itemInstanceId: "melee-1" },
       item(2, ArmorStat.StatClass),
     ];
     input.arrangement = t5ArrangementFromPieces(
@@ -1113,11 +1173,12 @@ describe("T5 theorizer search", () => {
     expect(solution.covered).toBe(3);
   });
 
-  it("retains distinct tertiary generations instead of one winner per archetype tuple", () => {
+  it("retains distinct owned-piece generations instead of one winner per archetype tuple", () => {
     const input = request();
     input.inventory = [
       item(0, ArmorStat.StatClass),
       item(1, ArmorStat.StatClass),
+      { ...item(1, ArmorStat.StatMelee), itemInstanceId: "melee-1" },
       item(2, ArmorStat.StatClass),
     ];
     const updates = [...searchT5(input)];
@@ -1229,6 +1290,7 @@ describe("T5 theorizer search", () => {
     expect(matched.missingRequirements?.tunings).toEqual([
       { stat: ArmorStat.StatGrenade, count: 3 },
     ]);
+    expect(matched.missingRequirements?.tuningChoices).toBeUndefined();
     expect(
       matched.missingRequirements?.archetypes.every(
         (entry) => !("tertiary" in entry) && !("tuning" in entry)

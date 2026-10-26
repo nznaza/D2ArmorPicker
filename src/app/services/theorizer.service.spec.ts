@@ -4,6 +4,7 @@ import { BehaviorSubject, Subject } from "rxjs";
 import { BuildConfiguration } from "../data/buildConfiguration";
 import { calculateCPUConcurrency } from "../data/commonFunctions";
 import { ArmorStat } from "../data/enum/armor-stat";
+import { ArmorSystem } from "../data/types/IManifestArmor";
 import {
   createT5SavedRun,
   T5Candidate,
@@ -257,9 +258,11 @@ describe("automatic theorizer calculation", () => {
       onmessage: undefined as ((event: MessageEvent) => void) | undefined,
     };
     const create = spyOn(window, "Worker").and.returnValue(worker as unknown as Worker);
-    const equals = jasmine
-      .createSpy("inventory class")
-      .and.returnValue({ toArray: async () => [{ itemInstanceId: "current-inventory" }] });
+    const equals = jasmine.createSpy("inventory class").and.returnValue({
+      toArray: async () => [
+        { itemInstanceId: "current-inventory", clazz: 0, armorSystem: ArmorSystem.Armor3 },
+      ],
+    });
     const service = new TheorizerService(
       {
         configuration,
