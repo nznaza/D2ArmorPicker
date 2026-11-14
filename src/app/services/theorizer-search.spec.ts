@@ -5,8 +5,12 @@ import { ArmorPerkOrSlot, ArmorStat, STAT_MOD_VALUES } from "../data/enum/armor-
 import {
   canAssignT5Tertiaries,
   createT5ArchetypeCountTasks,
+  createT5SavedRun,
   createT5TertiaryTasks,
   groupT5Arrangements,
+  packT5Arrangements,
+  restoreT5Arrangements,
+  unpackT5Arrangements,
   T5_ARCHETYPES,
   T5Candidate,
   T5SearchRequest,
@@ -524,6 +528,50 @@ describe("T5 theorizer search", () => {
     const assigned = assignT5Gearsets(pieces, input.config)!;
     expect(assigned[1].gearSetHash).toBe(11);
     expect(missingT5Gearsets(assigned, input.config)).toEqual([]);
+  });
+
+  it("fits restored arrangements with the same coverage as freshly discovered ones", () => {
+    const input = request();
+    input.group = undefined;
+    input.stage = "arrangements";
+    input.timeLimitMs = 10000;
+    input.config.calculateTierFiveTuning = true;
+    input.config.selectedExotics = [];
+    input.inventory = [
+      item(0, ArmorStat.StatClass, true),
+      item(1, ArmorStat.StatClass),
+      item(2, ArmorStat.StatMelee),
+      item(3, ArmorStat.StatClass),
+    ];
+    const discovered = [...searchT5(input)].pop()!.arrangements!;
+    expect(discovered.length).toBeGreaterThan(0);
+    const restored = restoreT5Arrangements(
+      unpackT5Arrangements(
+        packT5Arrangements(
+          createT5SavedRun(
+            "Restore",
+            input.config,
+            {
+              achievableOnly: false,
+              timeLimitMs: 0,
+              workerLimit: 0,
+            },
+            discovered,
+            true
+          ).arrangements
+        )
+      )
+    );
+    const prepared = prepareT5Search(input);
+    discovered.forEach((arrangement, index) => {
+      const fresh = inventoryFitT5(arrangement, input, prepared);
+      const again = inventoryFitT5(restored[index], input, prepared);
+      expect(restored[index].key).toBe(arrangement.key);
+      expect(again.covered).withContext(arrangement.key).toBe(fresh.covered);
+      expect(fresh.build?.covered ?? 0)
+        .withContext(arrangement.key)
+        .toBe(fresh.covered);
+    });
   });
 
   it("fits available armor directly into a floating arrangement without enumerating retained builds", () => {

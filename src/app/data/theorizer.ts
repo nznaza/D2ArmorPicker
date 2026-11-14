@@ -1,5 +1,5 @@
 import { ArmorSlot } from "./enum/armor-slot";
-import { ArmorStat } from "./enum/armor-stat";
+import { ArmorStat, StatModifier } from "./enum/armor-stat";
 import { BuildConfiguration } from "./buildConfiguration";
 import { ModInformation } from "./ModInformation";
 import { SubclassNames } from "./enum/modifierType";
@@ -826,16 +826,89 @@ export function createT5SavedRun(
     configuration: structuredClone(configuration),
     options: { ...options, prioritizeMatches: options.prioritizeMatches ?? true },
     complete,
-    arrangements: arrangements.map((arrangement) =>
-      structuredClone({
+    arrangements: structuredClone(
+      arrangements.map((arrangement) => ({
         key: arrangement.key,
         archetypes: arrangement.archetypes,
         tertiaries: arrangement.tertiaries,
         tunings: arrangement.tunings,
         modAllocation: arrangement.modAllocation,
-      })
+      }))
     ),
   };
+}
+
+/** Arrangements packed as integers; archetypes are T5_ARCHETYPES indices. */
+export function packT5Arrangements(arrangements: T5SavedRun["arrangements"]): Uint16Array {
+  const data: number[] = [];
+  const stat = (value: ArmorStat | null) => (value === null ? 0 : value + 1);
+  for (const arrangement of arrangements) {
+    data.push(arrangement.archetypes.length);
+    for (const { name, count } of arrangement.archetypes) {
+      const index = T5_ARCHETYPES.findIndex((archetype) => archetype.name === name);
+      if (index < 0) throw new Error(`Unknown T5 archetype "${name}".`);
+      data.push(index, count);
+    }
+    for (const entries of [arrangement.tertiaries, arrangement.tunings]) {
+      data.push(entries.length);
+      for (const entry of entries) data.push(stat(entry.stat), entry.count);
+    }
+    const mods = arrangement.modAllocation;
+    if (!mods) data.push(0);
+    else {
+      data.push(1, mods.usedMods.length);
+      for (const mod of mods.usedMods) data.push(mod);
+      data.push(mods.usedArtifice.length);
+      for (const mod of mods.usedArtifice) data.push(mod);
+    }
+  }
+  return Uint16Array.from(data);
+}
+
+/** `names` decodes records packed before archetypes were stored as T5_ARCHETYPES indices. */
+export function unpackT5Arrangements(
+  data: Uint16Array,
+  names?: readonly string[]
+): T5SavedRun["arrangements"] {
+  const arrangements: T5SavedRun["arrangements"] = [];
+  let position = 0;
+  const next = () => data[position++];
+  const stats = () =>
+    Array.from({ length: next() }, () => {
+      const value = next();
+      return { stat: value === 0 ? null : ((value - 1) as ArmorStat), count: next() };
+    });
+  const mods = () => Array.from({ length: next() }, () => next() as StatModifier);
+  while (position < data.length) {
+    const archetypes = Array.from({ length: next() }, () => {
+      const index = next();
+      const archetype = names
+        ? T5_ARCHETYPES.find((entry) => entry.name === names[index])
+        : T5_ARCHETYPES[index];
+      if (!archetype) throw new Error("The saved run contains an unknown T5 archetype.");
+      return {
+        name: archetype.name,
+        count: next(),
+        primary: archetype.primary,
+        secondary: archetype.secondary,
+      };
+    });
+    const tertiaries = stats();
+    const tunings = stats();
+    const modAllocation = next() ? { usedMods: mods(), usedArtifice: mods() } : undefined;
+    arrangements.push({
+      key: JSON.stringify([
+        archetypes.map((entry) => [entry.name, entry.count]),
+        tertiaries.map((entry) => [entry.stat, entry.count]),
+        tunings.map((entry) => [entry.stat, entry.count]),
+      ]),
+      archetypes,
+      tertiaries,
+      tunings,
+      modAllocation,
+    });
+  }
+  return arrangements;
 }
 
 export function restoreT5Arrangements(arrangements: T5SavedRun["arrangements"]): T5Arrangement[] {

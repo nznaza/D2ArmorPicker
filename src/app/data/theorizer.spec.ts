@@ -7,7 +7,13 @@ import { ModOrAbility } from "./enum/modOrAbility";
 import { T5Candidate, t5ArrangementFromPieces } from "./theorizer";
 import { ArmorSlot } from "./enum/armor-slot";
 import { groupT5Archetypes } from "./theorizer";
-import { createT5SavedRun, restoreT5Arrangements, suggestedT5RunName } from "./theorizer";
+import {
+  createT5SavedRun,
+  packT5Arrangements,
+  restoreT5Arrangements,
+  suggestedT5RunName,
+  unpackT5Arrangements,
+} from "./theorizer";
 import {
   applyT5Update,
   canAssignT5Tertiaries,
@@ -415,6 +421,66 @@ describe("T5 theorizer archetypes", () => {
     expect(restored.modAllocation).toEqual(arrangement.modAllocation);
     config.statModLimits.maxMods = 5;
     expect(saved.configuration.statModLimits.maxMods).toBe(3);
+  });
+  it("packs saved arrangements losslessly into a compact integer array", () => {
+    const withMods = t5ArrangementFromPieces(
+      [
+        ArmorStat.StatClass,
+        ArmorStat.StatMelee,
+        null,
+        ArmorStat.StatClass,
+        ArmorStat.StatWeapon,
+      ].map(
+        (tertiary, index) =>
+          ({
+            archetype: index < 2 ? "Grenedier" : "Specialist",
+            tertiary,
+          }) as T5Candidate
+      ),
+      [4116389173, 3122197216, null, null, 4116389173],
+      { usedMods: [StatModifier.MINOR_WEAPON], usedArtifice: [] }
+    );
+    const plain = t5ArrangementFromPieces(
+      Array.from({ length: 5 }, () => ({ archetype: "Grenedier", tertiary: null }) as T5Candidate)
+    );
+    const saved = createT5SavedRun(
+      "Packed",
+      BuildConfiguration.buildEmptyConfiguration(),
+      { achievableOnly: false, timeLimitMs: 0, workerLimit: 0 },
+      [withMods, plain],
+      true
+    ).arrangements;
+    const packed = packT5Arrangements(saved);
+    expect(packed).toBeInstanceOf(Uint16Array);
+    expect(unpackT5Arrangements(packed)).toEqual(saved);
+    expect(() =>
+      packT5Arrangements([
+        { ...saved[0], archetypes: [{ ...saved[0].archetypes[0], name: "Unknown" }] },
+      ])
+    ).toThrowError(/Unknown T5 archetype/);
+    expect(unpackT5Arrangements(packed).map((entry) => entry.key)).toEqual([
+      withMods.key,
+      plain.key,
+    ]);
+  });
+  it("decodes early packed saves that indexed archetypes through a names table", () => {
+    const names = ["Brawler", "Demolitionist", "Grenedier", "Paragon", "Reaver"];
+    const legacy = Uint16Array.from([
+      5, 0, 1, 1, 1, 2, 1, 3, 1, 4, 1, 3, 3, 1, 4, 2, 5, 2, 2, 1, 1, 3, 4, 1, 5, 11, 11, 11, 11, 11,
+      0,
+    ]);
+    const [arrangement] = unpackT5Arrangements(legacy, names);
+    expect(arrangement.archetypes.map((entry) => entry.name)).toEqual(names);
+    expect(arrangement.tertiaries).toEqual([
+      { stat: ArmorStat.StatGrenade, count: 1 },
+      { stat: ArmorStat.StatSuper, count: 2 },
+      { stat: ArmorStat.StatClass, count: 2 },
+    ]);
+    expect(arrangement.tunings).toEqual([
+      { stat: ArmorStat.StatHealth, count: 1 },
+      { stat: ArmorStat.StatGrenade, count: 4 },
+    ]);
+    expect(unpackT5Arrangements(packT5Arrangements([arrangement]))).toEqual([arrangement]);
   });
   it("defines twelve distinct ordered archetypes with four tertiary choices each", () => {
     expect(T5_ARCHETYPES.length).toBe(12);

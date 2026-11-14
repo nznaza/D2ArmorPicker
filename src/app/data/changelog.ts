@@ -64,6 +64,14 @@ export const CHANGELOG_DATA: {
       },
       {
         type: ChangelogEntryType.MODIFIED,
+        text: "Saved armor theorizer runs use compact arrangement storage, and existing saves are migrated automatically.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
+        text: "Fixed matching exotic class items with their correct T5 archetypes.",
+      },
+      {
+        type: ChangelogEntryType.MODIFIED,
         text: "Armor theorizer inventory matches now show their full build right away; Calculate builds adds the remaining combinations.",
       },
       {

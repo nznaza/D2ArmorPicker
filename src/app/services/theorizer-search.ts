@@ -189,14 +189,13 @@ export function t5CompatibilityErrors(config: BuildConfiguration): string[] {
 function candidateFromItem(item: IInventoryArmor, id: number): T5Candidate | null {
   if (item.armorSystem !== ArmorSystem.Armor3 || (!item.isExotic && item.tier !== 5)) return null;
   const stats = t5ItemStats(item);
-  const archetypeIndex = t5ArchetypeIndex(stats);
   if (!hasLegalT5Shape(item)) return null;
   return {
     ...item,
     id,
     tier: 5,
-    archetype:
-      archetypeIndex >= 0 ? T5_ARCHETYPES[archetypeIndex].name : `Spirit roll ${stats.join("/")}`,
+    // Exotic class items keep their perk-defined archetype and tertiary.
+    archetype: T5_ARCHETYPES[t5ArchetypeIndex(stats)].name,
     tertiary: stats.indexOf(20) >= 0 ? (stats.indexOf(20) as ArmorStat) : null,
     instanceId: item.itemInstanceId || `source-${item.source}-${item.hash}-${id}`,
   };
